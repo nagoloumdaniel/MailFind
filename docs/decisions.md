@@ -66,15 +66,17 @@ Ce document fige les choix que le code suppose. Une décision écrite ici n'est 
 
 ---
 
-## D-05. File de tâches : BullMQ sur Upstash Redis
+## D-05. File de tâches : BullMQ sur une base Redis dédiée, chez Redis Cloud
 
-**Décision.** BullMQ avec ioredis, sur une base Redis Upstash en us-east-1. Les sessions Express utilisent node-redis sur la même base, avec un préfixe de clé distinct.
+**Décision.** BullMQ avec ioredis, sur une base Redis **Redis Cloud** dédiée à MailFind, en us-east-1. Les sessions Express utilisent node-redis sur la même base, avec un préfixe de clé distinct. Pas d'Upstash pour ce produit.
 
-**Raison.** Le pipeline est fait d'étapes longues et faillibles, qui doivent reprendre après un redémarrage sans refaire ce qui est déjà payé. BullMQ le fait, il est déjà maîtrisé, et Upstash facture à la commande plutôt qu'à l'heure, ce qui convient à une charge intermittente.
+**Raison.** Le pipeline est fait d'étapes longues et faillibles, qui doivent reprendre après un redémarrage sans refaire ce qui est déjà payé : BullMQ le fait, et il est déjà maîtrisé. Le fournisseur, en revanche, a changé par rapport au plan initial. Le palier gratuit d'Upstash ne permet **qu'une seule base par compte**, et celle du compte est occupée par Campaign Mailer, qui est en production. Deux issues étaient possibles : partager cette base, ou en prendre une ailleurs.
 
-**Conséquences.** Chaque tâche doit être idempotente, avec une clé stable dérivée de l'import et de l'entreprise. Le nombre de files actives reste bas : plusieurs files inactives consomment quand même des commandes en attente longue. Les deux clients Redis ne sont pas interchangeables, le mélange est une source de pannes connue.
+Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit auraient été communes aux deux produits, or un travailleur BullMQ consomme en continu même au repos : un import un peu long chez MailFind aurait pu épuiser le quota de Campaign Mailer, donc casser un produit en production pour en développer un autre. Le palier gratuit de Redis Cloud, 30 Mo et sans carte bancaire, suffit largement à des files dont les tâches vivent quelques minutes, et il isole complètement les deux produits.
 
-**Ce qui la rouvrirait.** Un dépassement du palier gratuit Upstash dû aux attentes longues, auquel cas il faudra regrouper les files.
+**Conséquences.** Chaque tâche doit être idempotente, avec une clé stable dérivée de l'import et de l'entreprise. Le nombre de files actives reste bas, et les préfixes `mailfind:sess:` et `mailfind:bull` sont obligatoires même sur une base dédiée, pour que la règle tienne encore le jour où la base changerait. Les deux clients Redis ne sont pas interchangeables, le mélange est une source de pannes connue. Trente mégaoctets imposent de purger les tâches terminées, ce que BullMQ sait faire avec `removeOnComplete` et `removeOnFail`.
+
+**Ce qui la rouvrirait.** Un dépassement des 30 Mo, qui signifierait que les tâches terminées ne sont pas purgées, ou l'ouverture d'un compte Upstash séparé pour MailFind.
 
 ---
 
@@ -236,3 +238,4 @@ Ce document fige les choix que le code suppose. Une décision écrite ici n'est 
 | Date | Décision | Changement |
 | --- | --- | --- |
 | 23 septembre 2026 | Toutes | Version 1.0, rédaction initiale de la Phase 0 |
+| 23 septembre 2026 | D-05 | Redis passe d'Upstash à Redis Cloud. Le palier gratuit d'Upstash ne permet qu'une base par compte, et celle du compte sert Campaign Mailer en production. Partager aurait mis les deux produits sur le même quota de 500 000 commandes par mois. |
