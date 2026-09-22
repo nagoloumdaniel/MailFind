@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+package-lock.json
+
+# Le Markdown reste tel qu'il est ecrit. Prettier repagine les tableaux sur la
+# largeur de leur plus longue cellule, ce qui transforme la moindre correction
+# du cahier des charges en diff de plusieurs centaines de lignes.
+*.md
+docs/
