@@ -1,0 +1,36 @@
+name: verify
+
+# La meme barriere que le hook de pre-commit, mais sur l'ensemble du depot et
+# sur une machine propre. Le hook ne voit que les fichiers indexes : il laisse
+# passer une rupture provoquee par un fichier non touche par le commit.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      # `npm ci` et non `npm install` : la construction doit echouer si le
+      # fichier de verrouillage ne correspond plus aux manifestes.
+      - run: npm ci
+
+      - run: npm run verify
