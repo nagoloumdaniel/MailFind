@@ -1,0 +1,105 @@
+MailFind - Proprietary Software License
+
+Copyright (c) 2026 Daniel Nagoloum Talla. All rights reserved.
+
+1. Ownership
+
+   MailFind, including its source code, object code, design,
+   documentation, database schemas, configuration and all related materials
+   (together, the "Software"), is the exclusive property of Daniel Nagoloum
+   Talla (the "Owner"). The Software is protected by copyright law and by
+   international treaties.
+
+   Publication of the Software in a source code repository, whether public or
+   private, does not place it in the public domain and does not grant any
+   license to any person.
+
+2. No license granted
+
+   No right to use, copy, modify, merge, publish, distribute, sublicense,
+   sell, host, or create derivative works of the Software is granted by this
+   document. Any such right must be granted by the Owner in a separate,
+   signed, written agreement.
+
+3. Prohibited acts
+
+   Without the prior written permission of the Owner, no person may:
+
+   a. copy, reproduce, or store the Software, in whole or in part, except for
+      a copy strictly necessary to perform work expressly authorized by the
+      Owner;
+   b. modify, adapt, translate, or create derivative works of the Software;
+   c. distribute, publish, sell, rent, lend, or otherwise transfer the
+      Software or access to it;
+   d. host, deploy, or operate the Software as a service for the benefit of
+      any third party;
+   e. use the Software, or any part of it, to train, fine-tune, evaluate, or
+      otherwise develop a machine learning model;
+   f. reverse engineer, decompile, or disassemble the Software, except to the
+      extent that this restriction is void under applicable law;
+   g. remove, alter, or obscure any copyright notice, license notice, or
+      other proprietary marking contained in the Software.
+
+4. Contributions
+
+   Any contribution submitted to the Software, including code, documentation,
+   designs and translations, is assigned to the Owner upon submission, to the
+   fullest extent permitted by applicable law. Where such assignment is not
+   permitted, the contributor grants the Owner a worldwide, perpetual,
+   irrevocable, royalty-free and exclusive license to use, reproduce, modify,
+   distribute, sublicense and commercially exploit the contribution, without
+   any obligation of compensation.
+
+   Each contributor represents that they hold the necessary rights in their
+   contribution and that the contribution does not infringe the rights of any
+   third party.
+
+5. Third-party components
+
+   The Software incorporates third-party components distributed under their
+   own licenses. Those licenses continue to govern those components. This
+   document applies only to the parts of the Software owned by the Owner.
+
+6. No warranty
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, TITLE AND NONINFRINGEMENT.
+
+   The Owner does not warrant that the Software is free of defects, that it
+   will operate without interruption, or that the email addresses it finds or
+   verifies are accurate or deliverable.
+
+7. Limitation of liability
+
+   TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE OWNER SHALL NOT BE
+   LIABLE FOR ANY CLAIM, DAMAGE, OR OTHER LIABILITY, WHETHER IN CONTRACT,
+   TORT OR OTHERWISE, ARISING FROM OR IN CONNECTION WITH THE SOFTWARE OR ITS
+   USE, INCLUDING BUT NOT LIMITED TO LOSS OF DATA, LOSS OF PROFITS, SUSPENSION
+   OR TERMINATION OF AN EMAIL ACCOUNT, DAMAGE TO SENDER REPUTATION, OR ANY
+   CLAIM BROUGHT BY A RECIPIENT OF A MESSAGE.
+
+8. Responsible use
+
+   Any person authorized to use the Software remains solely responsible for
+   the data they collect with it and the use they make of that data, and for
+   complying with all applicable law, including data protection law and law
+   governing unsolicited commercial communication, and with the terms of
+   service of the websites and data providers involved.
+
+9. Termination
+
+   Any permission granted by the Owner terminates automatically, without
+   notice, upon any breach of this document. Upon termination, the person
+   concerned shall cease all use of the Software and destroy every copy in
+   their possession.
+
+10. Governing law
+
+    This document is governed by French law. Any dispute relating to it falls
+    within the exclusive jurisdiction of the competent French courts.
+
+11. Contact
+
+    Requests for a license, a partnership, or any other authorization should
+    be addressed to the Owner: landhack049@gmail.com
