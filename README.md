@@ -14,6 +14,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 | --- | --- |
 | [Cahier des charges](docs/cahier-des-charges.md) ([PDF](docs/cahier-des-charges.pdf)) | Exigences fonctionnelles et techniques, modèle de données, sécurité, conformité, recette |
 | [Roadmap](ROADMAP.md) | Phases, lots de travail, skills à charger pour chaque lot, critères de fin de phase |
+| [Décisions](docs/decisions.md) | Choix techniques gelés, fournisseurs, quotas, budget, avec leur justification |
 | [CLAUDE.md](CLAUDE.md) | Règles de travail dans ce dépôt |
 
 ## Progression
