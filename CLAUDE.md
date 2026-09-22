@@ -10,7 +10,9 @@ Proprietary. Copyright holder: Daniel Nagoloum Talla. See `LICENSE`.
 
 ## State of the repository
 
-Scoping done on 22 September 2026: `docs/cahier-des-charges.md` (and its PDF) is the specification, `ROADMAP.md` the plan of record. No code yet; Phase 0 is next.
+Scoping done on 22 September 2026: `docs/cahier-des-charges.md` (and its PDF) is the specification, `ROADMAP.md` the plan of record. Phase 0 is under way: the monorepo, the toolchain and the frozen decisions are in, the business logic is not. `backend/src/index.ts` prints a placeholder on purpose; Express, pino and the queues belong to Phase 1.
+
+Read before changing anything: `docs/decisions.md` for what is already settled and why, `docs/provisioning.md` for the state of the external services.
 
 ## Working agreement with the owner
 
@@ -35,3 +37,39 @@ Same as Campaign Mailer:
 ## Stack
 
 Same as Campaign Mailer on purpose, to reuse its practices and hosted services: TypeScript strict, React 19 + Vite + Tailwind, Express 5, PostgreSQL on Neon, BullMQ on Redis, Cloudflare R2, Passport (Google, identity scopes only), pino, Sentry, Vercel and Railway in US East. Read Campaign Mailer's `CLAUDE.md` for the pitfalls already met on this stack (node-redis for sessions and ioredis for BullMQ, `sslmode=verify-full`, pooled versus direct Neon hosts, PowerShell quirks on the owner's machine).
+
+Two departures from Campaign Mailer, both explained in `docs/decisions.md`: Redis is Redis Cloud, not Upstash, because the Upstash free plan allows one database per account and Campaign Mailer holds it (D-05); TypeScript stays on 5.9 rather than the 7.0 native port, because typescript-eslint 8 requires `<6.1.0` and moving would silently disable every type-aware lint rule (D-03).
+
+## Layout
+
+```text
+backend/     Express API and BullMQ workers. Entry point src/index.ts.
+frontend/    React 19 + Vite + Tailwind 4. Entry point src/main.tsx.
+docs/        Specification, frozen decisions, provisioning.
+.github/     verify workflow.
+```
+
+Two npm workspaces, one lockfile at the root, no shared package yet.
+
+## Commands
+
+Run from the root.
+
+| Command | What it does |
+| --- | --- |
+| `npm run verify` | format check, lint, typecheck, test, build. The gate before every commit. |
+| `npm run dev:backend` | API in watch mode, port 3000 |
+| `npm run dev:frontend` | Web app, port 5173, `/api` proxied to the backend |
+| `npm run lint:fix` | ESLint with fixes |
+| `npm run format` | Prettier over the repository |
+| `npm test` | Vitest, backend only for now |
+
+A pre-commit hook runs lint-staged. It only sees staged files, so `npm run verify` stays the real gate.
+
+## Conventions
+
+- **Type-aware linting is on.** `no-floating-promises` and `no-misused-promises` are errors. In a product made of queues and network calls, a forgotten `await` is a job that fails without a trace.
+- **Strict beyond `strict`.** `exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` are on: the pipeline reads untrusted pages and provider payloads, where a missing field is the normal case, not the exception.
+- **Prettier ignores Markdown.** It repaginates tables to the width of their longest cell, which turns a one-line correction to the specification into a diff of several hundred lines.
+- **Comments say why, not what.** They are in French, without accents on the code side to stay readable in every terminal.
+- **`.env` is never committed.** Only `.env.example`. Nothing prefixed `VITE_` is a secret: it ships to the browser.
