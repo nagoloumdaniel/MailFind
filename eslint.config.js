@@ -64,6 +64,12 @@ export default tseslint.config(
     files: ['**/*.config.{js,ts}', '**/*.test.ts', '**/*.test.tsx'],
     rules: {
       'no-console': 'off',
+      // supertest type `response.body` en `any`. Exiger un typage la-dessus
+      // ferait ecrire des assertions moins lisibles que ce qu'elles verifient,
+      // sans rien gagner : un test qui se trompe echoue.
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
     },
   },
 

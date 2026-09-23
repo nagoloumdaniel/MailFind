@@ -1,7 +1,44 @@
+import { createApp } from './app.js';
 import { describeApp } from './app-info.js';
+import { getEnvironment } from './config/env.js';
+import { getLogger } from './observability/logger.js';
 
-// L'API Express, les journaux pino et les files BullMQ arrivent en Phase 1.
-// Ce point d'entree existe des la Phase 0 pour que la chaine complete
-// (compilation, demarrage, deploiement) soit verifiable avant le premier
-// morceau de logique metier.
-process.stdout.write(`${describeApp()} : socle pret, API a venir en Phase 1.\n`);
+// En production, les variables viennent de l'hebergeur. En local, elles
+// viennent de backend/.env, lu nativement par Node 24.
+try {
+  process.loadEnvFile('.env');
+} catch {
+  // Absence de fichier acceptee : la validation qui suit dira ce qui manque.
+}
+
+const environment = getEnvironment();
+const logger = getLogger();
+const server = createApp(logger).listen(environment.PORT, () => {
+  logger.info({ port: environment.PORT, env: environment.NODE_ENV }, `${describeApp()} a l'ecoute`);
+});
+
+/**
+ * Railway envoie SIGTERM avant de remplacer une instance. Fermer proprement
+ * laisse les requetes en cours se terminer au lieu d'etre coupees au milieu.
+ */
+function shutdown(signal: string): void {
+  logger.info({ signal }, 'arret demande');
+  server.close(() => {
+    logger.info('arret termine');
+    process.exit(0);
+  });
+
+  // Filet de securite : une connexion qui refuse de se fermer ne doit pas
+  // bloquer le remplacement de l'instance.
+  setTimeout(() => {
+    logger.warn('arret force apres delai');
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on('SIGTERM', () => {
+  shutdown('SIGTERM');
+});
+process.on('SIGINT', () => {
+  shutdown('SIGINT');
+});
