@@ -11,7 +11,8 @@ beforeAll(async () => {
   // La configuration de test est posee par src/test/setup-env.ts, avant tout
   // import : le module de configuration la lit a son premier appel.
   const { createApp } = await import('../app.js');
-  app = createApp(silent);
+  const { createTestSession } = await import('../test/session.js');
+  app = createApp({ logger: silent, session: createTestSession() });
 });
 
 describe('GET /health', () => {

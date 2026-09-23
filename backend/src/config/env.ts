@@ -26,6 +26,19 @@ const environmentSchema = z.object({
    * consultatif ni un ordre DDL dans une transaction longue.
    */
   DIRECT_DATABASE_URL: z.string().min(1),
+
+  REDIS_URL: z.string().min(1),
+  REDIS_SESSION_PREFIX: z.string().min(1).default('mailfind:sess:'),
+
+  /**
+   * Signature du cookie de session. Trente-deux caracteres au moins : plus
+   * court, il se devine.
+   */
+  SESSION_SECRET: z.string().min(32),
+
+  GOOGLE_CLIENT_ID: z.string().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().min(1),
+  GOOGLE_CALLBACK_URL: z.string().min(1),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

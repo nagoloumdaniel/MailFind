@@ -1,19 +1,34 @@
 import { randomUUID } from 'node:crypto';
 import cors from 'cors';
-import express, { type Express } from 'express';
+import express, { type Express, type RequestHandler } from 'express';
 import helmet from 'helmet';
+import passport from 'passport';
 import { pinoHttp } from 'pino-http';
 import type { Logger } from 'pino';
+import { createAuthRouter } from './auth/routes.js';
+import { createSessionMiddleware } from './auth/session.js';
 import { getEnvironment } from './config/env.js';
 import { getLogger } from './observability/logger.js';
+import { csrfProtection } from './http/middleware/csrf.js';
 import { errorHandler, notFoundHandler } from './http/middleware/error-handler.js';
 import { healthRouter } from './http/routes/health.js';
+
+export interface AppOptions {
+  readonly logger?: Logger;
+  /**
+   * Middleware de session. Injectable pour que les tests unitaires n'aient pas
+   * besoin d'un Redis : la session est une infrastructure, pas une regle
+   * metier.
+   */
+  readonly session?: RequestHandler;
+}
 
 /**
  * Construit l'application sans l'ecouter. Separer la construction de l'ecoute
  * permet aux tests de parler a l'application sans ouvrir de port.
  */
-export function createApp(logger: Logger = getLogger()): Express {
+export function createApp(options: AppOptions = {}): Express {
+  const logger = options.logger ?? getLogger();
   const environment = getEnvironment();
   const app = express();
 
@@ -59,7 +74,14 @@ export function createApp(logger: Logger = getLogger()): Express {
 
   app.use(express.json({ limit: '1mb' }));
 
+  // Avant toute route : `/health` n'a pas besoin de session, mais la poser ici
+  // garde un seul ordre de middlewares a comprendre.
+  app.use(options.session ?? createSessionMiddleware());
+  app.use(passport.initialize());
+  app.use(csrfProtection);
+
   app.use(healthRouter);
+  app.use('/api/auth', createAuthRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);

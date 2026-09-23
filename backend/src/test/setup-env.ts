@@ -14,6 +14,11 @@ const DEFAULTS: Record<string, string> = {
   API_URL: 'http://localhost:3000',
   DATABASE_URL: 'postgresql://test:test@localhost:5432/test?sslmode=verify-full',
   DIRECT_DATABASE_URL: 'postgresql://test:test@localhost:5432/test?sslmode=verify-full',
+  REDIS_URL: 'redis://localhost:6379',
+  SESSION_SECRET: 'secret-de-test-suffisamment-long-pour-le-schema',
+  GOOGLE_CLIENT_ID: 'test.apps.googleusercontent.com',
+  GOOGLE_CLIENT_SECRET: 'GOCSPX-test',
+  GOOGLE_CALLBACK_URL: 'http://localhost:3000/api/auth/google/callback',
 };
 
 for (const [name, value] of Object.entries(DEFAULTS)) {
