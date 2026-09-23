@@ -1,4 +1,4 @@
-import { EmptyState } from '../components/EmptyState';
+﻿import { EmptyState } from '../components/EmptyState';
 import { useSession } from '../lib/session';
 
 /**
@@ -12,7 +12,7 @@ export function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold" style={{ fontStretch: '115%' }}>
+      <h1 className="text-2xl font-bold">
         {prenom === null ? 'Tableau de bord' : `Bonjour ${prenom}`}
       </h1>
       <p className="mt-2 max-w-[62ch] text-sm text-text-soft">

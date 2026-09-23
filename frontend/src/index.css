@@ -7,10 +7,12 @@
  *
  * 1. La provenance est visible. Une adresse ne s'affiche jamais sans que sa
  *    source soit a portee de regard.
- * 2. Un statut se dit, il ne se fete pas. Pas de coche verte : un statut est un
- *    mot, avec une forme qui le distingue sans dependre de la couleur seule.
- * 3. Un seul accent. L'ambre marque la marque et l'action principale d'un
- *    ecran. Rien d'autre n'est ambre.
+ * 2. Un statut se dit, il ne se fete pas. Un statut est un mot, avec une forme
+ *    qui le distingue sans dependre de la couleur seule. Le vert appartenant
+ *    desormais a l'action, il ne servira jamais a dire « verifie » : ce serait
+ *    confondre ce qu'on peut faire et ce qui est vrai.
+ * 3. Un seul accent. Le vert marque la marque et l'action principale d'un
+ *    ecran. Rien d'autre n'est vert.
  *
  * Les couleurs sont declarees en variables semantiques, puis redefinies pour le
  * theme sombre. Les composants n'ecrivent donc jamais de variante `dark:` : le
@@ -33,17 +35,23 @@
   --color-accent-strong: var(--accent-strong);
   --color-accent-contrast: var(--accent-contrast);
 
-  --color-positive: var(--positive);
   --color-caution: var(--caution);
   --color-negative: var(--negative);
   --color-focus: var(--focus);
 
   /*
-   * Une seule superfamille, dont on joue la largeur plutot que d'empiler deux
-   * fontes. Archivo etendu pour les titres, normal pour l'interface : la
-   * hierarchie vient de la chasse, pas d'un changement de police.
+   * Deux fontes, franchement differentes plutot que vaguement proches.
+   *
+   * Bricolage Grotesque porte les titres et la marque : c'est une grotesque
+   * variable aux details irreguliers, qui donne une voix au produit au lieu de
+   * la neutralite par defaut.
+   *
+   * Instrument Sans porte l'interface et les donnees : legerement etroite,
+   * elle reste nette a 13 pixels dans un tableau de mille lignes, ce qu'une
+   * fonte de caractere ne fait pas.
    */
-  --font-sans: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'Instrument Sans', 'Segoe UI', system-ui, sans-serif;
   /* Les adresses et les domaines, ou confondre l et 1 coute une erreur. */
   --font-mono: ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Menlo, monospace;
 
@@ -63,11 +71,11 @@
   --text-faint: #6c7a92;
   --text-inverse: #ffffff;
 
-  --accent: #f2b441;
-  --accent-strong: #d99a1f;
-  --accent-contrast: #111c30;
+  /* Vert profond et non vif : il doit tenir un texte blanc a 4,5 pour 1. */
+  --accent: #0c7b54;
+  --accent-strong: #0a6444;
+  --accent-contrast: #ffffff;
 
-  --positive: #16694f;
   --caution: #8a6412;
   --negative: #a3332a;
   --focus: #2f6feb;
@@ -77,8 +85,11 @@
 
 /*
  * Le theme sombre est le meme dessin a clarte inversee, pas un autre dessin.
- * Les fonds remontent depuis l'encre de la marque, et l'ambre descend d'un cran
- * pour ne pas bruler sur fond sombre.
+ * Les fonds remontent depuis l'encre de la marque, et le vert monte en clarte
+ * d'autant : un vert profond sur fond sombre disparaitrait.
+ *
+ * Les deux blocs qui suivent sont identiques a dessein : le premier suit le
+ * systeme, le second obeit au choix explicite de l'utilisateur.
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
@@ -93,11 +104,10 @@
     --text-faint: #8496af;
     --text-inverse: #111c30;
 
-    --accent: #e8ae43;
-    --accent-strong: #f2c268;
-    --accent-contrast: #111c30;
+    --accent: #35c68d;
+    --accent-strong: #5ad6a6;
+    --accent-contrast: #05231a;
 
-    --positive: #56c79f;
     --caution: #e0b355;
     --negative: #f08a7e;
     --focus: #79a6ff;
@@ -118,11 +128,10 @@
   --text-faint: #8496af;
   --text-inverse: #111c30;
 
-  --accent: #e8ae43;
-  --accent-strong: #f2c268;
-  --accent-contrast: #111c30;
+  --accent: #35c68d;
+  --accent-strong: #5ad6a6;
+  --accent-contrast: #05231a;
 
-  --positive: #56c79f;
   --caution: #e0b355;
   --negative: #f08a7e;
   --focus: #79a6ff;
@@ -142,6 +151,18 @@
     font-size: 15px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Les titres prennent la fonte de titrage sans avoir a le redire a chaque
+   * fois. Un peu de resserrement : Bricolage Grotesque espace large par
+   * defaut, ce qui delave un titre court.
+   */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
   }
 
   /* Les chiffres d'un tableau doivent s'aligner en colonne. */

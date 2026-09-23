@@ -20,6 +20,12 @@ export function readThemeChoice(): ThemeChoice {
   return 'system';
 }
 
+/** Le theme reellement affiche, une fois « systeme » resolu. */
+export function resolveTheme(choice: ThemeChoice): 'light' | 'dark' {
+  if (choice !== 'system') return choice;
+  return globalThis.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 export function applyThemeChoice(choice: ThemeChoice): void {
   const root = document.documentElement;
 

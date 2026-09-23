@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Button } from '../components/Button';
 import { ApiError, apiFetch } from '../lib/api';
@@ -33,9 +33,7 @@ export function AccountPage() {
 
   return (
     <div className="max-w-[70ch]">
-      <h1 className="text-2xl font-bold" style={{ fontStretch: '115%' }}>
-        Compte
-      </h1>
+      <h1 className="text-2xl font-bold">Compte</h1>
 
       <section className="mt-8 border-t border-line pt-6">
         <h2 className="text-base font-semibold">Identite</h2>
@@ -48,7 +46,7 @@ export function AccountPage() {
           <dd>
             {user.termsAccepted
               ? `Version ${user.termsVersion ?? ''} acceptee`
-              : 'En attente d’acceptation'}
+              : 'En attente dâ€™acceptation'}
           </dd>
         </dl>
         <p className="mt-4 text-sm text-text-soft">
@@ -79,7 +77,7 @@ export function AccountPage() {
           */}
           <a
             href="/api/account/export"
-            className="inline-flex items-center rounded-[var(--radius-sm)] border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium text-text hover:bg-raised"
+            className="inline-flex items-center rounded-sm border border-line-strong bg-surface px-3 py-1.5 text-sm font-medium text-text hover:bg-raised"
           >
             Telecharger mes donnees
           </a>
@@ -102,7 +100,7 @@ export function AccountPage() {
             onChange={(event) => {
               setConfirmation(event.target.value);
             }}
-            className="mt-1.5 block w-56 rounded-[var(--radius-sm)] border border-line-strong bg-surface px-2.5 py-1.5 font-mono text-sm text-text"
+            className="mt-1.5 block w-56 rounded-sm border border-line-strong bg-surface px-2.5 py-1.5 font-mono text-sm text-text"
             autoComplete="off"
           />
         </label>

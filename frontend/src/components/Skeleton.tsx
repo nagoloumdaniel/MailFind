@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Squelette de chargement. Il reprend la forme de ce qui arrive, pour que la
  * page ne saute pas quand le contenu se pose.
  *
@@ -6,18 +6,13 @@
  * feuille de base.
  */
 export function Skeleton({ className = '' }: { className?: string }) {
-  return (
-    <div
-      className={`animate-pulse rounded-[var(--radius-sm)] bg-line ${className}`}
-      aria-hidden="true"
-    />
-  );
+  return <div className={`animate-pulse rounded-sm bg-line ${className}`} aria-hidden="true" />;
 }
 
 /** Le squelette d'un tableau, lignes et colonnes comprises. */
 export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="overflow-hidden rounded-[var(--radius-md)] border border-line bg-surface">
+    <div className="overflow-hidden rounded-md border border-line bg-surface">
       <div className="flex gap-4 border-b border-line bg-raised px-4 py-2.5">
         <Skeleton className="h-3 w-40" />
         <Skeleton className="h-3 w-28" />

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * La marque, en SVG dans le document plutot qu'en <img> : les montants suivent
  * `currentColor`, donc le theme, et seul le rabat garde l'ambre.
  */

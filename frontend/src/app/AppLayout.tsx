@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router';
+﻿import { NavLink, Outlet } from 'react-router';
 import { Logo } from '../components/Logo';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useSession } from '../lib/session';
@@ -25,9 +25,7 @@ export function AppLayout() {
         <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-6 px-4">
           <NavLink to="/" className="flex items-center gap-2 text-text">
             <Logo size={24} title="MailFind" />
-            <span className="text-[15px] font-semibold" style={{ fontStretch: '115%' }}>
-              MailFind
-            </span>
+            <span className="font-display text-[15px] font-semibold">MailFind</span>
           </NavLink>
 
           <nav aria-label="Navigation principale" className="flex items-center gap-1">
@@ -37,7 +35,7 @@ export function AppLayout() {
                 to={to}
                 end={end}
                 className={({ isActive }) =>
-                  `rounded-[var(--radius-sm)] px-2.5 py-1.5 text-sm ${
+                  `rounded-sm px-2.5 py-1.5 text-sm ${
                     isActive
                       ? 'bg-raised font-medium text-text'
                       : 'text-text-soft hover:bg-raised hover:text-text'

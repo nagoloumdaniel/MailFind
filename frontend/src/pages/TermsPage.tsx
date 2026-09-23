@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Navigate } from 'react-router';
 import { Button } from '../components/Button';
 import { ApiError, apiFetch } from '../lib/api';
@@ -38,9 +38,7 @@ export function TermsPage() {
 
   return (
     <div className="mx-auto max-w-[70ch]">
-      <h1 className="text-2xl font-bold" style={{ fontStretch: '115%' }}>
-        Avant de commencer
-      </h1>
+      <h1 className="text-2xl font-bold">Avant de commencer</h1>
 
       <p className="mt-3 text-sm text-text-soft">
         MailFind collecte des donnees publiques sur les sites des entreprises que vous lui donnez.
