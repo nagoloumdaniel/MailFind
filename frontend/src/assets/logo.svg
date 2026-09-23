@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="112 112 288 288" role="img" aria-label="MailFind">
+  <g fill="none" stroke-width="64" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M144 144 L256 272 L368 144" stroke="#F2B441" />
+    <path d="M144 368 V144" stroke="currentColor" />
+    <path d="M368 368 V144" stroke="currentColor" />
+  </g>
+</svg>
