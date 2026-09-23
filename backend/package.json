@@ -8,15 +8,22 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/index.js",
+    "check:services": "tsx src/scripts/check-services.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "^24.13.6",
+    "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "^5.0.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^5.0.1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1138.0",
+    "ioredis": "^6.0.0",
+    "pg": "^8.23.0"
   }
 }

@@ -7,19 +7,27 @@ Ce que MailFind a besoin de trouver en face de lui, et comment l'obtenir. Les ch
 
 ## Etat
 
-| Service | Etat | Qui |
+| Service | Etat | Vérifié le |
 | --- | --- | --- |
-| Cloudflare R2, bucket `mailfind-exports` | Créé le 22 septembre 2026, privé, région ENAM | Fait |
-| Cloudflare R2, clés d'accès | A créer | Propriétaire |
-| Neon, projet `mailfind` | A créer | Propriétaire |
-| Redis Cloud, base `mailfind` | A créer | Propriétaire |
-| Google Cloud, écran de consentement | A créer | Propriétaire |
-| Brave Search API, clé | A créer | Propriétaire |
-| Hunter, clé | A créer | Propriétaire |
+| Neon, projet `mailfind`, PostgreSQL 18.6, us-east-1 | En service, chaînes groupée et directe | 23 septembre 2026 |
+| Redis Cloud, base `mailfind`, Redis 8.6.2 | En service | 23 septembre 2026 |
+| Cloudflare R2, bucket privé `mailfind-exports`, ENAM | En service, jeton limité au bucket | 23 septembre 2026 |
+| Google Cloud, identifiants OAuth | Créés, portées d'identité seulement | 23 septembre 2026 |
+| Brave Search API, clé | A créer, sert à partir de la Phase 3 | |
+| Hunter, clé | A créer, sert à partir de la Phase 3 | |
 
-Les quatre premiers sont nécessaires à la Phase 1. Brave et Hunter ne servent qu'à partir de la Phase 3, leur création peut attendre.
+```text
+npm run check:services
+```
 
-Deux services n'ont pas pu être créés par l'outillage, et ce n'est pas un oubli : l'organisation Neon du compte est gérée par Vercel, donc son API refuse la création d'un projet, et le connecteur Cloudflare n'a pas le droit d'émettre des jetons d'API. Les deux se font depuis leur interface, en quelques minutes.
+Cette commande relit `backend/.env` et prouve chaque service : connexion et requête sur les deux hôtes Neon, écriture puis lecture puis suppression sur Redis et sur R2, forme des identifiants Google. C'est la preuve exigée par la Definition of Done de la Phase 0, et le premier réflexe quand quelque chose ne démarre pas.
+
+Deux services n'ont pas pu être créés par l'outillage, et ce n'est pas un oubli : l'organisation Neon du compte est gérée par Vercel, donc son API refuse la création d'un projet, et le connecteur Cloudflare n'a pas le droit d'émettre des jetons d'API. Les deux ont été faits depuis leur interface.
+
+Deux détails relevés à la mise en service, qui n'ont pas demandé de reprise :
+
+- La base Neon garde son nom par défaut, `neondb`, et son rôle `neondb_owner`. Un nom de base ne change rien au code, qui ne lit que la chaîne de connexion.
+- Neon propose ses chaînes en `sslmode=require`, qui chiffre sans vérifier à qui il parle. Les deux chaînes sont passées en `sslmode=verify-full`, conformément à la pratique héritée de Campaign Mailer. node-postgres avertit d'ailleurs que la sémantique de `require` va changer dans sa version 9.
 
 ---
 
@@ -94,11 +102,12 @@ Le palier gratuit est de 50 crédits par mois : 1 crédit par recherche de domai
 
 Une fois `backend/.env` rempli à partir de `backend/.env.example` :
 
-```
+```text
+npm run check:services
 npm run verify
 ```
 
-Les scripts de connexion aux trois services arrivent avec la Phase 1. A ce stade, `verify` prouve la chaîne d'outillage, pas les services.
+La première commande prouve les services, la seconde la chaîne d'outillage. Les deux doivent passer avant de considérer un poste comme prêt.
 
 ## Règles qui ne changent pas
 

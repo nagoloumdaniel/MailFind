@@ -6,7 +6,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 
 ## Statut
 
-**Cadrage terminé (22 septembre 2026).** Le cahier des charges et la roadmap sont rédigés. Le développement commence par la Phase 0.
+**Phase 0 terminée (23 septembre 2026).** Le dépôt est outillé, les décisions sont gelées et les services répondent. La Phase 1 apporte l'API, la connexion Google et le socle de l'interface.
 
 ## Documents
 
@@ -19,7 +19,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 
 ## Progression
 
-- [ ] Phase 0 : Fondations et décisions gelées
+- [x] Phase 0 : Fondations et décisions gelées
 - [ ] Phase 1 : Comptes et socle applicatif
 - [ ] Phase 2 : Import CSV et entreprises
 - [ ] Phase 3 : Identification et collecte sur les sites
@@ -33,7 +33,16 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 
 ## Pile prévue
 
-TypeScript, React 19, Vite, Tailwind CSS, Node.js 24, Express 5, PostgreSQL (Neon), BullMQ sur Redis (Upstash), Cloudflare R2, Cheerio, Passport (Google, identité seulement), pino, Sentry. Hébergement : Vercel et Railway. Détail et justification dans la section 8 du cahier des charges.
+TypeScript, React 19, Vite, Tailwind CSS, Node.js 24, Express 5, PostgreSQL (Neon), BullMQ sur Redis (Redis Cloud), Cloudflare R2, Cheerio, Passport (Google, identité seulement), pino, Sentry. Hébergement : Vercel et Railway. Détail et justification dans la section 8 du cahier des charges, choix gelés dans [docs/decisions.md](docs/decisions.md).
+
+## Démarrer
+
+```text
+npm install
+cp backend/.env.example backend/.env   # puis remplir
+npm run check:services                 # les services repondent
+npm run verify                         # format, lint, types, tests, build
+```
 
 ## Licence
 

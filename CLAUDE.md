@@ -10,7 +10,9 @@ Proprietary. Copyright holder: Daniel Nagoloum Talla. See `LICENSE`.
 
 ## State of the repository
 
-Scoping done on 22 September 2026: `docs/cahier-des-charges.md` (and its PDF) is the specification, `ROADMAP.md` the plan of record. Phase 0 is under way: the monorepo, the toolchain and the frozen decisions are in, the business logic is not. `backend/src/index.ts` prints a placeholder on purpose; Express, pino and the queues belong to Phase 1.
+Scoping done on 22 September 2026: `docs/cahier-des-charges.md` (and its PDF) is the specification, `ROADMAP.md` the plan of record. Phase 0 closed on 23 September 2026: the monorepo, the toolchain, the frozen decisions and the external services are in, the business logic is not. `backend/src/index.ts` prints a placeholder on purpose; Express, pino and the queues belong to Phase 1.
+
+Neon, Redis Cloud, R2 and the Google credentials answer from the owner's machine; `npm run check:services` proves it in one command. Brave and Hunter keys are still empty and only matter from Phase 3.
 
 Read before changing anything: `docs/decisions.md` for what is already settled and why, `docs/provisioning.md` for the state of the external services.
 
@@ -58,6 +60,7 @@ Run from the root.
 | Command | What it does |
 | --- | --- |
 | `npm run verify` | format check, lint, typecheck, test, build. The gate before every commit. |
+| `npm run check:services` | proves Neon, Redis, R2 and the Google credentials answer, using `backend/.env` |
 | `npm run dev:backend` | API in watch mode, port 3000 |
 | `npm run dev:frontend` | Web app, port 5173, `/api` proxied to the backend |
 | `npm run lint:fix` | ESLint with fixes |

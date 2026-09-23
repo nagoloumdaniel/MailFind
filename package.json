@@ -23,6 +23,7 @@
     "dev": "npm run dev --workspaces --if-present",
     "dev:backend": "npm run dev --workspace backend",
     "dev:frontend": "npm run dev --workspace frontend",
+    "check:services": "npm run check:services --workspace backend",
     "prepare": "husky"
   },
   "lint-staged": {
