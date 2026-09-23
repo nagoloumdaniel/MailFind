@@ -6,7 +6,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 
 ## Statut
 
-**Phase 0 terminée (23 septembre 2026).** Le dépôt est outillé, les décisions sont gelées et les services répondent. La Phase 1 apporte l'API, la connexion Google et le socle de l'interface.
+**Phase 1 en attente de recette (23 septembre 2026).** L'API, la connexion Google, les migrations et le socle de l'interface sont en place. Il reste à parcourir la connexion dans un navigateur, ce qui demande un vrai consentement Google.
 
 ## Documents
 
@@ -41,7 +41,11 @@ TypeScript, React 19, Vite, Tailwind CSS, Node.js 24, Express 5, PostgreSQL (Neo
 npm install
 cp backend/.env.example backend/.env   # puis remplir
 npm run check:services                 # les services repondent
+npm run migrate -- up                  # schema a jour
 npm run verify                         # format, lint, types, tests, build
+
+npm run dev:backend                    # API sur le port 3000
+npm run dev:frontend                   # interface sur le port 5173
 ```
 
 ## Licence
