@@ -1,14 +1,22 @@
 ﻿import { Router, type RequestHandler } from 'express';
 import passport from 'passport';
+import { z } from 'zod';
 import { recordAuditEvent } from '../audit/repository.js';
 import { getEnvironment } from '../config/env.js';
-import { loadCurrentUser } from '../http/middleware/require-auth.js';
+import { loadCurrentUser, requireAuth, unauthenticated } from '../http/middleware/require-auth.js';
 import { AppError } from '../http/problem.js';
-import type { SignInResult, User } from '../users/repository.js';
+import { acceptTerms, type SignInResult, type User } from '../users/repository.js';
 import { configureGoogleStrategy } from './google.js';
 import { toError } from '../errors.js';
 
+/**
+ * Version en vigueur des conditions d'utilisation et de la politique de
+ * confidentialite. Datee, pas numerotee : la date dit tout de suite de quel
+ * texte on parle. La faire changer redemande l'accord a tout le monde.
+ */
 export const CURRENT_TERMS_VERSION = '2026-09-23';
+
+const acceptTermsSchema = z.object({ version: z.string().min(1) });
 
 export function publicUser(user: User): Record<string, unknown> {
   return {
@@ -112,6 +120,68 @@ export function createAuthRouter(): Router {
           return;
         }
         res.json({ user: publicUser(user) });
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
+
+  /**
+   * Acceptation des conditions et de la politique de confidentialite (F-102).
+   *
+   * La version acceptee est enregistree, pas un simple « oui » : le jour ou le
+   * texte change, il faut pouvoir dire qui a accepte quoi, et redemander
+   * l'accord a ceux qui n'ont vu que l'ancien.
+   */
+  router.post('/terms', requireAuth, (req, res, next) => {
+    void (async () => {
+      try {
+        const parsed = acceptTermsSchema.safeParse(req.body);
+        if (!parsed.success) {
+          next(
+            AppError.badRequest(
+              'invalid_body',
+              'Requete invalide',
+              'La version des conditions est absente.',
+            ),
+          );
+          return;
+        }
+
+        if (parsed.data.version !== CURRENT_TERMS_VERSION) {
+          // Accepter une version que le serveur ne sert plus reviendrait a
+          // enregistrer un accord sur un texte que personne n'a lu.
+          next(
+            AppError.badRequest(
+              'terms_version_unknown',
+              'Conditions obsoletes',
+              'Rechargez la page pour lire la version en vigueur.',
+            ),
+          );
+          return;
+        }
+
+        const user = req.currentUser;
+        if (user === undefined) {
+          next(unauthenticated());
+          return;
+        }
+
+        const updated = await acceptTerms(user.id, parsed.data.version);
+        if (updated === undefined) {
+          next(unauthenticated());
+          return;
+        }
+
+        await recordAuditEvent({
+          userId: updated.id,
+          action: 'user.accepted_terms',
+          entity: 'user',
+          entityId: updated.id,
+          metadata: { version: parsed.data.version },
+        });
+
+        res.json({ user: publicUser(updated) });
       } catch (error) {
         next(error);
       }
