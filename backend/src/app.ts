@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import passport from 'passport';
 import { pinoHttp } from 'pino-http';
 import type { Logger } from 'pino';
+import { createAccountRouter } from './account/routes.js';
 import { createAuthRouter } from './auth/routes.js';
 import { createSessionMiddleware } from './auth/session.js';
 import { getEnvironment } from './config/env.js';
@@ -82,6 +83,7 @@ export function createApp(options: AppOptions = {}): Express {
 
   app.use(healthRouter);
   app.use('/api/auth', createAuthRouter());
+  app.use('/api/account', createAccountRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);

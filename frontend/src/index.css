@@ -1,1 +1,178 @@
 @import 'tailwindcss';
+
+/*
+ * Systeme de conception de MailFind.
+ *
+ * Trois idees le tiennent :
+ *
+ * 1. La provenance est visible. Une adresse ne s'affiche jamais sans que sa
+ *    source soit a portee de regard.
+ * 2. Un statut se dit, il ne se fete pas. Pas de coche verte : un statut est un
+ *    mot, avec une forme qui le distingue sans dependre de la couleur seule.
+ * 3. Un seul accent. L'ambre marque la marque et l'action principale d'un
+ *    ecran. Rien d'autre n'est ambre.
+ *
+ * Les couleurs sont declarees en variables semantiques, puis redefinies pour le
+ * theme sombre. Les composants n'ecrivent donc jamais de variante `dark:` : le
+ * meme `bg-surface` vaut dans les deux themes.
+ */
+
+@theme inline {
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-text: var(--text);
+  --color-text-soft: var(--text-soft);
+  --color-text-faint: var(--text-faint);
+  --color-text-inverse: var(--text-inverse);
+
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-contrast: var(--accent-contrast);
+
+  --color-positive: var(--positive);
+  --color-caution: var(--caution);
+  --color-negative: var(--negative);
+  --color-focus: var(--focus);
+
+  /*
+   * Une seule superfamille, dont on joue la largeur plutot que d'empiler deux
+   * fontes. Archivo etendu pour les titres, normal pour l'interface : la
+   * hierarchie vient de la chasse, pas d'un changement de police.
+   */
+  --font-sans: 'Archivo', 'Segoe UI', system-ui, sans-serif;
+  /* Les adresses et les domaines, ou confondre l et 1 coute une erreur. */
+  --font-mono: ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Menlo, monospace;
+
+  --radius-sm: 3px;
+  --radius-md: 5px;
+}
+
+:root {
+  --page: #eceff4;
+  --surface: #ffffff;
+  --raised: #f5f7fa;
+  --line: #dde2ea;
+  --line-strong: #c3ccd9;
+
+  --text: #111c30;
+  --text-soft: #40506b;
+  --text-faint: #6c7a92;
+  --text-inverse: #ffffff;
+
+  --accent: #f2b441;
+  --accent-strong: #d99a1f;
+  --accent-contrast: #111c30;
+
+  --positive: #16694f;
+  --caution: #8a6412;
+  --negative: #a3332a;
+  --focus: #2f6feb;
+
+  color-scheme: light;
+}
+
+/*
+ * Le theme sombre est le meme dessin a clarte inversee, pas un autre dessin.
+ * Les fonds remontent depuis l'encre de la marque, et l'ambre descend d'un cran
+ * pour ne pas bruler sur fond sombre.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --page: #0c1422;
+    --surface: #111c30;
+    --raised: #182640;
+    --line: #22344f;
+    --line-strong: #32496a;
+
+    --text: #eef2f8;
+    --text-soft: #b3c0d4;
+    --text-faint: #8496af;
+    --text-inverse: #111c30;
+
+    --accent: #e8ae43;
+    --accent-strong: #f2c268;
+    --accent-contrast: #111c30;
+
+    --positive: #56c79f;
+    --caution: #e0b355;
+    --negative: #f08a7e;
+    --focus: #79a6ff;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --page: #0c1422;
+  --surface: #111c30;
+  --raised: #182640;
+  --line: #22344f;
+  --line-strong: #32496a;
+
+  --text: #eef2f8;
+  --text-soft: #b3c0d4;
+  --text-faint: #8496af;
+  --text-inverse: #111c30;
+
+  --accent: #e8ae43;
+  --accent-strong: #f2c268;
+  --accent-contrast: #111c30;
+
+  --positive: #56c79f;
+  --caution: #e0b355;
+  --negative: #f08a7e;
+  --focus: #79a6ff;
+
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    background-color: var(--page);
+  }
+
+  body {
+    background-color: var(--page);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Les chiffres d'un tableau doivent s'aligner en colonne. */
+  table,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * Une bordure visible sur toute la surface focalisee, et jamais supprimee.
+   * Un contour d'accent seul serait invisible pour qui ne distingue pas
+   * l'ambre du fond.
+   */
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: var(--accent);
+    color: var(--accent-contrast);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
