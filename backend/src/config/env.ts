@@ -18,6 +18,14 @@ const environmentSchema = z.object({
   APP_URL: z.string().min(1),
   /** Origine publique de l'API, utilisee dans les redirections. */
   API_URL: z.string().min(1),
+
+  /** Hote groupe, pour l'application. Passe par pgbouncer. */
+  DATABASE_URL: z.string().min(1),
+  /**
+   * Hote direct, pour les migrations. pgbouncer ne sait pas tenir un verrou
+   * consultatif ni un ordre DDL dans une transaction longue.
+   */
+  DIRECT_DATABASE_URL: z.string().min(1),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

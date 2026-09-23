@@ -8,12 +8,8 @@ const silent = pino({ level: 'silent' });
 let app: Express;
 
 beforeAll(async () => {
-  process.env.NODE_ENV = 'test';
-  process.env.APP_URL = 'http://localhost:5173';
-  process.env.API_URL = 'http://localhost:3000';
-
-  // Import apres avoir pose la configuration : le module la lit a son premier
-  // appel, pas avant.
+  // La configuration de test est posee par src/test/setup-env.ts, avant tout
+  // import : le module de configuration la lit a son premier appel.
   const { createApp } = await import('../app.js');
   app = createApp(silent);
 });

@@ -9,6 +9,7 @@
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/index.js",
     "check:services": "tsx src/scripts/check-services.ts",
+    "migrate": "tsx src/db/migrate.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
