@@ -11,7 +11,8 @@ export type AuditAction =
   | 'user.signed_out'
   | 'user.accepted_terms'
   | 'user.exported_data'
-  | 'user.deleted';
+  | 'user.deleted'
+  | 'import.created';
 
 export interface AuditEvent {
   readonly userId: string | null;

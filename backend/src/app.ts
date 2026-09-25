@@ -9,6 +9,7 @@ import { createAccountRouter } from './account/routes.js';
 import { createAuthRouter } from './auth/routes.js';
 import { createSessionMiddleware } from './auth/session.js';
 import { getEnvironment } from './config/env.js';
+import { createImportsRouter } from './imports/routes.js';
 import { getLogger } from './observability/logger.js';
 import { csrfProtection } from './http/middleware/csrf.js';
 import { errorHandler, notFoundHandler } from './http/middleware/error-handler.js';
@@ -84,6 +85,7 @@ export function createApp(options: AppOptions = {}): Express {
   app.use(healthRouter);
   app.use('/api/auth', createAuthRouter());
   app.use('/api/account', createAccountRouter());
+  app.use('/api/imports', createImportsRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);
