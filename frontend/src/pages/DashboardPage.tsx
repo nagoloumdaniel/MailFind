@@ -1,4 +1,5 @@
-﻿import { EmptyState } from '../components/EmptyState';
+﻿import { Link } from 'react-router';
+import { EmptyState } from '../components/EmptyState';
 import { useSession } from '../lib/session';
 
 /**
@@ -23,7 +24,15 @@ export function DashboardPage() {
       <div className="mt-8">
         <EmptyState
           title="Aucune entreprise pour l'instant"
-          description="L'import CSV arrive avec la prochaine phase du produit. Il lira votre fichier, identifiera chaque entreprise et son domaine officiel, puis cherchera les adresses publiees sur son site."
+          action={
+            <Link
+              to="/import"
+              className="inline-flex items-center rounded-sm bg-accent px-3 py-1.5 text-sm font-semibold text-accent-contrast hover:bg-accent-strong"
+            >
+              Importer un fichier
+            </Link>
+          }
+          description="Deposez un fichier CSV d'entreprises. MailFind identifiera chaque societe et son domaine officiel, puis cherchera les adresses publiees sur son site."
         />
       </div>
     </div>

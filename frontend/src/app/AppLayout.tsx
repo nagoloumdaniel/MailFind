@@ -13,6 +13,7 @@ import { useSession } from '../lib/session';
  */
 const DESTINATIONS = [
   { to: '/', label: 'Tableau de bord', end: true },
+  { to: '/import', label: 'Importer', end: false },
   { to: '/compte', label: 'Compte', end: false },
 ];
 

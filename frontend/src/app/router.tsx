@@ -3,6 +3,7 @@ import { AppLayout } from './AppLayout';
 import { RequireSession } from './RequireSession';
 import { AccountPage } from '../pages/AccountPage';
 import { DashboardPage } from '../pages/DashboardPage';
+import { ImportPage } from '../pages/ImportPage';
 import { LoginPage } from '../pages/LoginPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { TermsPage } from '../pages/TermsPage';
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: '/', element: <DashboardPage /> },
+          { path: '/import', element: <ImportPage /> },
           { path: '/conditions', element: <TermsPage /> },
           { path: '/compte', element: <AccountPage /> },
           { path: '*', element: <NotFoundPage /> },
