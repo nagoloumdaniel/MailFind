@@ -6,7 +6,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 
 ## Statut
 
-**Phase 1 en attente de recette (23 septembre 2026).** L'API, la connexion Google, les migrations et le socle de l'interface sont en place. Il reste à parcourir la connexion dans un navigateur, ce qui demande un vrai consentement Google.
+**Phase 1 terminée (25 septembre 2026).** Connexion Google, acceptation des conditions, page Compte avec export et suppression, socle d'interface en thèmes clair et sombre. Le parcours a été vérifié dans un navigateur. La Phase 2 apporte l'import CSV et les entreprises.
 
 ## Documents
 
@@ -20,7 +20,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 ## Progression
 
 - [x] Phase 0 : Fondations et décisions gelées
-- [ ] Phase 1 : Comptes et socle applicatif
+- [x] Phase 1 : Comptes et socle applicatif
 - [ ] Phase 2 : Import CSV et entreprises
 - [ ] Phase 3 : Identification et collecte sur les sites
 - [ ] Phase 4 : Fournisseurs et adresses candidates

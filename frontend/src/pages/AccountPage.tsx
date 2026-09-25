@@ -46,7 +46,7 @@ export function AccountPage() {
           <dd>
             {user.termsAccepted
               ? `Version ${user.termsVersion ?? ''} acceptee`
-              : 'En attente dâ€™acceptation'}
+              : "En attente d'acceptation"}
           </dd>
         </dl>
         <p className="mt-4 text-sm text-text-soft">

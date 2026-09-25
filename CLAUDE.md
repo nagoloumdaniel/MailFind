@@ -10,7 +10,7 @@ Proprietary. Copyright holder: Daniel Nagoloum Talla. See `LICENSE`.
 
 ## State of the repository
 
-Scoping done on 22 September 2026: `docs/cahier-des-charges.md` (and its PDF) is the specification, `ROADMAP.md` the plan of record. Phase 0 closed on 23 September 2026. Phase 1 is built and waiting on the owner's browser check of the Google round trip.
+Scoping done on 22 September 2026: `docs/cahier-des-charges.md` (and its PDF) is the specification, `ROADMAP.md` the plan of record. Phase 0 closed on 23 September 2026, Phase 1 on 25 September 2026 after the owner walked the Google round trip in a browser. Phase 2, the CSV import, is next.
 
 What runs today: Express with pino, helmet, problem+json errors and `/health`; migrations for `users` and `audit_events`; Google sign-in on Redis-backed sessions with CSRF; versioned acceptance of the terms; and a React shell with the login, terms, dashboard and account pages. No import, no crawler, no provider yet.
 
