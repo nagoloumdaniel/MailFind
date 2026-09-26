@@ -6,7 +6,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 
 ## Statut
 
-**Phase 1 terminée (25 septembre 2026).** Connexion Google, acceptation des conditions, page Compte avec export et suppression, socle d'interface en thèmes clair et sombre. Le parcours a été vérifié dans un navigateur. La Phase 2 apporte l'import CSV et les entreprises.
+**Phase 2 terminée (26 septembre 2026).** Un fichier CSV devient une liste d'entreprises dédoublonnées : lecture dans le navigateur (encodage, séparateur, 5 000 lignes), correspondance des colonnes, aperçu qui applique les règles du serveur, paramètres de l'import, suivi de la progression et annulation. Les deux critères de fin de phase sont prouvés par des tests d'intégration sur PostgreSQL 18 et par un parcours complet dans un navigateur. La Phase 3, identification des domaines et collecte sur les sites, démarre après la revue de la Phase 2 par le propriétaire.
 
 ## Documents
 
@@ -21,7 +21,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 
 - [x] Phase 0 : Fondations et décisions gelées
 - [x] Phase 1 : Comptes et socle applicatif
-- [ ] Phase 2 : Import CSV et entreprises
+- [x] Phase 2 : Import CSV et entreprises
 - [ ] Phase 3 : Identification et collecte sur les sites
 - [ ] Phase 4 : Fournisseurs et adresses candidates
 - [ ] Phase 5 : Vérification avancée et score
@@ -45,7 +45,16 @@ npm run migrate -- up                  # schema a jour
 npm run verify                         # format, lint, types, tests, build
 
 npm run dev:backend                    # API sur le port 3000
+npm run dev:worker                     # traitement des imports, a lancer a cote de l'API
 npm run dev:frontend                   # interface sur le port 5173
+```
+
+Les tests d'intégration parlent à un vrai PostgreSQL 18, dont le nom de base doit contenir « test » : ils effacent son schéma avant de rejouer les migrations.
+
+```text
+docker run -d -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=mailfind_test -p 5432:5432 postgres:18
+$env:TEST_DATABASE_URL = "postgresql://test:test@localhost:5432/mailfind_test?sslmode=disable"   # PowerShell
+npm run test:integration
 ```
 
 ## Licence

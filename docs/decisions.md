@@ -239,3 +239,4 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | --- | --- | --- |
 | 23 septembre 2026 | Toutes | Version 1.0, rédaction initiale de la Phase 0 |
 | 23 septembre 2026 | D-05 | Redis passe d'Upstash à Redis Cloud. Le palier gratuit d'Upstash ne permet qu'une base par compte, et celle du compte sert Campaign Mailer en production. Partager aurait mis les deux produits sur le même quota de 500 000 commandes par mois. |
+| 26 septembre 2026 | D-16 | Une seconde barrière s'ajoute à `npm run verify` sans la remplacer : `npm run test:integration`, sur un PostgreSQL 18 jetable, pour ce que les tests unitaires ne voient pas (index d'unicité, transactions, reprise d'un import). Hors de `verify`, qui doit tourner sans base, et dans un second job du flux d'intégration continue. |
