@@ -174,7 +174,11 @@ export function ImportPage() {
               l&apos;export.
             </p>
 
-            <div className="mt-4 overflow-hidden rounded-md border border-line bg-surface">
+            {/* Defilement horizontal et non coupure : sur un telephone, la
+                colonne des champs depasse l'ecran, et coupee elle devenait
+                impossible a atteindre. `relative` retient aussi les libelles
+                reserves aux lecteurs d'ecran, qui sinon elargissaient la page. */}
+            <div className="relative mt-4 overflow-x-auto rounded-md border border-line bg-surface">
               <table className="w-full text-sm">
                 <thead className="border-b border-line bg-raised text-xs text-text-faint">
                   <tr>
@@ -212,7 +216,7 @@ export function ImportPage() {
                               event.target.value === '' ? null : (event.target.value as KnownField),
                             );
                           }}
-                          className="w-56 rounded-sm border border-line-strong bg-surface px-2 py-1 text-sm"
+                          className="w-44 rounded-sm border border-line-strong bg-surface px-2 py-1 text-sm sm:w-56"
                         >
                           <option value="">Attribut libre</option>
                           {KNOWN_FIELDS.map((champ) => (
