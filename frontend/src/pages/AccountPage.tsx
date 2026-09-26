@@ -67,8 +67,9 @@ export function AccountPage() {
       <section className="mt-8 border-t border-line pt-6">
         <h2 className="text-base font-semibold">Exporter mes donnees</h2>
         <p className="mt-2 text-sm text-text-soft">
-          Un fichier JSON contenant votre compte, vos entreprises, vos adresses et la source de
-          chacune. Rien n&apos;est retenu : ce que MailFind sait de vous tient dans ce fichier.
+          Un fichier JSON contenant votre compte, vos imports ligne par ligne, vos entreprises, vos
+          adresses et la source de chacune. Rien n&apos;est retenu : ce que MailFind sait de vous
+          tient dans ce fichier.
         </p>
         <div className="mt-4">
           {/*
