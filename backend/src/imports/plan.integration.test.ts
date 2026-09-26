@@ -3,7 +3,13 @@ import * as companies from '../companies/repository.js';
 import { closePool, query } from '../db/pool.js';
 import { createUser, resetData } from '../test/integration/db.js';
 import type { KnownField } from './fields.js';
-import { cancelImport, planImport } from './plan.js';
+import {
+  cancelImport,
+  listImportsToResume,
+  markImportFailed,
+  PLAN_FAILED_MESSAGE,
+  planImport,
+} from './plan.js';
 import { createImport, type PreparedRow } from './repository.js';
 import { validateRow } from './validate.js';
 
@@ -229,5 +235,69 @@ describe('import.plan sur un vrai PostgreSQL', () => {
     expect(
       await compter('select count(*)::int as n from companies where user_id = $1', [userId]),
     ).toBe(300);
+  });
+
+  it('un import abandonne par la file passe en echec, avec un motif lisible', async () => {
+    const importId = await importer(userId, fichierDeCinqCentsLignes());
+    findOrCreate.mockImplementation(async (...args) => {
+      if (findOrCreate.mock.calls.length === 120) throw new Error('panne');
+      return reelle(...args);
+    });
+    await expect(planImport(importId, userId)).rejects.toThrow('panne');
+
+    expect(await markImportFailed(importId)).toBe(true);
+
+    const result = await query<{ status: string; error: string; completed_at: Date | null }>(
+      'select status::text as status, error, completed_at from imports where id = $1',
+      [importId],
+    );
+    expect(result.rows[0]).toMatchObject({ status: 'failed', error: PLAN_FAILED_MESSAGE });
+    expect(result.rows[0]?.completed_at).not.toBeNull();
+    // Ce qui a ete fait reste fait.
+    expect(
+      await compter('select count(*)::int as n from companies where user_id = $1', [userId]),
+    ).toBeGreaterThan(0);
+    // Plus rien a reprendre.
+    expect(await listImportsToResume()).toEqual([]);
+  });
+
+  it('ne declare pas en echec un import annule ou termine', async () => {
+    const termine = await importer(userId, [['Alan', 'alan.com', '', '']]);
+    await planImport(termine, userId);
+    const annule = await importer(userId, [['Qonto', 'qonto.com', '', '']]);
+    await cancelImport(userId, annule);
+
+    expect(await markImportFailed(termine)).toBe(false);
+    expect(await markImportFailed(annule)).toBe(false);
+    expect((await etatImport(termine))?.status).toBe('completed');
+    expect((await etatImport(annule))?.status).toBe('cancelled');
+  });
+
+  it('liste pour reprise les imports en attente ou en cours, et eux seuls', async () => {
+    const enAttente = await importer(userId, [['Alan', 'alan.com', '', '']]);
+    const interrompu = await importer(userId, fichierDeCinqCentsLignes());
+    findOrCreate.mockImplementation(async (...args) => {
+      if (findOrCreate.mock.calls.length === 10) throw new Error('coupure');
+      return reelle(...args);
+    });
+    await expect(planImport(interrompu, userId)).rejects.toThrow('coupure');
+    findOrCreate.mockImplementation(reelle);
+
+    const termine = await importer(userId, [['Qonto', 'qonto.com', '', '']]);
+    await planImport(termine, userId);
+
+    expect(await listImportsToResume()).toEqual([
+      { importId: enAttente, userId },
+      { importId: interrompu, userId },
+    ]);
+  });
+
+  it('refuse sans reessayer un import dont les colonnes manquent', async () => {
+    const importId = await importer(userId, [['Alan', 'alan.com', '', '']]);
+    await query(`update imports set settings = '{}'::jsonb where id = $1`, [importId]);
+
+    await expect(planImport(importId, userId)).rejects.toMatchObject({
+      name: 'UnrecoverableError',
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { Queue } from 'bullmq';
+import { Queue, UnrecoverableError } from 'bullmq';
 import { getQueueConnection, queuePrefix } from './connection.js';
 
 export const IMPORT_QUEUE = 'import';
@@ -40,6 +40,22 @@ export function importPlanJobId(importId: string): string {
 
 export async function enqueueImportPlan(job: ImportPlanJob): Promise<void> {
   await getImportQueue().add('import.plan', job, { jobId: importPlanJobId(job.importId) });
+}
+
+/**
+ * Vrai quand BullMQ ne retentera plus la tache.
+ *
+ * L'evenement `failed` part a chaque echec, y compris ceux qui seront
+ * retentes : sans ce tri, un import serait declare en echec des la premiere
+ * coupure reseau, alors qu'il allait reprendre tout seul cinq secondes plus
+ * tard. BullMQ a deja compte la tentative quand l'evenement part.
+ */
+export function isFinalFailure(
+  job: { readonly attemptsMade: number; readonly opts: { readonly attempts?: number } },
+  error: Error,
+): boolean {
+  if (error instanceof UnrecoverableError || error.name === 'UnrecoverableError') return true;
+  return job.attemptsMade >= (job.opts.attempts ?? 1);
 }
 
 export async function closeImportQueue(): Promise<void> {
