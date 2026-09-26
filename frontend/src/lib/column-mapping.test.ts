@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   describeRow,
+  usableDomain,
   freeColumns,
   mappingCanIdentify,
   normalizeHeader,
@@ -141,5 +142,57 @@ describe('describeRow', () => {
     const vue = describeRow(headers, mapping, ['Acme'], 3);
     expect(vue.values).toEqual({ company_name: 'Acme' });
     expect(vue.rejection).toBeUndefined();
+  });
+});
+
+describe('describeRow, a l identique du serveur', () => {
+  const headers = ['entreprise', 'site', 'carrieres', 'ville'];
+  const mapping = suggestMapping(headers);
+
+  it('ecarte une ligne dont le seul site n est pas une adresse de site', () => {
+    const vue = describeRow(headers, mapping, ['', 'mailto:contact@exemple.fr', '', 'Nantes'], 11);
+    expect(vue.rejection).toBe(
+      "« mailto:contact@exemple.fr » n'est pas un domaine ni une adresse de site exploitable.",
+    );
+  });
+
+  it('ecarte une ligne dont le nom ne contient que de la ponctuation', () => {
+    const vue = describeRow(headers, mapping, ['---', '', '', 'Lyon'], 4);
+    expect(vue.rejection).toBe("Le nom d'entreprise est vide apres nettoyage.");
+  });
+
+  it('garde une ligne dont le nom suffit, meme avec un site inexploitable', () => {
+    const vue = describeRow(headers, mapping, ['Acme', 'http://10.0.0.1', '', ''], 3);
+    expect(vue.rejection).toBeUndefined();
+  });
+
+  it('garde une ligne reduite a une page carrieres valide', () => {
+    const vue = describeRow(
+      headers,
+      mapping,
+      ['', '', 'https://www.welcometothejungle.com/fr/companies/acme', ''],
+      6,
+    );
+    expect(vue.rejection).toBeUndefined();
+  });
+});
+
+describe('usableDomain', () => {
+  it('rend le domaine d une URL complete, sans www', () => {
+    expect(usableDomain('https://www.Doctolib.fr/contact')).toBe('doctolib.fr');
+    expect(usableDomain('doctolib.fr')).toBe('doctolib.fr');
+  });
+
+  it('convertit un domaine internationalise', () => {
+    expect(usableDomain('café.fr')).toBe('xn--caf-dma.fr');
+  });
+
+  it('refuse ce qui ne designe pas un site', () => {
+    expect(usableDomain('mailto:contact@exemple.fr')).toBeUndefined();
+    expect(usableDomain('ftp://exemple.fr')).toBeUndefined();
+    expect(usableDomain('192.168.1.10')).toBeUndefined();
+    expect(usableDomain('localhost')).toBeUndefined();
+    expect(usableDomain('https://user:pass@exemple.fr')).toBeUndefined();
+    expect(usableDomain('   ')).toBeUndefined();
   });
 });

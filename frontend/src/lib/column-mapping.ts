@@ -196,17 +196,73 @@ export function describeRow(
     values[champ] = valeur;
   });
 
-  const identifiable = IDENTIFYING_FIELDS.some((champ) => (values[champ] ?? '') !== '');
+  const rejection = rejectionOf(values);
+  return { line, values, attributes, ...(rejection === undefined ? {} : { rejection }) };
+}
 
-  return {
-    line,
-    values,
-    attributes,
-    ...(identifiable
-      ? {}
-      : {
-          rejection:
-            "Aucun nom d'entreprise, domaine, site ou page carrieres : rien a chercher sur cette ligne.",
-        }),
-  };
+/**
+ * Les deux motifs de rejet du serveur (`backend/src/imports/validate.ts`),
+ * avec les memes mots. L'apercu annonce les lignes « telles qu'elles seront
+ * traitees » : s'il en laissait passer une que le serveur ecarte, il mentirait
+ * sur ce qu'il montre.
+ */
+function rejectionOf(values: Partial<Record<KnownField, string>>): string | undefined {
+  if (IDENTIFYING_FIELDS.every((champ) => (values[champ] ?? '') === '')) {
+    return "Aucun nom d'entreprise, domaine, site ou page carrieres : rien a chercher sur cette ligne.";
+  }
+
+  const { company_name: nom, domain: domaine, website_url: site, careers_url: carrieres } = values;
+  const nomUtile = nom !== undefined && foldName(nom) !== '';
+  const adresseUtile = [domaine, site, carrieres].some(
+    (valeur) => valeur !== undefined && usableDomain(valeur) !== undefined,
+  );
+  if (nomUtile || adresseUtile) return undefined;
+
+  const fautif = domaine ?? site ?? carrieres ?? '';
+  return fautif === ''
+    ? "Le nom d'entreprise est vide apres nettoyage."
+    : `« ${fautif.slice(0, 80)} » n'est pas un domaine ni une adresse de site exploitable.`;
+}
+
+/** Ce qui reste d'un nom une fois accents, ponctuation et espaces retires. */
+function foldName(nom: string): string {
+  return nom
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+/**
+ * Le domaine qu'une saisie designe, ou `undefined` si elle n'en designe pas.
+ * Meme regle que `normalizeDomain` cote serveur : http ou https seulement,
+ * pas d'identifiants, pas d'adresse IP, une extension alphabetique.
+ */
+export function usableDomain(input: string): string | undefined {
+  const brut = input.trim();
+  if (brut === '') return undefined;
+
+  const schema = /^([a-z][a-z0-9+.-]*):/i.exec(brut);
+  if (schema !== null && !/^https?$/i.test(schema[1] ?? '')) return undefined;
+
+  const avecProtocole = /^https?:\/\//i.test(brut) ? brut : `https://${brut}`;
+  let hote: string;
+  try {
+    const url = new URL(avecProtocole);
+    if (url.username !== '' || url.password !== '') return undefined;
+    // Le navigateur rend deja un domaine internationalise en punycode.
+    hote = url.hostname.replace(/\.$/, '');
+  } catch {
+    return undefined;
+  }
+
+  const sansWww = hote.startsWith('www.') ? hote.slice(4) : hote;
+  if (IPV4.test(sansWww) || sansWww.includes(':')) return undefined;
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(sansWww)) return undefined;
+  if (sansWww.includes('..') || sansWww.startsWith('-') || sansWww.startsWith('.')) {
+    return undefined;
+  }
+  return sansWww;
 }
