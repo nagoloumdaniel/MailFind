@@ -10,9 +10,9 @@ Proprietary. Copyright holder: Daniel Nagoloum Talla. See `LICENSE`.
 
 ## State of the repository
 
-Scoping done on 22 September 2026: `docs/cahier-des-charges.md` (and its PDF) is the specification, `ROADMAP.md` the plan of record. Phase 0 closed on 23 September 2026, Phase 1 on 25 September 2026 after the owner walked the Google round trip in a browser. Phase 2, the CSV import, is next.
+Scoping done on 22 September 2026: `docs/cahier-des-charges.md` (and its PDF) is the specification, `ROADMAP.md` the plan of record. Phase 0 closed on 23 September 2026, Phase 1 on 25 September 2026 after the owner walked the Google round trip in a browser, Phase 2 on 26 September 2026 with both points of its definition of done proven against PostgreSQL 18 (see its "Bilan" in the roadmap). Phase 3, identification and site crawling, is next, once the owner has reviewed Phase 2.
 
-What runs today: Express with pino, helmet, problem+json errors and `/health`; migrations for `users` and `audit_events`; Google sign-in on Redis-backed sessions with CSRF; versioned acceptance of the terms; and a React shell with the login, terms, dashboard and account pages. No import, no crawler, no provider yet.
+What runs today: Express with pino, helmet, problem+json errors and `/health`; migrations for `users`, `audit_events`, `imports`, `import_rows` and `companies`; Google sign-in on Redis-backed sessions with CSRF; versioned acceptance of the terms; the account page with a full export and deletion. The CSV import works end to end: read in the browser (encoding, separator, 5,000 rows), column mapping, a preview that applies the server's rejection rules, import settings (depth, address types, providers, tags), and a BullMQ worker whose `import.plan` job normalizes and deduplicates, resumes after a restart, re-enqueues at startup what no job holds, and marks an abandoned import failed. The import page follows progress and cancels; the dashboard lists recent imports. No crawler, no provider yet: a completed import is a set of companies in the library.
 
 Neon, Redis Cloud, R2 and the Google credentials answer from the owner's machine; `npm run check:services` proves it in one command. Brave and Hunter keys are still empty and only matter from Phase 3.
 
@@ -64,13 +64,17 @@ Run from the root.
 | `npm run verify` | format check, lint, typecheck, test, build. The gate before every commit. |
 | `npm run check:services` | proves Neon, Redis, R2 and the Google credentials answer, using `backend/.env` |
 | `npm run migrate -- status` | lists migrations; `up` applies the pending ones, `down` reverts the last |
+| `npm run test:integration` | backend tests against a real PostgreSQL 18 named in `TEST_DATABASE_URL`; drops its schema, so the database name must contain `test` |
 | `npm run dev:backend` | API in watch mode, port 3000 |
+| `npm run dev:worker` | the queue worker in watch mode; imports stay `pending` without it |
 | `npm run dev:frontend` | Web app, port 5173, `/api` proxied to the backend |
 | `npm run lint:fix` | ESLint with fixes |
 | `npm run format` | Prettier over the repository |
-| `npm test` | Vitest, backend only for now |
+| `npm test` | Vitest unit tests, backend and frontend, no database |
 
 A pre-commit hook runs lint-staged. It only sees staged files, so `npm run verify` stays the real gate.
+
+Integration tests (`*.integration.test.ts`) stay out of `verify`, which must run without a database. Before a commit that touches SQL, a repository, a job or a route, run them too: a disposable `postgres:18` in Docker with a database named `mailfind_test` (`?sslmode=disable` on localhost), or a Neon database whose name contains `test`. PostgreSQL 18 is required, `uuidv7()` does not exist before it. CI runs them in its `integration` job.
 
 ## Conventions
 

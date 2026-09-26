@@ -1,7 +1,9 @@
+import { UnrecoverableError } from 'bullmq';
 import { findOrCreateCompany } from '../companies/repository.js';
 import { getPool, query } from '../db/pool.js';
 import { getLogger } from '../observability/logger.js';
 import { isKnownField, type KnownField } from './fields.js';
+import { readSettingsTags } from './settings.js';
 import { validateRow } from './validate.js';
 
 /**
@@ -73,14 +75,22 @@ export async function planImport(importId: string, userId: string): Promise<Plan
     [importId, userId],
   );
   const importe = entete.rows[0];
+  // Ces deux erreurs ne passeront pas en reessayant : BullMQ est prevenu de
+  // ne pas perdre trois tentatives a le constater.
   if (importe === undefined) {
-    throw new Error(`Import ${importId} introuvable pour ce compte.`);
+    throw new UnrecoverableError(`Import ${importId} introuvable pour ce compte.`);
   }
 
   const colonnes = readColumns(importe.settings);
   if (colonnes === undefined) {
-    throw new Error(`Import ${importId} sans colonnes enregistrees : impossible a planifier.`);
+    throw new UnrecoverableError(
+      `Import ${importId} sans colonnes enregistrees : impossible a planifier.`,
+    );
   }
+
+  // Les etiquettes choisies a l'etape 4 s'ajoutent a celles du fichier, sur
+  // chaque entreprise de l'import, qu'elle soit nouvelle ou deja connue.
+  const etiquettesImport = readSettingsTags(importe.settings);
 
   await query(
     `update imports set status = 'planning', started_at = coalesce(started_at, now())
@@ -136,7 +146,15 @@ export async function planImport(importId: string, userId: string): Promise<Plan
         continue;
       }
 
-      const resultat = await findOrCreateCompany(userId, verdict.draft);
+      const brouillon =
+        etiquettesImport.length === 0
+          ? verdict.draft
+          : {
+              ...verdict.draft,
+              tags: [...new Set([...verdict.draft.tags, ...etiquettesImport])],
+            };
+
+      const resultat = await findOrCreateCompany(userId, brouillon);
       if (resultat.created) creees += 1;
       else doublons += 1;
 
@@ -191,4 +209,44 @@ export async function cancelImport(userId: string, importId: string): Promise<bo
     [importId, userId],
   );
   return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Ce que l'utilisateur lit quand la planification a abandonne. La cause
+ * technique reste dans les journaux : elle ne lui dirait rien, et elle peut
+ * porter des details internes qu'il n'a pas a voir.
+ */
+export const PLAN_FAILED_MESSAGE =
+  "La preparation de l'import a echoue. Les entreprises deja traitees restent dans votre " +
+  'bibliotheque.';
+
+/**
+ * Passe l'import en echec quand BullMQ a renonce. Sans cela il resterait en
+ * « planning » pour toujours, et l'ecran montrerait un import qui tourne alors
+ * que plus rien ne s'en occupe. Un import deja annule ou termine n'est pas
+ * touche.
+ */
+export async function markImportFailed(importId: string): Promise<boolean> {
+  const result = await getPool().query(
+    `update imports set status = 'failed', error = $2, completed_at = now()
+      where id = $1 and status in ('pending', 'planning', 'running')`,
+    [importId, PLAN_FAILED_MESSAGE],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * Les imports qu'aucune tache ne garantit plus de faire avancer : recus mais
+ * jamais mis en file (Redis indisponible a ce moment-la), ou en cours quand
+ * Redis a perdu ses donnees. Le processus de traitement les remet en file a
+ * son demarrage ; l'identifiant stable de la tache rend l'operation sans effet
+ * pour ceux dont la tache existe encore (F-206).
+ */
+export async function listImportsToResume(): Promise<{ importId: string; userId: string }[]> {
+  const result = await query<{ id: string; user_id: string }>(
+    `select id, user_id from imports
+      where status in ('pending', 'planning')
+      order by created_at`,
+  );
+  return result.rows.map((row) => ({ importId: row.id, userId: row.user_id }));
 }

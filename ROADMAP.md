@@ -3,8 +3,8 @@
 Plan d'exécution, du dépôt vide à la bêta publique.
 Référence : [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md), version 1.0 du 22 septembre 2026.
 
-- **Statut** : dépôt créé, cahier des charges et roadmap rédigés. Phase 0 à démarrer.
-- **Dernière mise à jour** : 22 septembre 2026
+- **Statut** : Phases 0, 1 et 2 terminées. Phase 3 à démarrer après la revue de la Phase 2.
+- **Dernière mise à jour** : 26 septembre 2026
 - **Cadence de révision** : fin de chaque phase
 
 ---
@@ -182,6 +182,24 @@ Total du MVP (phases 0 à 10) : environ 53 jours ouvrés pour une personne.
 
 - Un CSV de 500 lignes mélangeant noms, domaines et URL produit des entreprises sans doublon.
 - Un import annulé ou interrompu garde ce qui a été traité et reprend sans refaire.
+
+### Bilan (26 septembre 2026)
+
+**Preuves de la Definition of Done.** `npm run test:integration`, sur PostgreSQL 18 :
+
+- 500 lignes mêlant noms, domaines, URL et SIREN, avec des doublons de chaque sorte et 20 lignes inexploitables, donnent 300 entreprises et aucun doublon.
+- Un import annulé pendant son deuxième lot garde les 200 lignes traitées et laisse les 280 autres intactes. Un import coupé à la 250e entreprise reprend sur les 231 lignes restantes, sans repasser sur les autres. Rejouer un import terminé ne fait rien.
+- Parcours dans un navigateur, API et processus de traitement lancés : un fichier désordonné de 10 lignes donne 5 entreprises, et un fichier de 5 000 lignes annulé à 1 300 garde ces 1 300 lignes et laisse les 3 700 autres.
+
+**Défauts trouvés à la clôture, et corrigés.**
+
+- Une ligne portant un domaine et un SIREN déjà tenu par une autre fiche faisait échouer tout l'import. Deux lignes réduites à la même page carrières aussi. Et la relecture qui suit une course perdue rendait sa connexion à la réserve au milieu d'une transaction avortée.
+- Un import dont la tâche avait épuisé ses tentatives restait « en préparation » pour toujours. Un import reçu pendant une indisponibilité de Redis n'était jamais repris.
+- Le compteur des lignes retenues oubliait les doublons. L'aperçu laissait passer des lignes que le serveur écartait.
+- Sur téléphone, la table des colonnes était coupée et la barre haute faisait défiler la page de côté.
+- L'export du compte (F-104) rendait une liste d'entreprises vide.
+
+**Reste hors de cette phase.** L'estimation des crédits avant lancement (étape 5, F-1402) et le plafond d'imports simultanés (D-14) sont en Phase 8. Le fichier d'origine n'est pas conservé dans R2 : ses lignes le sont, dans `import_rows`, et `imports.storage_key` reste nul.
 
 ---
 

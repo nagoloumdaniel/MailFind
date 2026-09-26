@@ -13,8 +13,13 @@ export interface ImportSummary {
   readonly status: string;
   readonly totalRows: number;
   readonly processedRows: number;
+  /** Lignes exploitables, qu'elles aient cree une entreprise ou rejoint une deja connue. */
   readonly acceptedRows: number;
+  /** Parmi elles, celles qui ont rejoint une entreprise deja connue (F-303). */
+  readonly duplicateRows: number;
   readonly rejectedRows: number;
+  /** Motif lisible d'un import en echec, sinon nul. */
+  readonly error: string | null;
   readonly createdAt: Date;
   readonly completedAt: Date | null;
 }
@@ -83,7 +88,9 @@ export async function createImport(input: {
       totalRows: input.rows.length,
       processedRows: 0,
       acceptedRows: acceptees,
+      duplicateRows: 0,
       rejectedRows: input.rows.length - acceptees,
+      error: null,
       createdAt: importe.created_at,
       completedAt: null,
     };
@@ -102,7 +109,9 @@ interface SummaryRow {
   total_rows: number;
   processed_rows: number;
   accepted_rows: number;
+  duplicate_rows: number;
   rejected_rows: number;
+  error: string | null;
   created_at: Date;
   completed_at: Date | null;
 }
@@ -115,7 +124,9 @@ function toSummary(row: SummaryRow): ImportSummary {
     totalRows: row.total_rows,
     processedRows: row.processed_rows,
     acceptedRows: row.accepted_rows,
+    duplicateRows: row.duplicate_rows,
     rejectedRows: row.rejected_rows,
+    error: row.error,
     createdAt: row.created_at,
     completedAt: row.completed_at,
   };
@@ -127,8 +138,12 @@ function toSummary(row: SummaryRow): ImportSummary {
  */
 const SUMMARY_SELECT = `
   select i.id, i.filename, i.status::text as status, i.total_rows, i.processed_rows,
-         i.created_at, i.completed_at,
-         count(r.id) filter (where r.status = 'accepted')::int as accepted_rows,
+         i.error, i.created_at, i.completed_at,
+         -- Un doublon est une ligne acceptee qui a rejoint une entreprise deja
+         -- connue : le compter a part des acceptees ferait fondre ce chiffre a
+         -- mesure que la planification avance.
+         count(r.id) filter (where r.status in ('accepted', 'duplicate'))::int as accepted_rows,
+         count(r.id) filter (where r.status = 'duplicate')::int as duplicate_rows,
          count(r.id) filter (where r.status = 'rejected')::int as rejected_rows
     from imports i
     left join import_rows r on r.import_id = i.id

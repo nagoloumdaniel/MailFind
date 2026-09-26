@@ -6,6 +6,7 @@ import { requireAcceptedTerms } from '../http/middleware/require-terms.js';
 import { AppError } from '../http/problem.js';
 import { enqueueImportPlan } from '../queue/queues.js';
 import { KNOWN_FIELDS } from './fields.js';
+import { importSettingsSchema } from './settings.js';
 import { cancelImport } from './plan.js';
 import {
   createImport,
@@ -35,7 +36,9 @@ const createSchema = z.object({
     .array(z.array(z.string().max(10_000)).max(MAX_COLUMNS))
     .min(1)
     .max(MAX_ROWS),
-  settings: z.record(z.string(), z.unknown()).optional(),
+  // Absents, les reglages prennent leurs valeurs par defaut : un appel qui ne
+  // les envoie pas doit donner le meme import que l'ecran laisse tel quel.
+  settings: importSettingsSchema.prefault({}),
 });
 
 export function createImportsRouter(): Router {
@@ -54,6 +57,16 @@ export function createImportsRouter(): Router {
 
         const parsed = createSchema.safeParse(req.body);
         if (!parsed.success) {
+          if (parsed.error.issues.some((issue) => issue.path[0] === 'settings')) {
+            next(
+              AppError.badRequest(
+                'invalid_settings',
+                'Parametres refuses',
+                "Les parametres de l'import ne sont pas valides : profondeur, types d'adresses, fournisseurs ou etiquettes.",
+              ),
+            );
+            return;
+          }
           next(
             AppError.badRequest(
               'invalid_import',
@@ -108,7 +121,7 @@ export function createImportsRouter(): Router {
           filename,
           // Les colonnes voyagent avec les reglages : sans elles, `raw` serait
           // une suite de valeurs que la planification ne saurait plus relire.
-          settings: { ...(settings ?? {}), columns: { headers, mapping } },
+          settings: { ...settings, columns: { headers, mapping } },
           rows: preparees,
         });
 

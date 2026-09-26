@@ -39,6 +39,69 @@ export function createAccountRouter(): Router {
           [user.id],
         );
 
+        // Tout ce qu'un import a laisse : le fichier tel qu'il a ete lu, ligne
+        // par ligne, et les entreprises qui en sont sorties. Sans cela,
+        // l'export annoncerait une bibliotheque vide a quelqu'un qui en a une.
+        const imports = await query<{
+          id: string;
+          filename: string;
+          status: string;
+          settings: unknown;
+          total_rows: number;
+          processed_rows: number;
+          error: string | null;
+          created_at: Date;
+          completed_at: Date | null;
+        }>(
+          `select id, filename, status::text as status, settings, total_rows, processed_rows,
+                  error, created_at, completed_at
+             from imports
+            where user_id = $1
+            order by created_at`,
+          [user.id],
+        );
+
+        const lignes = await query<{
+          import_id: string;
+          line: number;
+          raw: unknown;
+          status: string;
+          error: string | null;
+          company_id: string | null;
+        }>(
+          `select r.import_id, r.line, r.raw, r.status::text as status, r.error, r.company_id
+             from import_rows r
+             join imports i on i.id = r.import_id
+            where i.user_id = $1
+            order by r.import_id, r.line`,
+          [user.id],
+        );
+
+        const companies = await query(
+          `select id, name, legal_name, domain, domain_status::text as domain_status,
+                  domain_confidence, website_url, careers_url, siren, city, country, industry,
+                  employee_range, linkedin_url, phone, contact_form_url,
+                  crawl_status::text as crawl_status, tags, notes, attributes,
+                  last_enriched_at, created_at, updated_at
+             from companies
+            where user_id = $1
+            order by created_at`,
+          [user.id],
+        );
+
+        const lignesParImport = new Map<string, object[]>();
+        for (const ligne of lignes.rows) {
+          const liste = lignesParImport.get(ligne.import_id) ?? [];
+          liste.push({
+            line: ligne.line,
+            raw: ligne.raw,
+            status: ligne.status,
+            error: ligne.error,
+            companyId: ligne.company_id,
+          });
+          lignesParImport.set(ligne.import_id, liste);
+        }
+
         await recordAuditEvent({
           userId: user.id,
           action: 'user.exported_data',
@@ -61,10 +124,22 @@ export function createAccountRouter(): Router {
             createdAt: user.createdAt,
           },
           auditEvents: events.rows,
-          // Les entreprises, adresses et sources arrivent avec les phases qui
-          // les creent. Les declarer vides ici plutot que de les taire evite un
+          imports: imports.rows.map((importe) => ({
+            id: importe.id,
+            filename: importe.filename,
+            status: importe.status,
+            settings: importe.settings,
+            totalRows: importe.total_rows,
+            processedRows: importe.processed_rows,
+            error: importe.error,
+            createdAt: importe.created_at,
+            completedAt: importe.completed_at,
+            rows: lignesParImport.get(importe.id) ?? [],
+          })),
+          companies: companies.rows,
+          // Les adresses et leurs sources arrivent avec les phases qui les
+          // creent. Les declarer vides ici plutot que de les taire evite un
           // export qui aurait l'air complet sans l'etre.
-          companies: [],
           emails: [],
           emailSources: [],
         });

@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // Ceux-la demandent un vrai PostgreSQL : `npm run test:integration`.
+    exclude: ['src/**/*.integration.test.ts', 'node_modules/**'],
     setupFiles: ['./src/test/setup-env.ts'],
 
     // Les valeurs par defaut de Vitest, 5 et 10 secondes, sont trop serrees

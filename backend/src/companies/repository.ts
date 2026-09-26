@@ -49,6 +49,18 @@ function toExisting(row: CompanyRow): ExistingCompany {
 }
 
 /**
+ * Le nom sous lequel une entreprise est rangee, et celui sous lequel on la
+ * cherche. Une seule fonction pour les deux : une ligne reduite a une page
+ * carrieres n'a pas de nom, et si la recherche et l'insertion ne s'accordaient
+ * pas sur celui qu'on lui donne, la seconde ligne identique heurterait l'index
+ * d'unicite au lieu de rejoindre la premiere.
+ */
+function identityOf(draft: CompanyDraft): { name: string; normalizedName: string } {
+  const name = draft.name ?? draft.domain ?? draft.careersUrl ?? 'Entreprise sans nom';
+  return { name, normalizedName: draft.normalizedName ?? draft.domain ?? name.toLowerCase() };
+}
+
+/**
  * Cherche l'entreprise correspondant au brouillon, dans l'ordre des cles.
  *
  * `for update` tient la ligne le temps de la transaction : sans cela, deux
@@ -84,11 +96,7 @@ async function findExisting(
   // que F-303 interdit de creer. En revanche, deux lignes homonymes qui
   // portent chacune un domaine different sont deux entreprises, et les
   // rapprocher ferait perdre l'un des deux domaines.
-  if (
-    draft.normalizedName !== undefined &&
-    draft.domain === undefined &&
-    draft.siren === undefined
-  ) {
+  if (draft.domain === undefined && draft.siren === undefined) {
     const parNom = await client.query<CompanyRow>(
       `select ${COLUMNS} from companies
         where user_id = $1
@@ -97,7 +105,7 @@ async function findExisting(
         order by created_at
         limit 1
         for update`,
-      [userId, draft.normalizedName, draft.city ?? null],
+      [userId, identityOf(draft).normalizedName, draft.city ?? null],
     );
     const row = parNom.rows[0];
     if (row !== undefined) return toExisting(row);
@@ -119,11 +127,50 @@ const PATCH_COLUMNS: Record<keyof CompanyPatch, string> = {
   attributes: 'attributes',
 };
 
-async function applyPatch(
+/**
+ * Retire du complement le domaine ou le SIREN qu'une autre entreprise porte
+ * deja.
+ *
+ * Le cas arrive avec un fichier desordonne : une ligne donne le domaine, une
+ * autre le SIREN, et une troisieme les deux. Elle rejoint la fiche trouvee par
+ * le domaine, et lui apporter le SIREN de l'autre fiche violerait l'index
+ * d'unicite, donc ferait echouer tout l'import. Deplacer le SIREN serait pire :
+ * ce serait decider, sans preuve, laquelle des deux fiches a raison. On ne
+ * complete donc que ce qui est libre ; la fusion de deux fiches reste un geste
+ * de l'utilisateur.
+ */
+async function withoutTakenKeys(
   client: pg.PoolClient,
+  userId: string,
   companyId: string,
   patch: CompanyPatch,
+): Promise<CompanyPatch> {
+  if (patch.domain === undefined && patch.siren === undefined) return patch;
+
+  const prises = await client.query<{ domain: string | null; siren: string | null }>(
+    `select domain, siren from companies
+      where user_id = $1 and id <> $2 and (domain = $3 or siren = $4)`,
+    [userId, companyId, patch.domain ?? null, patch.siren ?? null],
+  );
+
+  const { domain, siren, ...reste } = patch;
+  const domainePris = prises.rows.some((prise) => prise.domain === domain);
+  const sirenPris = prises.rows.some((prise) => prise.siren === siren);
+
+  return {
+    ...reste,
+    ...(domain === undefined || domainePris ? {} : { domain }),
+    ...(siren === undefined || sirenPris ? {} : { siren }),
+  };
+}
+
+async function applyPatch(
+  client: pg.PoolClient,
+  userId: string,
+  companyId: string,
+  complement: CompanyPatch,
 ): Promise<void> {
+  const patch = await withoutTakenKeys(client, userId, companyId, complement);
   const entrees = Object.entries(patch) as [keyof CompanyPatch, unknown][];
   if (entrees.length === 0) return;
 
@@ -158,13 +205,12 @@ export async function findOrCreateCompany(
 
     const existante = await findExisting(client, userId, draft);
     if (existante !== undefined) {
-      await applyPatch(client, existante.id, mergeDraft(existante, draft));
+      await applyPatch(client, userId, existante.id, mergeDraft(existante, draft));
       await client.query('commit');
       return { companyId: existante.id, created: false };
     }
 
-    const nom = draft.name ?? draft.domain ?? draft.careersUrl ?? 'Entreprise sans nom';
-    const nomNormalise = draft.normalizedName ?? draft.domain ?? nom.toLowerCase();
+    const { name: nom, normalizedName: nomNormalise } = identityOf(draft);
 
     try {
       const cree = await client.query<{ id: string }>(
@@ -226,9 +272,17 @@ async function retryFind(userId: string, draft: CompanyDraft): Promise<string | 
   try {
     await client.query('begin');
     const trouvee = await findExisting(client, userId, draft);
-    if (trouvee !== undefined) await applyPatch(client, trouvee.id, mergeDraft(trouvee, draft));
+    if (trouvee !== undefined) {
+      await applyPatch(client, userId, trouvee.id, mergeDraft(trouvee, draft));
+    }
     await client.query('commit');
     return trouvee?.id;
+  } catch (error) {
+    // Rendue a la reserve sans retour arriere, la connexion resterait dans une
+    // transaction avortee, et la requete suivante qui la reprendrait echouerait
+    // sans rapport avec sa propre faute.
+    await client.query('rollback').catch(() => undefined);
+    throw error;
   } finally {
     client.release();
   }
