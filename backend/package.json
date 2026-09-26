@@ -6,6 +6,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:worker": "tsx watch src/worker.ts",
+    "start:worker": "node dist/worker.js",
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/index.js",
     "check:services": "tsx src/scripts/check-services.ts",
@@ -31,6 +33,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1138.0",
+    "bullmq": "^6.3.8",
     "connect-redis": "^10.0.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",

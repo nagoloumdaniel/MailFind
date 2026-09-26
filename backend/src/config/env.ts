@@ -29,6 +29,11 @@ const environmentSchema = z.object({
 
   REDIS_URL: z.string().min(1),
   REDIS_SESSION_PREFIX: z.string().min(1).default('mailfind:sess:'),
+  /**
+   * Prefixe des cles BullMQ. Obligatoire meme sur une base dediee, pour que la
+   * regle tienne encore le jour ou la base changerait (D-05).
+   */
+  BULLMQ_PREFIX: z.string().min(1).default('mailfind:bull'),
 
   /**
    * Signature du cookie de session. Trente-deux caracteres au moins : plus

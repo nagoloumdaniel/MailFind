@@ -4,7 +4,9 @@ import { recordAuditEvent } from '../audit/repository.js';
 import { requireAuth, unauthenticated } from '../http/middleware/require-auth.js';
 import { requireAcceptedTerms } from '../http/middleware/require-terms.js';
 import { AppError } from '../http/problem.js';
+import { enqueueImportPlan } from '../queue/queues.js';
 import { KNOWN_FIELDS } from './fields.js';
+import { cancelImport } from './plan.js';
 import {
   createImport,
   findImport,
@@ -104,9 +106,13 @@ export function createImportsRouter(): Router {
         const resume = await createImport({
           userId: user.id,
           filename,
-          settings: settings ?? {},
+          // Les colonnes voyagent avec les reglages : sans elles, `raw` serait
+          // une suite de valeurs que la planification ne saurait plus relire.
+          settings: { ...(settings ?? {}), columns: { headers, mapping } },
           rows: preparees,
         });
+
+        await enqueueImportPlan({ importId: resume.id, userId: user.id });
 
         await recordAuditEvent({
           userId: user.id,
@@ -165,6 +171,43 @@ export function createImportsRouter(): Router {
           import: resume,
           rejectedRows: await listRejectedRows(user.id, identifiant),
         });
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
+
+  /**
+   * Annulation en cours de route (F-205). Les entreprises deja creees restent
+   * dans la bibliotheque : elles ont ete trouvees, les effacer serait punir
+   * l'utilisateur d'avoir change d'avis.
+   */
+  router.post('/:id/cancel', (req, res, next) => {
+    void (async () => {
+      try {
+        const user = req.currentUser;
+        if (user === undefined) {
+          next(unauthenticated());
+          return;
+        }
+
+        const identifiant = req.params.id ?? '';
+        const annule = await cancelImport(user.id, identifiant);
+        if (!annule) {
+          const existe = await findImport(user.id, identifiant);
+          next(
+            existe === undefined
+              ? AppError.notFound("Cet import n'existe pas.")
+              : AppError.badRequest(
+                  'import_not_cancellable',
+                  'Import deja termine',
+                  "Cet import n'est plus en cours : il n'y a rien a annuler.",
+                ),
+          );
+          return;
+        }
+
+        res.json({ import: await findImport(user.id, identifiant) });
       } catch (error) {
         next(error);
       }

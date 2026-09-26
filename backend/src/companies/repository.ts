@@ -78,17 +78,24 @@ async function findExisting(
     if (row !== undefined) return toExisting(row);
   }
 
-  if (draft.normalizedName !== undefined) {
-    // Dernier recours seulement : deux entreprises homonymes dans la meme
-    // ville sont rares, deux entreprises differentes portant le meme domaine
-    // n'existent pas.
+  // Dernier recours, et seulement quand la ligne n'apporte ni domaine ni
+  // SIREN. Une ligne reduite a « Doctolib, Paris » doit rejoindre le Doctolib
+  // deja connu, meme si celui-ci porte un domaine : c'est exactement le doublon
+  // que F-303 interdit de creer. En revanche, deux lignes homonymes qui
+  // portent chacune un domaine different sont deux entreprises, et les
+  // rapprocher ferait perdre l'un des deux domaines.
+  if (
+    draft.normalizedName !== undefined &&
+    draft.domain === undefined &&
+    draft.siren === undefined
+  ) {
     const parNom = await client.query<CompanyRow>(
       `select ${COLUMNS} from companies
         where user_id = $1
           and normalized_name = $2
           and coalesce(lower(city), '') = coalesce(lower($3), '')
-          and domain is null
-          and siren is null
+        order by created_at
+        limit 1
         for update`,
       [userId, draft.normalizedName, draft.city ?? null],
     );
