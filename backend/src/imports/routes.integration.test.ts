@@ -142,6 +142,41 @@ describe('POST /api/imports', () => {
   });
 });
 
+describe('GET /api/imports/:id apres planification', () => {
+  it('compte les doublons parmi les lignes retenues, et rend le motif d un echec', async () => {
+    const { planImport, markImportFailed } = await import('./plan.js');
+    const { agent, jeton } = await agentAvecJeton();
+    const cree = await agent
+      .post('/api/imports')
+      .set('x-csrf-token', jeton)
+      .send({
+        ...FICHIER,
+        rows: [...FICHIER.rows, ['Alan SAS', 'www.alan.com', 'Paris']],
+      });
+    const id = cree.body.import.id as string;
+
+    await planImport(id, userId);
+    const detail = await agent.get(`/api/imports/${id}`);
+
+    // Deux lignes retenues, dont une a rejoint Alan : la seconde ne doit pas
+    // disparaitre du compte parce qu'elle n'a rien cree.
+    expect(detail.body.import).toMatchObject({
+      status: 'completed',
+      totalRows: 3,
+      processedRows: 3,
+      acceptedRows: 2,
+      duplicateRows: 1,
+      rejectedRows: 1,
+      error: null,
+    });
+
+    await query(`update imports set status = 'planning' where id = $1`, [id]);
+    await markImportFailed(id);
+    const echec = await agent.get(`/api/imports/${id}`);
+    expect(echec.body.import.error).toMatch(/a echoue/);
+  });
+});
+
 describe('GET /api/imports/:id et annulation', () => {
   it('rend l import avec ses lignes ecartees, puis l annule', async () => {
     const { agent, jeton } = await agentAvecJeton();
