@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Button } from '../components/Button';
 import { FileDrop } from '../components/FileDrop';
+import { ImportSettingsForm } from '../components/ImportSettingsForm';
+import { ApiError } from '../lib/api';
 import {
   describeRow,
   FIELD_LABELS,
@@ -12,6 +15,8 @@ import {
   type Mapping,
 } from '../lib/column-mapping';
 import { readCsvFile, type CsvProblem, type ParsedCsv } from '../lib/csv';
+import { defaultSettings, settingsProblem, type ImportSettings } from '../lib/import-settings';
+import { createImport } from '../lib/imports';
 
 /** Etape 3 du parcours : les dix premieres lignes, telles qu'elles seront traitees. */
 const PREVIEW_ROWS = 10;
@@ -30,6 +35,10 @@ export function ImportPage() {
   const [csv, setCsv] = useState<ParsedCsv | undefined>(undefined);
   const [probleme, setProbleme] = useState<CsvProblem | undefined>(undefined);
   const [mapping, setMapping] = useState<Mapping>([]);
+  const [reglages, setReglages] = useState<ImportSettings>(defaultSettings);
+  const [envoi, setEnvoi] = useState(false);
+  const [refus, setRefus] = useState<string | undefined>(undefined);
+  const navigate = useNavigate();
 
   async function deposer(choisi: File) {
     setLecture(true);
@@ -68,6 +77,16 @@ export function ImportPage() {
   }, [csv, mapping]);
 
   const rejetees = apercu.filter((ligne) => ligne.rejection !== undefined).length;
+
+  // Sur tout le fichier, pas seulement l'apercu : le bouton de lancement dit
+  // combien de lignes partent vraiment. Cinq mille lignes se decrivent en
+  // quelques millisecondes.
+  const ecarteesAuTotal = useMemo(() => {
+    if (csv === undefined) return 0;
+    return csv.rows.filter(
+      (row, index) => describeRow(csv.headers, mapping, row, index + 2).rejection !== undefined,
+    ).length;
+  }, [csv, mapping]);
   const identifiable = mappingCanIdentify(mapping);
   const libres = csv === undefined ? [] : freeColumns(csv.headers, mapping);
 
@@ -76,6 +95,35 @@ export function ImportPage() {
     setCsv(undefined);
     setProbleme(undefined);
     setMapping([]);
+    setRefus(undefined);
+  }
+
+  const obstacle = !identifiable
+    ? "Designez d'abord une colonne qui identifie l'entreprise."
+    : settingsProblem(reglages);
+  const aTraiter = csv === undefined ? 0 : csv.rows.length - ecarteesAuTotal;
+
+  async function lancer() {
+    if (csv === undefined || fichier === undefined || obstacle !== undefined) return;
+    setEnvoi(true);
+    setRefus(undefined);
+    try {
+      const cree = await createImport({
+        filename: fichier.name,
+        headers: csv.headers,
+        mapping,
+        rows: csv.rows,
+        settings: reglages,
+      });
+      await navigate(`/imports/${cree.id}`);
+    } catch (error) {
+      setRefus(
+        error instanceof ApiError
+          ? (error.detail ?? error.title)
+          : "L'import n'a pas pu etre envoye. Verifiez la connexion et reessayez.",
+      );
+      setEnvoi(false);
+    }
   }
 
   return (
@@ -255,14 +303,44 @@ export function ImportPage() {
             </div>
           </section>
 
-          <div className="flex flex-wrap items-center gap-3 border-t border-line pt-6">
-            <Button tone="primary" disabled>
-              Continuer
-            </Button>
-            <Button onClick={recommencer}>Choisir un autre fichier</Button>
-            <p className="text-xs text-text-faint">
-              Le reglage de l&apos;import et son lancement arrivent avec le prochain lot.
+          <section>
+            <h2 className="text-base font-semibold">Parametres</h2>
+            <p className="mt-2 mb-5 max-w-[70ch] text-sm text-text-soft">
+              Ils s&apos;appliquent a toutes les entreprises de ce fichier et ne changent plus une
+              fois l&apos;import lance.
             </p>
+            <ImportSettingsForm value={reglages} onChange={setReglages} />
+          </section>
+
+          <div className="border-t border-line pt-6">
+            {refus !== undefined && (
+              <p
+                role="alert"
+                className="mb-4 rounded-sm border border-negative/40 bg-negative/5 px-3 py-2 text-sm text-negative"
+              >
+                {refus}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                tone="primary"
+                disabled={obstacle !== undefined || aTraiter === 0 || envoi}
+                onClick={() => void lancer()}
+              >
+                {envoi ? 'Envoi en cours' : "Lancer l'import"}
+              </Button>
+              <Button onClick={recommencer} disabled={envoi}>
+                Choisir un autre fichier
+              </Button>
+              <p className="text-xs text-text-soft" aria-live="polite">
+                {obstacle ??
+                  `${aTraiter.toLocaleString('fr-FR')} lignes a traiter${
+                    ecarteesAuTotal > 0
+                      ? `, ${ecarteesAuTotal.toLocaleString('fr-FR')} ecartees avec leur motif`
+                      : ''
+                  }. Le traitement continue si vous quittez la page.`}
+              </p>
+            </div>
           </div>
         </div>
       )}
