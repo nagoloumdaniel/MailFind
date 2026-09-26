@@ -3,6 +3,7 @@ import { findOrCreateCompany } from '../companies/repository.js';
 import { getPool, query } from '../db/pool.js';
 import { getLogger } from '../observability/logger.js';
 import { isKnownField, type KnownField } from './fields.js';
+import { readSettingsTags } from './settings.js';
 import { validateRow } from './validate.js';
 
 /**
@@ -87,6 +88,10 @@ export async function planImport(importId: string, userId: string): Promise<Plan
     );
   }
 
+  // Les etiquettes choisies a l'etape 4 s'ajoutent a celles du fichier, sur
+  // chaque entreprise de l'import, qu'elle soit nouvelle ou deja connue.
+  const etiquettesImport = readSettingsTags(importe.settings);
+
   await query(
     `update imports set status = 'planning', started_at = coalesce(started_at, now())
       where id = $1 and status in ('pending', 'planning')`,
@@ -141,7 +146,15 @@ export async function planImport(importId: string, userId: string): Promise<Plan
         continue;
       }
 
-      const resultat = await findOrCreateCompany(userId, verdict.draft);
+      const brouillon =
+        etiquettesImport.length === 0
+          ? verdict.draft
+          : {
+              ...verdict.draft,
+              tags: [...new Set([...verdict.draft.tags, ...etiquettesImport])],
+            };
+
+      const resultat = await findOrCreateCompany(userId, brouillon);
       if (resultat.created) creees += 1;
       else doublons += 1;
 

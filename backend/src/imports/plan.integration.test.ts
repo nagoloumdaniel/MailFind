@@ -300,4 +300,28 @@ describe('import.plan sur un vrai PostgreSQL', () => {
       name: 'UnrecoverableError',
     });
   });
+
+  it('applique les etiquettes de l import aux entreprises nouvelles comme connues', async () => {
+    const connue = await importer(userId, [['Alan', 'alan.com', '', '']]);
+    await planImport(connue, userId);
+
+    const importId = await importer(userId, [
+      ['Alan', 'alan.com', '', ''],
+      ['Qonto', 'qonto.com', '', ''],
+    ]);
+    await query(
+      `update imports set settings = settings || '{"tags": ["salon 2026"]}'::jsonb where id = $1`,
+      [importId],
+    );
+    await planImport(importId, userId);
+
+    const result = await query<{ domain: string; tags: string[] }>(
+      'select domain, tags from companies where user_id = $1 order by domain',
+      [userId],
+    );
+    expect(result.rows).toEqual([
+      { domain: 'alan.com', tags: ['salon 2026'] },
+      { domain: 'qonto.com', tags: ['salon 2026'] },
+    ]);
+  });
 });
