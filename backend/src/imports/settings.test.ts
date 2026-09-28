@@ -7,6 +7,7 @@ describe('importSettingsSchema', () => {
       depth: 'standard',
       emailTypes: ['recruitment', 'hr', 'generic'],
       providers: ['brave', 'hunter'],
+      mailboxCheck: 'never',
       tags: [],
     });
   });
@@ -23,6 +24,7 @@ describe('importSettingsSchema', () => {
       depth: 'deep',
       emailTypes: ['press', 'sales'],
       providers: [],
+      mailboxCheck: 'never',
       tags: ['lyon', 'salon 2026'],
     });
   });

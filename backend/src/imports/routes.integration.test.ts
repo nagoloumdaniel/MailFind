@@ -91,6 +91,7 @@ describe('POST /api/imports', () => {
       depth: 'quick',
       emailTypes: ['recruitment'],
       providers: [],
+      mailboxCheck: 'never',
       tags: ['salon 2026'],
       columns: { headers: FICHIER.headers, mapping: FICHIER.mapping },
     });

@@ -52,3 +52,23 @@ export class ProviderError extends Error {
     this.name = 'ProviderError';
   }
 }
+
+/**
+ * Verification de boite, niveau 8 de 6.7. Faite par le fournisseur, jamais
+ * depuis nos serveurs (D-09).
+ */
+export type MailboxStatus =
+  'valid' | 'invalid' | 'accept_all' | 'unknown' | 'disposable' | 'webmail';
+
+export interface MailboxResult {
+  readonly status: MailboxStatus;
+  /** Le detail du fournisseur, par exemple « deliverable » ou « risky ». */
+  readonly subStatus?: string;
+  /** Ce que le fournisseur annonce, de 0 a 100. */
+  readonly providerScore?: number;
+}
+
+export interface MailboxVerifier {
+  readonly name: string;
+  verify(address: string): Promise<MailboxResult>;
+}

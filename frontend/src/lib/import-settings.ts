@@ -15,10 +15,14 @@ export type EmailType = (typeof EMAIL_TYPES)[number];
 export const PROVIDERS = ['brave', 'hunter'] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
+export const MAILBOX_CHECKS = ['never', 'found', 'all'] as const;
+export type MailboxCheck = (typeof MAILBOX_CHECKS)[number];
+
 export interface ImportSettings {
   depth: CrawlDepth;
   emailTypes: EmailType[];
   providers: Provider[];
+  mailboxCheck: MailboxCheck;
   tags: string[];
 }
 
@@ -28,9 +32,26 @@ export function defaultSettings(): ImportSettings {
     depth: 'standard',
     emailTypes: ['recruitment', 'hr', 'generic'],
     providers: ['brave', 'hunter'],
+    mailboxCheck: 'never',
     tags: [],
   };
 }
+
+/** F-702 : ce que coute chaque choix, dit avant de le faire. */
+export const MAILBOX_CHECK_OPTIONS: Record<MailboxCheck, { label: string; description: string }> = {
+  never: {
+    label: 'Jamais',
+    description: 'Controles gratuits seulement : syntaxe, domaine, serveurs de messagerie.',
+  },
+  found: {
+    label: 'Adresses trouvees',
+    description: 'Les adresses publiees ou fournies, pas les adresses deduites.',
+  },
+  all: {
+    label: 'Toutes',
+    description: 'Adresses deduites comprises. Le plus sur, et le plus couteux en credits.',
+  },
+};
 
 /** F-402. Le nombre de pages est dit, parce que c'est lui qui fait la duree. */
 export const DEPTH_OPTIONS: Record<CrawlDepth, { label: string; description: string }> = {

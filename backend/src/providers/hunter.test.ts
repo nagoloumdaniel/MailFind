@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ProviderError } from './enrichment.js';
-import { createHunter } from './hunter.js';
+import { createHunter, createHunterVerifier } from './hunter.js';
 
 /** Des reponses au format de l'API Hunter v2, servies en local. */
 const REPONSES: Record<string, { status: number; corps?: unknown }> = {
@@ -50,6 +50,25 @@ beforeAll(async () => {
     if (cle !== 'cle-valide') {
       res.writeHead(401, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ errors: [{ id: 'authentication_failed' }] }));
+      return;
+    }
+    if (url.pathname === '/v2/email-verifier') {
+      const email = url.searchParams.get('email') ?? '';
+      const verdicts: Record<string, { status: number; corps?: unknown }> = {
+        'rh@acme.fr': {
+          status: 200,
+          corps: { data: { status: 'valid', result: 'deliverable', score: 97 } },
+        },
+        'x@acme.fr': {
+          status: 200,
+          corps: { data: { status: 'invalid', result: 'undeliverable', score: 0 } },
+        },
+        'lent@acme.fr': { status: 202, corps: {} },
+        'etrange@acme.fr': { status: 200, corps: { data: { status: 'nouveau_statut' } } },
+      };
+      const verdict = verdicts[email] ?? { status: 500 };
+      res.writeHead(verdict.status, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(verdict.corps ?? {}));
       return;
     }
     const reponse = REPONSES[url.searchParams.get('domain') ?? ''] ?? { status: 500 };
@@ -118,5 +137,34 @@ describe('createHunter (F-602)', () => {
   it('dit injoignable quand Hunter ne repond pas', async () => {
     const absent = createHunter({ apiKey: 'x', baseUrl: 'http://127.0.0.1:1', timeoutMs: 2000 });
     await expect(absent.domainSearch('acme.fr')).rejects.toMatchObject({ kind: 'unavailable' });
+  });
+});
+
+describe('createHunterVerifier (niveau 8)', () => {
+  const verificateur = () => createHunterVerifier({ apiKey: 'cle-valide', baseUrl: base });
+
+  it('rend le statut, le detail et le score annonce', async () => {
+    expect(await verificateur().verify('rh@acme.fr')).toEqual({
+      status: 'valid',
+      subStatus: 'deliverable',
+      providerScore: 97,
+    });
+    expect((await verificateur().verify('x@acme.fr')).status).toBe('invalid');
+  });
+
+  it('ne tient pas une verification en cours pour un verdict', async () => {
+    await expect(verificateur().verify('lent@acme.fr')).rejects.toMatchObject({
+      kind: 'unavailable',
+      status: 202,
+    });
+  });
+
+  it('lit un statut inconnu comme « unknown », jamais comme valide', async () => {
+    expect((await verificateur().verify('etrange@acme.fr')).status).toBe('unknown');
+  });
+
+  it('passe la cle en en-tete, pas dans l URL', async () => {
+    await verificateur().verify('rh@acme.fr');
+    expect(recues.at(-1)?.url).not.toContain('cle-valide');
   });
 });
