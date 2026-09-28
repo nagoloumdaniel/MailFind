@@ -7,18 +7,16 @@ import {
   RECHERCHE_ENTREPRISES_INTERVAL_MS,
 } from '../providers/recherche-entreprises.js';
 import type { EnrichmentProvider } from '../providers/enrichment.js';
-import { createHunter, createHunterVerifier } from '../providers/hunter.js';
+import { createHunter } from '../providers/hunter.js';
 import { createBraveSearch } from '../providers/web-search.js';
 import { getLogger } from '../observability/logger.js';
-import { createCipher } from '../security/crypto.js';
 import { getQueueConnection } from '../queue/connection.js';
 import { enqueueCompanyStep } from '../queue/queues.js';
 import type { CrawlDeps } from './crawl.js';
 import type { EnrichDeps } from './enrich.js';
 import type { IdentifyDeps } from './identify.js';
 import type { VerifyDeps } from './verify.js';
-import { createDisposableCache } from '../verification/disposable.js';
-import { createMailDns } from '../verification/local.js';
+import { createConfiguredCipher, createVerifyDeps } from './verify-deps.js';
 
 /**
  * Les dependances reelles du pipeline, pour le processus de traitement. Les
@@ -56,10 +54,7 @@ export function createPipelineDeps(): IdentifyDeps &
   // seulement ceux qui ont une cle. Sans cle de chiffrement, aucun : leurs
   // reponses contiennent des adresses nominatives, gardees chiffrees ou pas
   // du tout (F-604).
-  const cipher =
-    environment.ENCRYPTION_KEY === ''
-      ? undefined
-      : createCipher(environment.ENCRYPTION_KEY, environment.ENCRYPTION_KEY_PREVIOUS);
+  const cipher = createConfiguredCipher();
   const disponibles: Record<string, EnrichmentProvider | undefined> = {
     hunter:
       environment.HUNTER_API_KEY === ''
@@ -78,21 +73,7 @@ export function createPipelineDeps(): IdentifyDeps &
 
   const cle = environment.BRAVE_SEARCH_API_KEY;
   return {
-    mailDns: createMailDns(),
-    disposableDomains: createDisposableCache(),
-    ...(cipher === undefined || environment.HUNTER_API_KEY === ''
-      ? {}
-      : {
-          verifier: createHunterVerifier({
-            apiKey: environment.HUNTER_API_KEY,
-            baseUrl: environment.HUNTER_BASE_URL,
-          }),
-        }),
-    // D-14 : les plafonds se comptent en credits, une verification en vaut un demi.
-    verificationLimits: {
-      perUserMonthly: environment.QUOTA_MAILBOX_VERIFICATIONS_PER_USER_PER_MONTH / 2,
-      globalMonthly: environment.HUNTER_MONTHLY_VERIFICATION_CREDITS,
-    },
+    ...createVerifyDeps(cipher),
     providers: cipher === undefined ? [] : providers,
     ...(cipher === undefined ? {} : { cipher }),
     providerLimits: {

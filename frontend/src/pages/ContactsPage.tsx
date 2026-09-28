@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
+import { Button } from '../components/Button';
+import { ContactDialog } from '../components/ContactDialog';
 import { MultiFilter } from '../components/MultiFilter';
 import { Pagination } from '../components/Pagination';
 import { ScoreBadge } from '../components/ScoreBadge';
@@ -49,6 +51,9 @@ export function ContactsPage() {
   const cle = filtersToSearch(filtres).toString();
 
   const [saisie, setSaisie] = useState(filtres.q);
+  const [edition, setEdition] = useState<Contact | 'nouveau' | undefined>(undefined);
+  const [version, setVersion] = useState(0);
+  const [message, setMessage] = useState<string | undefined>(undefined);
   const [etat, setEtat] = useState<
     { total: number; contacts: Contact[] } | { erreur: string } | undefined
   >(undefined);
@@ -85,7 +90,7 @@ export function ContactsPage() {
     return () => {
       actif = false;
     };
-  }, [cle]);
+  }, [cle, version]);
 
   const filtresActifs =
     filtres.q !== '' ||
@@ -94,14 +99,45 @@ export function ContactsPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 className="text-2xl font-bold">Contacts</h1>
-        {etat !== undefined && 'total' in etat && (
-          <p className="text-sm text-text-soft" data-numeric>
-            {etat.total.toLocaleString('fr-FR')} adresse{etat.total > 1 ? 's' : ''}
-          </p>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-baseline gap-3">
+          <h1 className="text-2xl font-bold">Contacts</h1>
+          {etat !== undefined && 'total' in etat && (
+            <p className="text-sm text-text-soft" data-numeric>
+              {etat.total.toLocaleString('fr-FR')} adresse{etat.total > 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+        <Button
+          tone="primary"
+          onClick={() => {
+            setMessage(undefined);
+            setEdition('nouveau');
+          }}
+        >
+          Nouveau contact
+        </Button>
       </div>
+      <p role="status" className="mt-3 text-sm text-accent empty:hidden">
+        {message}
+      </p>
+      {edition !== undefined && (
+        <ContactDialog
+          {...(edition === 'nouveau' ? {} : { contact: edition })}
+          onClose={() => {
+            setEdition(undefined);
+          }}
+          onSaved={(contact) => {
+            setMessage(
+              edition === 'nouveau'
+                ? `Contact ${contact.address} cree.`
+                : `Contact ${contact.address} enregistre.`,
+            );
+            setEdition(undefined);
+            setVersion((v) => v + 1);
+          }}
+        />
+      )}
       <p className="mt-2 max-w-[70ch] text-sm text-text-soft">
         Toutes les adresses de votre bibliotheque, trouvees, fournies, deduites ou saisies. Chacune
         garde sa source et son statut : seul « Valide » dit qu&apos;une boite a ete confirmee.
@@ -220,13 +256,16 @@ export function ContactsPage() {
                         </th>
                       );
                     })}
+                    <th scope="col" className="px-4 py-2 text-right font-medium">
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {etat.contacts.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={COLONNES.length}
+                        colSpan={COLONNES.length + 1}
                         className="px-4 py-8 text-center text-text-soft"
                       >
                         Aucune adresse ne correspond a cette recherche.
@@ -262,6 +301,19 @@ export function ContactsPage() {
                         </td>
                         <td className="px-4 py-2 text-text-soft" data-numeric>
                           {new Date(contact.createdAt).toLocaleDateString('fr-FR')}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <button
+                            type="button"
+                            className="text-sm text-accent underline"
+                            aria-label={`Modifier ${contact.address}`}
+                            onClick={() => {
+                              setMessage(undefined);
+                              setEdition(contact);
+                            }}
+                          >
+                            Modifier
+                          </button>
                         </td>
                       </tr>
                     ))

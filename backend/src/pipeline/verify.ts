@@ -120,7 +120,6 @@ function motifExclusion(origin: EmailOrigin, statut: EmailStatus): string {
 
 export async function verifyStep(deps: VerifyDeps, job: CompanyJob): Promise<void> {
   const logger = getLogger().child({ step: 'company.verify', companyId: job.companyId });
-  const maintenant = deps.now?.() ?? new Date();
 
   if (await isImportCancelled(job.importId)) {
     await finishStep('verify', job, 'skipped');
@@ -144,27 +143,101 @@ export async function verifyStep(deps: VerifyDeps, job: CompanyJob): Promise<voi
 
   await startStep('verify', job);
   const reglages = readStoredSettings(entreprise.settings);
+  const bilan = await verifyEmails(deps, {
+    userId: job.userId,
+    companyId: job.companyId,
+    importId: job.importId,
+    runKey: job.importId,
+    officialDomain: entreprise.domain,
+    wantedTypes: reglages.emailTypes,
+    mailboxCheck: reglages.mailboxCheck,
+  });
+  const notes = skipNotes(bilan.skips);
 
+  await finishStep('verify', job, 'done', notes.length > 0 ? notes.join(' ') : undefined);
+  await completeImportIfDone(job.importId);
+  logger.info(
+    { adresses: bilan.total, verifiees: bilan.checked, boites: bilan.mailboxes },
+    'verification terminee',
+  );
+}
+
+export interface VerifyRun {
+  readonly userId: string;
+  readonly companyId: string;
+  /** L'import qui a demande la verification, pour le compte des credits. */
+  readonly importId?: string;
+  /**
+   * Ce qui distingue une verification de boite d'une autre dans la cle
+   * d'idempotence : l'import pour le pipeline, un identifiant de demande
+   * sinon. Rejouee sous la meme cle, elle ne paie pas deux fois.
+   */
+  readonly runKey: string;
+  readonly officialDomain: string | null;
+  readonly wantedTypes: readonly string[];
+  readonly mailboxCheck: 'never' | 'found' | 'all';
+  /** Seulement ces adresses ; toutes celles de l'entreprise sinon. */
+  readonly emailIds?: readonly string[];
+}
+
+export interface VerifyOutcome {
+  readonly total: number;
+  readonly checked: number;
+  readonly mailboxes: number;
+  /** Verifications de boite non faites, par motif. */
+  readonly skips: ReadonlyMap<string, number>;
+}
+
+/** Les verifications de boite non faites, dites a l'utilisateur. */
+export function skipNotes(sauts: ReadonlyMap<string, number>): string[] {
+  const notes: string[] = [];
+  for (const [cle, nombre] of sauts) {
+    const motif =
+      cle === 'indisponible'
+        ? 'fournisseur non configure'
+        : cle === 'erreur'
+          ? 'erreur du fournisseur'
+          : (MOTIFS_SAUT[cle] ?? cle);
+    notes.push(`Verification de boite non faite pour ${String(nombre)} adresse(s) : ${motif}.`);
+  }
+  return notes;
+}
+
+/**
+ * Le coeur de la verification, pour le pipeline comme pour une adresse
+ * saisie ou corrigee a la main (F-1013, F-1014) : controles locaux, boite si
+ * demandee, historique, statut et score.
+ */
+export async function verifyEmails(deps: VerifyDeps, run: VerifyRun): Promise<VerifyOutcome> {
+  const maintenant = deps.now?.() ?? new Date();
+  const filtre = run.emailIds === undefined ? '' : 'and e.id = any($3::uuid[])';
+  const params: unknown[] = [run.companyId, run.userId];
+  if (run.emailIds !== undefined) params.push(run.emailIds);
+
+  // Seules comptent les verifications de l'adresse telle qu'elle est : une
+  // adresse corrigee n'herite pas de la fraicheur de l'ancienne.
   const emails = await query<EmailRow>(
     `select e.id, e.normalized_address, e.type::text as type, e.origin::text as origin,
             e.status::text as status,
-            (select max(v.verified_at) from verifications v where v.email_id = e.id) as last_check,
             (select max(v.verified_at) from verifications v
-              where v.email_id = e.id and v.level = 8) as last_mailbox
+              where v.email_id = e.id and v.address = e.normalized_address) as last_check,
+            (select max(v.verified_at) from verifications v
+              where v.email_id = e.id and v.address = e.normalized_address
+                and v.level = 8) as last_mailbox
        from emails e
-      where e.company_id = $1 and e.user_id = $2
+      where e.company_id = $1 and e.user_id = $2 ${filtre}
       order by e.created_at, e.id`,
-    [job.companyId, job.userId],
+    params,
   );
   const sources = await query<SourceRow>(
     `select s.email_id, s.kind::text as kind, s.url, s.provider, s.discovered_at
        from email_sources s
        join emails e on e.id = s.email_id
-      where e.company_id = $1 and e.user_id = $2`,
-    [job.companyId, job.userId],
+      where e.company_id = $1 and e.user_id = $2 ${filtre}`,
+    params,
   );
 
-  const supprimees = await loadSuppressedHashes(job.userId);
+  const supprimees = await loadSuppressedHashes(run.userId);
   const jetables = await deps.disposableDomains();
   const contexte = {
     dns: deps.mailDns,
@@ -181,8 +254,7 @@ export async function verifyStep(deps: VerifyDeps, job: CompanyJob): Promise<voi
   for (const email of emails.rows) {
     // F-702 : « trouvees seulement » laisse de cote les candidates deduites.
     const boiteDemandee =
-      reglages.mailboxCheck === 'all' ||
-      (reglages.mailboxCheck === 'found' && email.origin !== 'deduced');
+      run.mailboxCheck === 'all' || (run.mailboxCheck === 'found' && email.origin !== 'deduced');
 
     let statut = email.status;
     const nouvelles: Verification[] = [];
@@ -211,10 +283,10 @@ export async function verifyStep(deps: VerifyDeps, job: CompanyJob): Promise<voi
             scope: {
               provider: verifier.name,
               operation: 'verification',
-              userId: job.userId,
-              importId: job.importId,
-              companyId: job.companyId,
-              idempotencyKey: `verification:${verifier.name}:${job.importId}:${email.id}`,
+              userId: run.userId,
+              ...(run.importId === undefined ? {} : { importId: run.importId }),
+              companyId: run.companyId,
+              idempotencyKey: `verification:${verifier.name}:${run.runKey}:${email.id}`,
               credits: CREDITS_VERIFICATION,
             },
             limits: deps.verificationLimits,
@@ -248,8 +320,8 @@ export async function verifyStep(deps: VerifyDeps, job: CompanyJob): Promise<voi
       status: statut,
       origin: email.origin,
       type: email.type,
-      wantedTypes: reglages.emailTypes,
-      officialDomain: entreprise.domain,
+      wantedTypes: run.wantedTypes,
+      officialDomain: run.officialDomain,
       sources: sources.rows
         .filter((source) => source.email_id === email.id)
         .map((source): ScoreSource => ({
@@ -264,20 +336,7 @@ export async function verifyStep(deps: VerifyDeps, job: CompanyJob): Promise<voi
     await enregistrer(email, statut, nouvelles, score);
   }
 
-  const notes: string[] = [];
-  for (const [cle, nombre] of sauts) {
-    const motif =
-      cle === 'indisponible'
-        ? 'fournisseur non configure'
-        : cle === 'erreur'
-          ? 'erreur du fournisseur'
-          : (MOTIFS_SAUT[cle] ?? cle);
-    notes.push(`Verification de boite non faite pour ${String(nombre)} adresse(s) : ${motif}.`);
-  }
-
-  await finishStep('verify', job, 'done', notes.length > 0 ? notes.join(' ') : undefined);
-  await completeImportIfDone(job.importId);
-  logger.info({ adresses: emails.rows.length, verifiees, boites }, 'verification terminee');
+  return { total: emails.rows.length, checked: verifiees, mailboxes: boites, skips: sauts };
 }
 
 /** Historique, statut et score d'une adresse ensemble : l'un n'a pas de sens sans l'autre. */

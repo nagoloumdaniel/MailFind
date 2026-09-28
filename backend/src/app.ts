@@ -10,7 +10,9 @@ import { createAuthRouter } from './auth/routes.js';
 import { createSessionMiddleware } from './auth/session.js';
 import { getEnvironment } from './config/env.js';
 import { createImportsRouter } from './imports/routes.js';
+import { createCompaniesRouter } from './companies/routes.js';
 import { createContactsRouter } from './contacts/routes.js';
+import type { VerifyDeps } from './pipeline/verify.js';
 import { createSuppressionsRouter } from './suppressions/routes.js';
 import { createVerificationsRouter } from './verification/routes.js';
 import { getLogger } from './observability/logger.js';
@@ -26,6 +28,8 @@ export interface AppOptions {
    * metier.
    */
   readonly session?: RequestHandler;
+  /** Verification des adresses saisies a la main ; les tests y mettent un DNS simule. */
+  readonly verify?: VerifyDeps;
 }
 
 /**
@@ -89,7 +93,11 @@ export function createApp(options: AppOptions = {}): Express {
   app.use('/api/auth', createAuthRouter());
   app.use('/api/account', createAccountRouter());
   app.use('/api/imports', createImportsRouter());
-  app.use('/api/contacts', createContactsRouter());
+  app.use('/api/companies', createCompaniesRouter());
+  app.use(
+    '/api/contacts',
+    createContactsRouter(options.verify === undefined ? {} : { verify: options.verify }),
+  );
   app.use('/api/suppressions', createSuppressionsRouter());
   app.use('/api/verifications', createVerificationsRouter());
 

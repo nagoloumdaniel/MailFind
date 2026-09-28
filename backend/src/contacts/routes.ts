@@ -1,15 +1,46 @@
 import { Router } from 'express';
+import { recordAuditEvent } from '../audit/repository.js';
 import { withUser } from '../http/handler.js';
 import { requireAuth } from '../http/middleware/require-auth.js';
 import { requireAcceptedTerms } from '../http/middleware/require-terms.js';
 import { AppError } from '../http/problem.js';
 import { contactQuerySchema } from './query.js';
 import { findContact, listContacts } from './repository.js';
+import type { VerifyDeps } from '../pipeline/verify.js';
+import { createVerifyDeps } from '../pipeline/verify-deps.js';
+import { createContact, createContactSchema, updateContact, updateContactSchema } from './write.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export function createContactsRouter(): Router {
+const LIBELLES: Record<string, string> = {
+  address: "l'adresse",
+  companyId: "l'entreprise",
+  newCompany: 'la nouvelle entreprise',
+  contactName: 'le nom',
+  salutation: 'la civilite',
+  type: 'le type',
+  tags: 'les etiquettes',
+};
+
+/** Le premier probleme, dit en francais : les messages de zod sont en anglais. */
+function refus(
+  issues: readonly { code: string; message: string; path: PropertyKey[] }[],
+): AppError {
+  const premier = issues[0];
+  const champ = String(premier?.path[0] ?? '');
+  const detail =
+    premier?.code === 'custom'
+      ? premier.message
+      : `Valeur refusee pour ${LIBELLES[champ] ?? champ}.`;
+  return AppError.badRequest('invalid_contact', 'Contact refuse', detail);
+}
+
+export function createContactsRouter(options: { verify?: VerifyDeps } = {}): Router {
   const router = Router();
+  // Construites a la premiere ecriture : lire l'environnement des fournisseurs
+  // n'a pas a bloquer le demarrage de l'API.
+  let verification = options.verify;
+  const deps = () => (verification ??= createVerifyDeps());
   router.use(requireAuth, requireAcceptedTerms);
 
   router.get(
@@ -36,6 +67,43 @@ export function createContactsRouter(): Router {
       const contact = UUID.test(id) ? await findContact(user.id, id) : undefined;
       if (contact === undefined) throw AppError.notFound("Ce contact n'existe pas.");
       res.json({ contact });
+    }),
+  );
+
+  router.post(
+    '/',
+    withUser(async (req, res, user) => {
+      const lu = createContactSchema.safeParse(req.body);
+      if (!lu.success) throw refus(lu.error.issues);
+      const id = await createContact(deps(), user.id, lu.data);
+      await recordAuditEvent({
+        userId: user.id,
+        action: 'contact.created',
+        entity: 'email',
+        entityId: id,
+      });
+      res.status(201).json({ contact: await findContact(user.id, id) });
+    }),
+  );
+
+  router.patch(
+    '/:id',
+    withUser(async (req, res, user) => {
+      const id = typeof req.params.id === 'string' ? req.params.id : '';
+      const lu = updateContactSchema.safeParse(req.body);
+      if (!lu.success) throw refus(lu.error.issues);
+      if (!UUID.test(id) || !(await updateContact(deps(), user.id, id, lu.data))) {
+        throw AppError.notFound("Ce contact n'existe pas.");
+      }
+      await recordAuditEvent({
+        userId: user.id,
+        action: 'contact.updated',
+        entity: 'email',
+        entityId: id,
+        // Les champs changes, jamais leurs valeurs (S-03).
+        metadata: { fields: Object.keys(lu.data) },
+      });
+      res.json({ contact: await findContact(user.id, id) });
     }),
   );
 

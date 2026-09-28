@@ -152,3 +152,72 @@ export async function fetchContacts(
     `/api/contacts?${filtersToSearch({ ...filtres, pageSize: filtres.pageSize }).toString()}`,
   );
 }
+
+export interface ContactInput {
+  address?: string;
+  companyId?: string;
+  newCompany?: { name: string; domain?: string };
+  contactName?: string | null;
+  salutation?: string | null;
+  type?: string;
+  tags?: string[];
+}
+
+export async function createContact(input: ContactInput): Promise<Contact> {
+  const { contact } = await apiFetch<{ contact: Contact }>('/api/contacts', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return contact;
+}
+
+export async function updateContact(id: string, input: ContactInput): Promise<Contact> {
+  const { contact } = await apiFetch<{ contact: Contact }>(
+    `/api/contacts/${encodeURIComponent(id)}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
+  return contact;
+}
+
+export interface CompanyChoice {
+  id: string;
+  name: string;
+  domain: string | null;
+}
+
+export async function lookupCompanies(q: string): Promise<CompanyChoice[]> {
+  const { companies } = await apiFetch<{ companies: CompanyChoice[] }>(
+    `/api/companies/lookup?${new URLSearchParams({ q }).toString()}`,
+  );
+  return companies;
+}
+
+/**
+ * Ce qui a change dans le formulaire, et seulement cela : une modification
+ * n'envoie pas l'adresse si elle n'a pas bouge, pour ne pas relancer la
+ * verification sans raison.
+ */
+export function contactPatch(avant: Contact, apres: ContactInput): ContactInput {
+  const patch: ContactInput = {};
+  if (
+    apres.address !== undefined &&
+    apres.address.trim().toLowerCase() !== avant.address.toLowerCase()
+  ) {
+    patch.address = apres.address.trim();
+  }
+  if (apres.companyId !== undefined && apres.companyId !== avant.company.id) {
+    patch.companyId = apres.companyId;
+  }
+  if (apres.newCompany !== undefined) patch.newCompany = apres.newCompany;
+  // Absent veut dire « inchange » ; vide veut dire « efface ».
+  if (apres.contactName !== undefined && apres.contactName !== avant.contactName) {
+    patch.contactName = apres.contactName;
+  }
+  if (apres.salutation !== undefined && apres.salutation !== avant.salutation) {
+    patch.salutation = apres.salutation;
+  }
+  if (apres.type !== undefined && apres.type !== avant.type) patch.type = apres.type;
+  if (apres.tags !== undefined && apres.tags.join(',') !== avant.tags.join(','))
+    patch.tags = apres.tags;
+  return patch;
+}
