@@ -9,6 +9,7 @@ import { paidCall, type CallLimits } from '../providers/credits.js';
 import type { DomainSearchResult, EnrichmentProvider } from '../providers/enrichment.js';
 import type { CompanyJob } from '../queue/queues.js';
 import type { Cipher } from '../security/crypto.js';
+import { isSuppressed, loadSuppressedHashes } from '../suppressions/repository.js';
 import { completeImportIfDone, finishStep, isImportCancelled, startStep } from './steps.js';
 
 /**
@@ -175,9 +176,11 @@ export async function enrichStep(deps: EnrichDeps, job: CompanyJob): Promise<voi
 
   let format: { pattern: string; provider: string } | undefined;
   const nouvelles: Nouvelle[] = [];
+  // R-04 : ni fournie ni deduite, une adresse supprimee ne revient jamais.
+  const supprimees = await loadSuppressedHashes(job.userId);
   const ajouter = (nouvelle: Nouvelle) => {
     const cle = nouvelle.address.toLowerCase();
-    if (adresses.has(cle)) return;
+    if (adresses.has(cle) || isSuppressed(supprimees, cle)) return;
     adresses.add(cle);
     trouves.add(nouvelle.type);
     nouvelles.push(nouvelle);

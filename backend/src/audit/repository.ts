@@ -12,7 +12,9 @@ export type AuditAction =
   | 'user.accepted_terms'
   | 'user.exported_data'
   | 'user.deleted'
-  | 'import.created';
+  | 'import.created'
+  | 'suppression.added'
+  | 'suppression.removed';
 
 export interface AuditEvent {
   readonly userId: string | null;

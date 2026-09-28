@@ -4,6 +4,7 @@ import { getPool, query } from '../db/pool.js';
 import { readStoredSettings } from '../imports/settings.js';
 import { getLogger } from '../observability/logger.js';
 import { classifyLocalPart } from '../emails/roles.js';
+import { isSuppressed, loadSuppressedHashes } from '../suppressions/repository.js';
 import type { CompanyJob } from '../queue/queues.js';
 import type { Enqueue } from './start.js';
 import {
@@ -39,11 +40,14 @@ export async function saveCrawlReport(
   userId: string,
   report: CrawlReport,
 ): Promise<void> {
+  // R-04 : une adresse de la liste de suppression n'est plus jamais collectee.
+  const supprimees = await loadSuppressedHashes(userId);
   const client = await getPool().connect();
   try {
     await client.query('begin');
 
     for (const trouvee of report.addresses) {
+      if (isSuppressed(supprimees, trouvee.normalized)) continue;
       const locale = trouvee.address.split('@')[0] ?? '';
       const email = await client.query<{ id: string }>(
         `insert into emails
