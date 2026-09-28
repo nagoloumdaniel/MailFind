@@ -146,8 +146,10 @@ describe('import.plan sur un vrai PostgreSQL', () => {
       ),
     ).toBe(20);
 
+    // La planification est finie ; l'import passe la main au pipeline
+    // d'identification et de collecte (Phase 3).
     expect(await etatImport(importId)).toEqual({
-      status: 'completed',
+      status: 'running',
       processed_rows: 500,
       total_rows: 500,
     });
@@ -264,6 +266,7 @@ describe('import.plan sur un vrai PostgreSQL', () => {
   it('ne declare pas en echec un import annule ou termine', async () => {
     const termine = await importer(userId, [['Alan', 'alan.com', '', '']]);
     await planImport(termine, userId);
+    await query(`update imports set status = 'completed' where id = $1`, [termine]);
     const annule = await importer(userId, [['Qonto', 'qonto.com', '', '']]);
     await cancelImport(userId, annule);
 

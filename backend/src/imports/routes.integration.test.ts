@@ -161,7 +161,7 @@ describe('GET /api/imports/:id apres planification', () => {
     // Deux lignes retenues, dont une a rejoint Alan : la seconde ne doit pas
     // disparaitre du compte parce qu'elle n'a rien cree.
     expect(detail.body.import).toMatchObject({
-      status: 'completed',
+      status: 'running',
       totalRows: 3,
       processedRows: 3,
       acceptedRows: 2,

@@ -58,9 +58,51 @@ export function isFinalFailure(
   return job.attemptsMade >= (job.opts.attempts ?? 1);
 }
 
+/**
+ * La file des etapes par entreprise (section 8.4) : `company.identify` puis
+ * `company.crawl`. Separee de celle des imports pour qu'un import de cinq
+ * mille lignes planifie sans attendre la collecte d'un autre.
+ */
+export const COMPANY_QUEUE = 'company';
+
+export type CompanyStep = 'identify' | 'crawl';
+
+export interface CompanyJob {
+  readonly importId: string;
+  readonly companyId: string;
+  readonly userId: string;
+}
+
+let fileEntreprises: Queue<CompanyJob> | undefined;
+
+export function getCompanyQueue(): Queue<CompanyJob> {
+  fileEntreprises ??= new Queue<CompanyJob>(COMPANY_QUEUE, {
+    connection: getQueueConnection(),
+    prefix: queuePrefix(),
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 10_000 },
+      removeOnComplete: { age: 3600, count: 500 },
+      removeOnFail: { age: 24 * 3600, count: 500 },
+    },
+  });
+  return fileEntreprises;
+}
+
+/** Une etape par entreprise et par import : la meme ne peut pas etre en file deux fois. */
+export function companyJobId(step: CompanyStep, job: CompanyJob): string {
+  return `${step}-${job.importId}-${job.companyId}`;
+}
+
+export async function enqueueCompanyStep(step: CompanyStep, job: CompanyJob): Promise<void> {
+  await getCompanyQueue().add(`company.${step}`, job, { jobId: companyJobId(step, job) });
+}
+
 export async function closeImportQueue(): Promise<void> {
-  if (queue === undefined) return;
-  const fermeture = queue;
+  const fermetures: Promise<void>[] = [];
+  if (queue !== undefined) fermetures.push(queue.close());
+  if (fileEntreprises !== undefined) fermetures.push(fileEntreprises.close());
   queue = undefined;
-  await fermeture.close();
+  fileEntreprises = undefined;
+  await Promise.all(fermetures);
 }
