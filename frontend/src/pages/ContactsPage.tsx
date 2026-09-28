@@ -113,6 +113,7 @@ export function ContactsPage() {
   };
 
   const filtresActifs =
+    filtres.companyId !== '' ||
     filtres.q !== '' ||
     filtres.status.length + filtres.type.length + filtres.origin.length > 0 ||
     filtres.tag !== '';
@@ -237,6 +238,7 @@ export function ContactsPage() {
                 type: [],
                 origin: [],
                 tag: '',
+                companyId: '',
                 page: 1,
               });
             }}
@@ -245,6 +247,30 @@ export function ContactsPage() {
           </button>
         )}
       </search>
+      {filtres.companyId !== '' && (
+        <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-text-soft">
+          Adresses de{' '}
+          {etat !== undefined && 'contacts' in etat && etat.contacts[0] !== undefined ? (
+            <Link
+              to={`/entreprises/${filtres.companyId}`}
+              className="font-medium text-text underline"
+            >
+              {etat.contacts[0].company.name}
+            </Link>
+          ) : (
+            'une entreprise'
+          )}
+          <button
+            type="button"
+            className="text-accent underline"
+            onClick={() => {
+              appliquer({ ...filtres, companyId: '', page: 1 });
+            }}
+          >
+            Voir toutes les adresses
+          </button>
+        </p>
+      )}
 
       <div className="mt-4">
         {etat === undefined ? (

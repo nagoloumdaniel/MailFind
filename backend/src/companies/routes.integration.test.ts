@@ -8,6 +8,7 @@ import { createTestSession } from '../test/session.js';
 
 let app: Express;
 let userId: string;
+const file: { step: string; companyId: string; importId: string }[] = [];
 
 beforeAll(async () => {
   const { createApp } = await import('../app.js');
@@ -22,13 +23,37 @@ beforeAll(async () => {
       next();
     });
   };
-  app = createApp({ logger: pino({ level: 'silent' }), session: connecte });
+  app = createApp({
+    logger: pino({ level: 'silent' }),
+    session: connecte,
+    enqueue: (step, job) => {
+      file.push({ step, companyId: job.companyId, importId: job.importId });
+      return Promise.resolve();
+    },
+  });
 });
 
 beforeEach(async () => {
   await resetData();
   userId = await createUser();
+  file.length = 0;
 });
+
+async function agentAvecJeton() {
+  const agent = request.agent(app);
+  const reponse = await agent.get('/api/auth/me');
+  const cookies = reponse.headers['set-cookie'] as unknown as string[];
+  const jeton =
+    cookies
+      .find((cookie) => cookie.startsWith('mailfind.csrf='))
+      ?.split(';')[0]
+      ?.slice('mailfind.csrf='.length) ?? '';
+  return {
+    get: (url: string) => agent.get(url),
+    post: (url: string, corps: object) => agent.post(url).set('x-csrf-token', jeton).send(corps),
+    patch: (url: string, corps: object) => agent.patch(url).set('x-csrf-token', jeton).send(corps),
+  };
+}
 
 afterAll(async () => {
   await closePool();
@@ -135,5 +160,100 @@ describe('GET /api/companies (F-1002)', () => {
     await entreprise('Secrete', {}, [], autre);
     const reponse = await request(app).get('/api/companies?q=secrete');
     expect(reponse.body.total).toBe(0);
+  });
+});
+
+describe('fiche entreprise (F-1004, F-307)', () => {
+  it('rend l identite, les adresses par type avec toutes leurs sources, et l historique', async () => {
+    const id = await entreprise('Acme', { domain: 'acme.fr', city: 'Lyon' }, [
+      ['contact@acme.fr', 'generic', 'unverified'],
+      ['jobs@acme.fr', 'recruitment', 'valid'],
+    ]);
+    await query(
+      `insert into email_sources (email_id, kind, url, extraction_method)
+       select id, 'website', 'https://acme.fr/carrieres', 'mailto' from emails where address = 'jobs@acme.fr'`,
+    );
+    const importe = await query<{ id: string }>(
+      `insert into imports (user_id, filename) values ($1, 'salon.csv') returning id`,
+      [userId],
+    );
+    await query(
+      `insert into pipeline_jobs (import_id, company_id, step, status) values ($1, $2, 'crawl', 'done')`,
+      [importe.rows[0]?.id, id],
+    );
+
+    const { get } = await agentAvecJeton();
+    const reponse = await get(`/api/companies/${id}`);
+    expect(reponse.status).toBe(200);
+    expect(reponse.body.company).toMatchObject({ name: 'Acme', domain: 'acme.fr', city: 'Lyon' });
+    const adresses = reponse.body.emails as { address: string; sources: { kind: string }[] }[];
+    expect(adresses.map((e) => e.address)).toEqual(['jobs@acme.fr', 'contact@acme.fr']);
+    expect(adresses[0]?.sources.map((s) => s.kind)).toEqual(['deduction', 'website']);
+    expect(reponse.body.history).toMatchObject([
+      { filename: 'salon.csv', step: 'crawl', status: 'done' },
+    ]);
+  });
+
+  it('enregistre les notes et les etiquettes', async () => {
+    const id = await entreprise('Acme', { domain: 'acme.fr' });
+    const { patch } = await agentAvecJeton();
+    const reponse = await patch(`/api/companies/${id}`, {
+      notes: 'Rappeler en janvier.',
+      tags: ['Salon', 'salon', 'Lyon'],
+    });
+    expect(reponse.status).toBe(200);
+    expect(reponse.body.company).toMatchObject({
+      notes: 'Rappeler en janvier.',
+      tags: ['salon', 'lyon'],
+    });
+  });
+
+  it('corrige le domaine et relance la collecte sur le bon site, avec sa trace', async () => {
+    const id = await entreprise('Acme', { domain: 'acme-mauvais.fr' });
+    const { post } = await agentAvecJeton();
+    const reponse = await post(`/api/companies/${id}/domain`, {
+      domain: 'https://www.Acme.fr/contact',
+    });
+
+    expect(reponse.status).toBe(202);
+    expect(reponse.body.company).toMatchObject({
+      domain: 'acme.fr',
+      domainStatus: 'confirmed',
+      crawlStatus: 'pending',
+    });
+    expect(file).toEqual([{ step: 'crawl', companyId: id, importId: reponse.body.importId }]);
+    const importe = await query<{ filename: string; status: string }>(
+      'select filename, status::text as status from imports where id = $1',
+      [reponse.body.importId],
+    );
+    expect(importe.rows[0]).toEqual({
+      filename: 'Correction du domaine : Acme',
+      status: 'running',
+    });
+    const etapes = await query<{ step: string; status: string }>(
+      'select step::text as step, status::text as status from pipeline_jobs where company_id = $1',
+      [id],
+    );
+    expect(etapes.rows).toEqual([{ step: 'crawl', status: 'pending' }]);
+  });
+
+  it('refuse un domaine deja porte par une autre entreprise, et propose la fusion', async () => {
+    await entreprise('Acme', { domain: 'acme.fr' });
+    const doublon = await entreprise('Acme SAS', {});
+    const { post } = await agentAvecJeton();
+    const reponse = await post(`/api/companies/${doublon}/domain`, { domain: 'acme.fr' });
+    expect(reponse.status).toBe(409);
+    expect(reponse.body).toMatchObject({ code: 'domain_taken' });
+    expect(file).toEqual([]);
+  });
+
+  it('ne montre ni ne modifie l entreprise d un autre compte', async () => {
+    const autre = await createUser();
+    const id = await entreprise('Secrete', { domain: 'secret.fr' }, [], autre);
+    const { get, patch, post } = await agentAvecJeton();
+    expect((await get(`/api/companies/${id}`)).status).toBe(404);
+    expect((await patch(`/api/companies/${id}`, { notes: 'x' })).status).toBe(404);
+    expect((await post(`/api/companies/${id}/domain`, { domain: 'x.fr' })).status).toBe(404);
+    expect((await get('/api/companies/pas-un-uuid')).status).toBe(404);
   });
 });

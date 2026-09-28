@@ -1,5 +1,6 @@
 import { apiFetch } from './api';
 import { PAGE_SIZES, TYPE_FILTERS, type PageSize } from './contacts';
+import type { EmailOrigin, EmailStatus } from './imports';
 
 /** Les memes listes fermees que le serveur (`backend/src/companies/query.ts`). */
 export const COMPANY_SORTS = ['name', 'domain', 'city', 'emails', 'score', 'created'] as const;
@@ -129,3 +130,109 @@ export async function fetchCompanies(
 export async function fetchCompanyFacets(): Promise<CompanyFacets> {
   return apiFetch('/api/companies/facets');
 }
+
+export interface CompanySource {
+  kind: string;
+  url: string | null;
+  provider: string | null;
+  method: string | null;
+  excerpt: string | null;
+  discoveredAt: string;
+}
+
+export interface CompanyDetail {
+  company: {
+    id: string;
+    name: string;
+    legalName: string | null;
+    domain: string | null;
+    domainStatus: string;
+    domainConfidence: number | null;
+    websiteUrl: string | null;
+    careersUrl: string | null;
+    contactFormUrl: string | null;
+    linkedinUrl: string | null;
+    phone: string | null;
+    siren: string | null;
+    city: string | null;
+    country: string | null;
+    industry: string | null;
+    employeeRange: string | null;
+    tags: string[];
+    notes: string | null;
+    crawlStatus: CrawlStatus;
+    crawlNotes: string[];
+    crawlError: string | null;
+    crawledAt: string | null;
+    createdAt: string;
+  };
+  emails: {
+    id: string;
+    address: string;
+    contactName: string | null;
+    type: string;
+    origin: EmailOrigin;
+    status: EmailStatus;
+    score: number | null;
+    scoreBreakdown: unknown;
+    verificationReason: string | null;
+    verifiedAt: string | null;
+    sources: CompanySource[];
+  }[];
+  history: {
+    importId: string | null;
+    filename: string | null;
+    step: string;
+    status: string;
+    error: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+  }[];
+}
+
+export async function fetchCompany(id: string): Promise<CompanyDetail> {
+  return apiFetch(`/api/companies/${encodeURIComponent(id)}`);
+}
+
+export async function updateCompany(
+  id: string,
+  patch: { notes?: string | null; tags?: string[] },
+): Promise<CompanyDetail> {
+  return apiFetch(`/api/companies/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function correctDomain(
+  id: string,
+  domain: string,
+): Promise<CompanyDetail & { importId: string }> {
+  return apiFetch(`/api/companies/${encodeURIComponent(id)}/domain`, {
+    method: 'POST',
+    body: JSON.stringify({ domain }),
+  });
+}
+
+export const DOMAIN_STATUS_LABELS: Record<string, string> = {
+  unknown: 'inconnu',
+  provided: 'fourni dans le fichier',
+  confirmed: 'confirme',
+  to_confirm: 'a confirmer',
+};
+
+export const STEP_LABELS: Record<string, string> = {
+  identify: 'Identification',
+  crawl: 'Exploration du site',
+  enrich: 'Recherche complementaire',
+  verify: 'Verification et score',
+};
+
+export const STEP_STATUS_LABELS: Record<string, string> = {
+  pending: 'en attente',
+  running: 'en cours',
+  done: 'terminee',
+  failed: 'en echec',
+  skipped: 'sans objet',
+};

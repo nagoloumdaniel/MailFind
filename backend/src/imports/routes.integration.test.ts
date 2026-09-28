@@ -8,7 +8,10 @@ import { createTestSession } from '../test/session.js';
 
 // La file est une infrastructure : ce qui compte ici est que l'import soit
 // enregistre tel que l'utilisateur l'a regle, puis confie a la file.
-vi.mock('../queue/queues.js', () => ({ enqueueImportPlan: vi.fn(() => Promise.resolve()) }));
+vi.mock('../queue/queues.js', () => ({
+  enqueueImportPlan: vi.fn(() => Promise.resolve()),
+  enqueueCompanyStep: vi.fn(() => Promise.resolve()),
+}));
 const { enqueueImportPlan } = await import('../queue/queues.js');
 
 let app: Express;

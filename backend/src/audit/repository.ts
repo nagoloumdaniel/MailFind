@@ -17,7 +17,11 @@ export type AuditAction =
   | 'suppression.removed'
   | 'contact.created'
   | 'contact.updated'
-  | 'contact.deleted';
+  | 'contact.deleted'
+  | 'company.updated'
+  | 'company.domain_corrected'
+  | 'company.merged'
+  | 'export.created';
 
 export interface AuditEvent {
   readonly userId: string | null;
