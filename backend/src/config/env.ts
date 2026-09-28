@@ -80,6 +80,16 @@ const environmentSchema = z.object({
    */
   BRAVE_SEARCH_API_KEY: z.string().default(''),
   BRAVE_SEARCH_BASE_URL: z.string().min(1).default('https://api.search.brave.com'),
+  /** Enrichissement (D-08). Vide, Hunter n'est jamais appele. */
+  HUNTER_API_KEY: z.string().default(''),
+  HUNTER_BASE_URL: z.string().min(1).default('https://api.hunter.io'),
+  /** D-14 : recherches par domaine, par utilisateur et par mois. */
+  QUOTA_PROVIDER_SEARCHES_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(3),
+  /** D-13, D-14 : les 30 credits mensuels de Hunter reserves a la recherche. */
+  HUNTER_MONTHLY_SEARCH_CREDITS: z.coerce.number().int().min(0).default(30),
+  /** F-603 : ordre de repli des fournisseurs, separes par des virgules. */
+  PROVIDER_ORDER: z.string().default('hunter'),
+
   /** D-14 : recherches de site officiel par utilisateur et par mois. */
   QUOTA_WEB_SEARCHES_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(80),
   /**

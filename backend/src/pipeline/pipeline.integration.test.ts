@@ -13,6 +13,10 @@ import type { CompanyJob, CompanyStep } from '../queue/queues.js';
 import { createUser, resetData } from '../test/integration/db.js';
 import { startTestSites, type TestSites } from '../test/sites/server.js';
 import { crawlStep, type CrawlDeps } from './crawl.js';
+import { enrichStep, type EnrichDeps } from './enrich.js';
+import { randomBytes } from 'node:crypto';
+import { createCipher } from '../security/crypto.js';
+import { ProviderError, type DomainSearchResult } from '../providers/enrichment.js';
 import { identifyCompany, type IdentifyDeps } from './identify.js';
 import { startPipeline } from './start.js';
 
@@ -30,6 +34,31 @@ let userId: string;
 const file: { step: CompanyStep; job: CompanyJob }[] = [];
 let recherchesWeb = 0;
 let recherchesLegales = 0;
+let appelsHunter = 0;
+
+/** Ce que Hunter simule rend, par domaine. */
+const HUNTER: Record<string, DomainSearchResult | 'quota'> = {
+  'spa.test': {
+    domain: 'spa.test',
+    pattern: '{first}.{last}',
+    emails: [
+      {
+        address: 'jobs@spa.test',
+        kind: 'generic',
+        confidence: 91,
+        sourceUrls: ['https://spa.test/emplois'],
+      },
+      { address: 'marie.durand@spa.test', kind: 'personal', confidence: 80, sourceUrls: [] },
+      { address: 'hello@autre-site.fr', kind: 'generic', sourceUrls: [] },
+    ],
+  },
+  'ferme.test': 'quota',
+};
+
+const CHIFFREUR = createCipher(randomBytes(32).toString('hex'));
+
+/** Domaines sans serveur de messagerie, pour la resolution simulee. */
+const SANS_MX = new Set(['ferme.test']);
 
 const IDENTITES: Record<string, LegalIdentity> = {
   'Acme Industrie': {
@@ -49,8 +78,36 @@ const RESULTATS: Record<string, WebResult[]> = {
   'Garage Dupont': [{ url: 'https://www.garages-du-rhone.fr/', title: 'Garages', description: '' }],
 };
 
-function dependances(limites = { perUserMonthly: 80, globalMonthly: 1000 }) {
-  const deps: IdentifyDeps & CrawlDeps = {
+type Deps = IdentifyDeps & CrawlDeps & EnrichDeps;
+
+function dependances(
+  limites = { perUserMonthly: 80, globalMonthly: 1000 },
+  enrichissement: Partial<EnrichDeps> = {},
+) {
+  const deps: Deps = {
+    providers: [
+      {
+        name: 'hunter',
+        domainSearch: (domaine) => {
+          appelsHunter += 1;
+          const reponse = HUNTER[domaine];
+          if (reponse === 'quota')
+            return Promise.reject(
+              new ProviderError('Hunter : quota ou debit depasse', 'quota', 429),
+            );
+          return Promise.resolve(reponse ?? { domain: domaine, emails: [] });
+        },
+      },
+    ],
+    // Une seule cle, comme en production : sinon le cache d'un premier
+    // passage serait illisible au second, qui paierait a nouveau.
+    cipher: CHIFFREUR,
+    providerLimits: { hunter: { perUserMonthly: 3, globalMonthly: 30 } },
+    mx: (domaine) =>
+      SANS_MX.has(domaine)
+        ? Promise.reject(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }))
+        : Promise.resolve([{ exchange: `mx.${domaine}`, priority: 10 }]),
+    ...enrichissement,
     crawler: createCrawlerClient({
       fetcher,
       gate: createMemoryGate(),
@@ -81,15 +138,16 @@ function dependances(limites = { perUserMonthly: 80, globalMonthly: 1000 }) {
   return deps;
 }
 
-async function vider(deps: IdentifyDeps & CrawlDeps): Promise<void> {
+async function vider(deps: Deps): Promise<void> {
   for (let suivante = file.shift(); suivante !== undefined; suivante = file.shift()) {
     if (suivante.step === 'identify') await identifyCompany(deps, suivante.job);
-    else await crawlStep(deps, suivante.job);
+    else if (suivante.step === 'crawl') await crawlStep(deps, suivante.job);
+    else await enrichStep(deps, suivante.job);
   }
 }
 
-const HEADERS = ['Entreprise', 'Domaine', 'Ville'];
-const MAPPING: KnownField[] = ['company_name', 'domain', 'city'];
+const HEADERS = ['Entreprise', 'Domaine', 'Ville', 'Contact'];
+const MAPPING: KnownField[] = ['company_name', 'domain', 'city', 'contact_name'];
 
 async function importer(
   lignes: string[][],
@@ -178,6 +236,7 @@ beforeEach(async () => {
   await resetData();
   await query('truncate provider_calls, provider_cache');
   file.length = 0;
+  appelsHunter = 0;
   recherchesWeb = 0;
   recherchesLegales = 0;
   userId = await createUser();
@@ -227,7 +286,8 @@ describe('pipeline d un import', () => {
       crawl_status: 'done',
     });
     const appels = await query<{ status: string; n: number }>(
-      `select status::text as status, count(*)::int as n from provider_calls group by status`,
+      `select status::text as status, count(*)::int as n from provider_calls
+        where provider = 'brave' group by status`,
     );
     expect(appels.rows).toEqual([{ status: 'confirmed', n: 1 }]);
   });
@@ -374,11 +434,15 @@ describe('pipeline d un import', () => {
     await lancer(importId);
 
     const progression = await importProgress(userId, importId);
+    // Cinq adresses sur le site de la boulangerie ; pour le spa, rien sur le
+    // site, deux chez Hunter et cinq deduites.
     expect(progression).toMatchObject({
       companies: 3,
       identify: { pending: 0, running: 0, done: 3, failed: 0, skipped: 0 },
       crawl: { pending: 0, running: 0, done: 2, failed: 0, skipped: 1 },
-      emails: 5,
+      enrich: { pending: 0, running: 0, done: 2, failed: 0, skipped: 0 },
+      emails: 12,
+      emailsByOrigin: { found: 5, provider: 2, deduced: 5 },
     });
     // La boulangerie a une page interdite et une adresse masquee, mais elle a
     // donne cinq adresses : rien a y regarder.
@@ -394,5 +458,139 @@ describe('pipeline d un import', () => {
       emails: 0,
       issues: [],
     });
+  });
+
+  it('n appelle pas Hunter quand le site a donne tous les types recherches (F-603)', async () => {
+    const importId = await importer([['Boulangerie Martin', 'boulangerie.test', 'Lyon']]);
+    await lancer(importId);
+
+    expect(appelsHunter).toBe(0);
+    const origines = await query<{ origin: string }>(
+      'select distinct origin::text as origin from emails',
+    );
+    expect(origines.rows).toEqual([{ origin: 'found' }]);
+  });
+
+  it('comble les types manquants par Hunter puis par deduction, chacun avec sa source', async () => {
+    const importId = await importer([['Spa Zen', 'spa.test', 'Lyon']]);
+    await lancer(importId);
+
+    expect(appelsHunter).toBe(1);
+    const adresses = await query<{ ligne: string }>(
+      `select e.normalized_address || ' ' || e.origin || ' ' || e.type || ' ' || e.status || ' ' ||
+              s.kind || ' ' || coalesce(s.provider, '-') as ligne
+         from emails e join email_sources s on s.email_id = e.id
+        order by e.normalized_address`,
+    );
+    // Hunter a donne le recrutement ; manquent les RH et le generique, un
+    // prefixe de chacun a tour de role, cinq au plus.
+    expect(adresses.rows.map((r) => r.ligne)).toEqual([
+      'contact@spa.test deduced generic unverified deduction -',
+      'drh@spa.test deduced hr unverified deduction -',
+      'hello@spa.test deduced generic unverified deduction -',
+      'hr@spa.test deduced hr unverified deduction -',
+      'jobs@spa.test provider recruitment unverified provider hunter',
+      'marie.durand@spa.test provider personal unverified provider hunter',
+      'rh@spa.test deduced hr unverified deduction -',
+    ]);
+    // L'adresse d'un autre domaine rendue par le fournisseur n'est pas gardee.
+    expect(adresses.rows.some((r) => r.ligne.includes('autre-site'))).toBe(false);
+  });
+
+  it('deduit une adresse nominative du nom donne et du format observe, et de rien d autre (F-504)', async () => {
+    const importId = await importer([['Spa Zen', 'spa.test', 'Lyon', 'Paul Martin']]);
+    await lancer(importId);
+
+    const nominatives = await query<{ normalized_address: string; excerpt: string }>(
+      `select e.normalized_address, s.context_excerpt as excerpt
+         from emails e join email_sources s on s.email_id = e.id
+        where e.origin = 'deduced' and e.type = 'personal'`,
+    );
+    expect(nominatives.rows).toEqual([
+      {
+        normalized_address: 'paul.martin@spa.test',
+        excerpt: expect.stringMatching(/format \{first\}\.\{last\} observe par hunter/),
+      },
+    ]);
+    // Cinq adresses deduites au plus, nominative comprise (F-505).
+    const deduites = await query<{ n: number }>(
+      `select count(*)::int as n from emails where origin = 'deduced'`,
+    );
+    expect(deduites.rows[0]?.n).toBeLessThanOrEqual(5);
+  });
+
+  it('ne deduit aucune adresse nominative sans format observe', async () => {
+    const importId = await importer([
+      ['Boulangerie Martin', 'boulangerie.test', 'Lyon', 'Paul Martin'],
+    ]);
+    await lancer(importId);
+    const nominatives = await query<{ n: number }>(
+      `select count(*)::int as n from emails where origin = 'deduced' and type = 'personal'`,
+    );
+    expect(nominatives.rows[0]?.n).toBe(0);
+  });
+
+  it('n appelle pas Hunter quand l utilisateur l a refuse, et deduit quand meme', async () => {
+    const importId = await importer([['Spa Zen', 'spa.test', 'Lyon']], { providers: ['brave'] });
+    await lancer(importId);
+
+    expect(appelsHunter).toBe(0);
+    const deduites = await query<{ n: number }>(
+      `select count(*)::int as n from emails where origin = 'deduced'`,
+    );
+    expect(deduites.rows[0]?.n).toBe(5);
+  });
+
+  it('continue apres une erreur de fournisseur, et ne deduit rien sans serveur de messagerie (F-606, F-502)', async () => {
+    const importId = await importer([['Ferme du Coin', 'ferme.test', '']]);
+    await lancer(importId);
+
+    expect(await statut(importId)).toBe('completed');
+    const etape = await query<{ status: string; error: string }>(
+      `select status::text as status, error from pipeline_jobs where step = 'enrich'`,
+    );
+    expect(etape.rows[0]?.status).toBe('done');
+    expect(etape.rows[0]?.error).toMatch(/quota/);
+    expect(etape.rows[0]?.error).toMatch(/sans serveur de messagerie/);
+    const adresses = await query<{ n: number }>('select count(*)::int as n from emails');
+    expect(adresses.rows[0]?.n).toBe(0);
+  });
+
+  it('n appelle aucun fournisseur sans cle de chiffrement (F-604)', async () => {
+    const importId = await importer([['Spa Zen', 'spa.test', 'Lyon']]);
+    const { cipher: _cle, ...sansCle } = dependances();
+    await lancer(importId, sansCle);
+    expect(appelsHunter).toBe(0);
+  });
+
+  it('ne rappelle pas Hunter et n ajoute rien quand l enrichissement est rejoue', async () => {
+    const importId = await importer([['Spa Zen', 'spa.test', 'Lyon']]);
+    const deps = dependances();
+    await lancer(importId, deps);
+    const avant = await query<{ n: number }>('select count(*)::int as n from email_sources');
+
+    const entreprise = await query<{ id: string }>('select id from companies');
+    await enrichStep(deps, { importId, companyId: entreprise.rows[0]?.id ?? '', userId });
+
+    expect(appelsHunter).toBe(1);
+    const apres = await query<{ n: number }>('select count(*)::int as n from email_sources');
+    expect(apres.rows[0]?.n).toBe(avant.rows[0]?.n);
+  });
+
+  it('une seconde entreprise sur le meme domaine, dans un autre import, ne coute aucun credit (DoD Phase 4)', async () => {
+    const premier = await importer([['Spa Zen', 'spa.test', 'Lyon']]);
+    await lancer(premier);
+    const autre = await createUser();
+    const second = await importer([['Spa Zen', 'spa.test', 'Lyon']], {}, autre);
+    const deps = dependances();
+    await planImport(second, autre);
+    await startPipeline(second, autre, deps.enqueue);
+    await vider(deps);
+
+    expect(appelsHunter).toBe(1);
+    const credits = await query<{ n: number }>(
+      `select count(*)::int as n from provider_calls where provider = 'hunter' and status = 'confirmed'`,
+    );
+    expect(credits.rows[0]?.n).toBe(1);
   });
 });
