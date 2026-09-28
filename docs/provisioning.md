@@ -96,6 +96,8 @@ Sert en dernier recours, quand le site de l'entreprise n'a rien donné (F-602, d
 
 Le palier gratuit est de 50 crédits par mois : 1 crédit par recherche de domaine, 0,5 crédit par vérification d'adresse. C'est peu, et c'est assumé : le crawler et les vérifications locales font le travail, Hunter ne fait que le complément.
 
+MailFind partage ces crédits en 30 pour la recherche (`HUNTER_MONTHLY_SEARCH_CREDITS`) et 20 pour la vérification de boîte (`HUNTER_MONTHLY_VERIFICATION_CREDITS`), puis par compte : 3 recherches et 4 vérifications par mois (D-14). La vérification de boîte n'a lieu que si l'import la demande ; elle est désactivée par défaut.
+
 ---
 
 ## Vérification

@@ -6,7 +6,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 
 ## Statut
 
-**Phase 4 terminée (28 septembre 2026), Phase 3 en attente de sa recette sur des entreprises réelles.** Quand le site d'une entreprise ne donne pas un type d'adresse recherché, les fournisseurs prennent le relais dans l'ordre configuré (Hunter pour commencer), puis les adresses de rôle probables sur un domaine qui reçoit du courrier. Chaque appel payant est compté, mis en cache chiffré trente jours et plafonné ; un import rejoué ne paie jamais deux fois. Les deux critères de fin de la Phase 4 sont prouvés par les tests. Pour la Phase 3, `npm run crawl:check -- docs/recette/phase-3-domaines.txt` vérifie sur cinquante sites réels que chaque adresse figure sur la page citée.
+**Phases 4 et 5 terminées (28 septembre 2026), Phase 3 en attente de sa recette sur des entreprises réelles.** Quand le site d'une entreprise ne donne pas un type d'adresse recherché, les fournisseurs prennent le relais dans l'ordre configuré (Hunter pour commencer), puis les adresses de rôle probables sur un domaine qui reçoit du courrier. Chaque adresse passe ensuite les contrôles locaux (syntaxe, domaine, serveur de messagerie, domaines jetables, messageries grand public, liste de suppression), et la vérification de boîte chez le fournisseur quand l'import la demande. Elle porte un statut, un motif, une date et un score dont le détail s'affiche critère par critère. Chaque appel payant est compté, mis en cache chiffré trente jours et plafonné ; un import rejoué ne paie jamais deux fois. Pour la Phase 3, `npm run crawl:check -- docs/recette/phase-3-domaines.txt` vérifie sur cinquante sites réels que chaque adresse figure sur la page citée.
 
 ## Documents
 
@@ -24,7 +24,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 - [x] Phase 2 : Import CSV et entreprises
 - [ ] Phase 3 : Identification et collecte sur les sites
 - [x] Phase 4 : Fournisseurs et adresses candidates
-- [ ] Phase 5 : Vérification avancée et score
+- [x] Phase 5 : Vérification avancée et score
 - [ ] Phase 6 : Bibliothèque, page Contacts et exports
 - [ ] Phase 7 : API publique et intégration Campaign Mailer
 - [ ] Phase 8 : Sécurité, conformité, quotas et coûts

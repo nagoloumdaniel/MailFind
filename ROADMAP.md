@@ -3,7 +3,7 @@
 Plan d'exécution, du dépôt vide à la bêta publique.
 Référence : [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md), version 1.0 du 22 septembre 2026.
 
-- **Statut** : Phases 0, 1, 2 et 4 terminées. Phase 3 construite, en attente de sa recette sur 50 entreprises réelles. Phase 5 à démarrer après la revue.
+- **Statut** : Phases 0, 1, 2, 4 et 5 terminées. Phase 3 construite, en attente de sa recette sur 50 entreprises réelles. Phase 6 à démarrer après la revue.
 - **Dernière mise à jour** : 28 septembre 2026
 - **Cadence de révision** : fin de chaque phase
 
@@ -336,6 +336,19 @@ Démarrée en parallèle de la recette de la Phase 3, à la demande du propriét
 
 - Aucune adresse `invalid`, `disposable` ou `suppressed` n'a un score supérieur à 0.
 - Le détail du score affiché correspond au calcul, pour chaque critère.
+
+### Bilan (28 septembre 2026)
+
+**Preuves de la Definition of Done**, sur PostgreSQL 18 :
+
+- *Aucune adresse `invalid`, `disposable` ou `suppressed` n'a un score supérieur à 0* : le calcul met ces statuts à zéro par une ligne du détail, vérifié sur toutes les combinaisons de statut, d'origine, de type et de sources ; de bout en bout, deux entreprises vérifiées puis une adresse ajoutée à la liste de suppression ne laissent aucune adresse écartée au-dessus de 0.
+- *Le détail du score affiché correspond au calcul, pour chaque critère* : le plafond d'une adresse déduite, la mise à zéro et les bornes 0 à 100 sont des lignes du détail, dont la somme est toujours le score (test sur toutes les combinaisons, et en base après l'étape de vérification). La page n'affiche que le détail enregistré, jamais un calcul refait dans le navigateur, et signale un détail qui ne tomberait pas juste.
+
+**Livré.** Migration des vérifications (historique, F-703), de la liste de suppression (empreintes seulement) et des domaines jetables ; contrôles locaux, niveaux 1 à 7, sans aucune connexion SMTP (D-09) ; liste des domaines jetables rechargée chaque semaine ; liste de suppression contrôlée à la collecte, à l'enrichissement et à la vérification (R-04) ; vérification de boîte par Hunter selon le réglage de l'import (F-702), un demi-crédit, quatre par compte et vingt crédits par mois (D-14), cache de trente jours sous l'empreinte de l'adresse ; revalidation après trente jours (F-704) ; candidate refusée écartée et plus montrée (F-503) ; type par le contexte de la page (6.8) ; score et son détail (6.9) ; étape `company.verify` ; liste des adresses d'un import avec le détail du score au survol ; vérification ponctuelle d'une liste collée ou d'un CSV (F-705).
+
+**Choix faits en route.** Le tableau de 6.9 fait foi pour le score, et une déduction ne confirme rien (D-18). La vérification ponctuelle s'en tient aux contrôles gratuits : la vérification de boîte, payante, reste réservée aux imports, où elle est comptée. Une adresse retirée de la liste de suppression revient à la vérification suivante.
+
+**Reste à faire.** La vérification de Hunter n'est testée que sur un fournisseur simulé : l'environnement de développement bloque api.hunter.io et la clé n'existe pas encore. La revalidation avant un export « prêt à l'envoi » et avant un envoi vers Campaign Mailer (F-704) se branchera sur ces deux chemins, en Phases 6 et 7. Le rebond signalé par Campaign Mailer (F-706) attend la Phase 7.
 
 ---
 

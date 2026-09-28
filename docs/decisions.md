@@ -245,6 +245,18 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 
 ---
 
+## D-18. Le tableau de 6.9 fait foi pour le score
+
+**Décision.** Le score applique le tableau de la section 6.9 critère par critère, sans base ni pondération cachée. Une confirmation est une seconde page du site ou un second fournisseur ; une déduction ne confirme rien. Le plafond d'une adresse déduite, la mise à zéro d'une adresse écartée et les bornes 0 à 100 sont enregistrés comme des lignes du détail, dont la somme est toujours le score.
+
+**Raison.** Les exemples de l'annexe C (90 pour une adresse valide trouvée sur la page carrières, 35 pour une déduction `accept_all`) ne se retrouvent pas avec le tableau : ils sont illustratifs. Le tableau est la règle que l'utilisateur peut relire au survol du score ; un calcul qui s'en écarterait rendrait ce détail faux, ce que la Definition of Done de la Phase 5 interdit.
+
+**Conséquences.** Une adresse trouvée sur le site officiel, dans la page contact, d'un type recherché, vaut 55 avant vérification et 85 confirmée valide. Une adresse déduite non confirmée vaut au plus 10 : le plafond de 40 reste un garde-fou pour un critère ajouté plus tard. Le détail est stocké dans `emails.score_breakdown`, au format `{ score, criteria: [{ criterion, points }] }`.
+
+**Ce qui la rouvrirait.** Le propriétaire, s'il veut que les exemples de l'annexe C deviennent la règle : il faudrait alors une base de points pour une adresse vérifiée, à écrire dans le tableau.
+
+---
+
 ## Journal des révisions
 
 | Date | Décision | Changement |
@@ -255,3 +267,5 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | 28 septembre 2026 | D-07, D-16 | La recherche web passe par la réservation puis le règlement des crédits (`provider_calls`), avec deux plafonds mensuels : 80 recherches par utilisateur (D-14) et les 1 000 requêtes offertes par Brave pour tout MailFind (D-13, `BRAVE_MONTHLY_FREE_QUERIES`). Le cache garde le domaine déduit et sa confiance, pas la réponse brute. La suite d'intégration teste aussi la file de politesse sur un vrai Redis, quand `TEST_REDIS_URL` est donnée. |
 | 28 septembre 2026 | D-08, D-14 | Les plafonds se comptent par fournisseur et par opération : les 50 crédits mensuels de Hunter sont partagés en 30 pour la recherche par domaine (`HUNTER_MONTHLY_SEARCH_CREDITS`) et 20 pour la vérification, pour que l'une ne mange pas l'autre. Sans `ENCRYPTION_KEY`, aucun fournisseur d'enrichissement n'est appelé : leurs réponses contiennent des adresses nominatives et ne sont gardées que chiffrées (F-604). |
 | 28 septembre 2026 | D-17 | Nouvelle décision : une adresse de rôle garde son statut au lieu de passer `risky`. |
+| 28 septembre 2026 | D-18 | Nouvelle décision : le tableau de 6.9 fait foi pour le score, et son détail est enregistré ligne par ligne. |
+| 28 septembre 2026 | D-14 | Les vérifications de boîte se comptent en crédits : quatre par compte et par mois valent deux crédits (`QUOTA_MAILBOX_VERIFICATIONS_PER_USER_PER_MONTH`), sur les vingt réservés à la vérification (`HUNTER_MONTHLY_VERIFICATION_CREDITS`). Un appel en échec n'est pas facturé et ne compte pas. |
