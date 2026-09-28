@@ -221,3 +221,13 @@ export function contactPatch(avant: Contact, apres: ContactInput): ContactInput 
     patch.tags = apres.tags;
   return patch;
 }
+
+export async function deleteContacts(
+  ids: string[],
+  suppress: boolean,
+): Promise<{ deleted: number; suppressed: number }> {
+  return apiFetch('/api/contacts/delete', {
+    method: 'POST',
+    body: JSON.stringify({ ids, suppress }),
+  });
+}

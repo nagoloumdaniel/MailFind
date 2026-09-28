@@ -8,7 +8,14 @@ import { contactQuerySchema } from './query.js';
 import { findContact, listContacts } from './repository.js';
 import type { VerifyDeps } from '../pipeline/verify.js';
 import { createVerifyDeps } from '../pipeline/verify-deps.js';
-import { createContact, createContactSchema, updateContact, updateContactSchema } from './write.js';
+import {
+  createContact,
+  createContactSchema,
+  deleteContacts,
+  deleteContactsSchema,
+  updateContact,
+  updateContactSchema,
+} from './write.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -83,6 +90,32 @@ export function createContactsRouter(options: { verify?: VerifyDeps } = {}): Rou
         entityId: id,
       });
       res.status(201).json({ contact: await findContact(user.id, id) });
+    }),
+  );
+
+  // Un POST plutot qu'un DELETE : une suppression en masse porte une liste
+  // d'identifiants, et un corps de DELETE est mal tenu par les intermediaires.
+  router.post(
+    '/delete',
+    withUser(async (req, res, user) => {
+      const lu = deleteContactsSchema.safeParse(req.body);
+      if (!lu.success) {
+        throw AppError.badRequest(
+          'invalid_contact_selection',
+          'Selection refusee',
+          'Entre 1 et 1 000 contacts par suppression.',
+        );
+      }
+      const resultat = await deleteContacts(user.id, lu.data.ids, lu.data.suppress);
+      await recordAuditEvent({
+        userId: user.id,
+        action: 'contact.deleted',
+        entity: 'email',
+        entityId: null,
+        // Des compteurs, jamais d'adresse (S-03).
+        metadata: { ...resultat, requested: lu.data.ids.length },
+      });
+      res.json(resultat);
     }),
   );
 

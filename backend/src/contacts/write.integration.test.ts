@@ -233,3 +233,66 @@ describe('PATCH /api/contacts/:id (F-1014)', () => {
     expect((await autre.patch(`/api/contacts/${id}`, { contactName: 'x' })).status).toBe(404);
   });
 });
+
+describe('POST /api/contacts/delete (F-1015, R-05)', () => {
+  it('efface les contacts choisis, leurs sources et leurs verifications, et eux seuls', async () => {
+    const { post } = await agentAvecJeton();
+    const nouvelle = { newCompany: { name: 'Acme', domain: 'acme.fr' } };
+    const a = await post('/api/contacts', { address: 'rh@acme.fr', ...nouvelle });
+    const b = await post('/api/contacts', { address: 'jobs@acme.fr', ...nouvelle });
+    await post('/api/contacts', { address: 'contact@acme.fr', ...nouvelle });
+
+    const reponse = await post('/api/contacts/delete', {
+      ids: [a.body.contact.id, b.body.contact.id],
+    });
+    expect(reponse.body).toEqual({ deleted: 2, suppressed: 0 });
+    const restes = await query<{ address: string }>('select address from emails');
+    expect(restes.rows).toEqual([{ address: 'contact@acme.fr' }]);
+    const orphelines = await query<{ n: number }>(
+      `select (select count(*) from email_sources)::int + (select count(*) from verifications)::int as n`,
+    );
+    // Il reste la source et la verification du contact garde, rien d'autre.
+    expect(orphelines.rows[0]?.n).toBe(2);
+  });
+
+  it('ajoute a la liste de suppression sur demande, et la collecte ne les reprend plus', async () => {
+    const { post } = await agentAvecJeton();
+    const cree = await post('/api/contacts', {
+      address: 'rh@acme.fr',
+      newCompany: { name: 'Acme', domain: 'acme.fr' },
+    });
+    const reponse = await post('/api/contacts/delete', {
+      ids: [cree.body.contact.id],
+      suppress: true,
+    });
+    expect(reponse.body).toEqual({ deleted: 1, suppressed: 1 });
+    const recreee = await post('/api/contacts', {
+      address: 'rh@acme.fr',
+      companyId: cree.body.contact.company.id,
+    });
+    expect(recreee.body).toMatchObject({ code: 'address_suppressed' });
+    const audit = await query<{ metadata: { deleted: number; suppressed: number } }>(
+      `select metadata from audit_events where action = 'contact.deleted'`,
+    );
+    expect(audit.rows[0]?.metadata).toMatchObject({ deleted: 1, suppressed: 1 });
+    expect(JSON.stringify(audit.rows)).not.toContain('rh@acme.fr');
+  });
+
+  it('ne touche pas aux contacts d un autre compte', async () => {
+    const { post } = await agentAvecJeton();
+    const cree = await post('/api/contacts', {
+      address: 'rh@acme.fr',
+      newCompany: { name: 'Acme', domain: 'acme.fr' },
+    });
+    userId = await createUser();
+    const autre = await agentAvecJeton();
+    const reponse = await autre.post('/api/contacts/delete', {
+      ids: [cree.body.contact.id],
+      suppress: true,
+    });
+    expect(reponse.body).toEqual({ deleted: 0, suppressed: 0 });
+    expect((await query<{ n: number }>('select count(*)::int as n from emails')).rows[0]?.n).toBe(
+      1,
+    );
+  });
+});

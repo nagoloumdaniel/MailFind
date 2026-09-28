@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { Button } from '../components/Button';
 import { ContactDialog } from '../components/ContactDialog';
+import { DeleteContactsDialog } from '../components/DeleteContactsDialog';
 import { MultiFilter } from '../components/MultiFilter';
 import { Pagination } from '../components/Pagination';
 import { ScoreBadge } from '../components/ScoreBadge';
@@ -53,6 +54,15 @@ export function ContactsPage() {
   const [saisie, setSaisie] = useState(filtres.q);
   const [edition, setEdition] = useState<Contact | 'nouveau' | undefined>(undefined);
   const [version, setVersion] = useState(0);
+  // La selection vaut pour la liste affichee : un autre filtre ou une autre
+  // page la vide, sans effet a synchroniser.
+  const [selection, setSelection] = useState<{ cle: string; ids: Set<string> }>({
+    cle: '',
+    ids: new Set(),
+  });
+  const [aSupprimer, setASupprimer] = useState<{ ids: string[]; label?: string } | undefined>(
+    undefined,
+  );
   const [message, setMessage] = useState<string | undefined>(undefined);
   const [etat, setEtat] = useState<
     { total: number; contacts: Contact[] } | { erreur: string } | undefined
@@ -92,6 +102,16 @@ export function ContactsPage() {
     };
   }, [cle, version]);
 
+  const choisis = selection.cle === cle ? selection.ids : new Set<string>();
+  const basculer = (ids: string[], coche: boolean) => {
+    const suivants = new Set(choisis);
+    for (const id of ids) {
+      if (coche) suivants.add(id);
+      else suivants.delete(id);
+    }
+    setSelection({ cle, ids: suivants });
+  };
+
   const filtresActifs =
     filtres.q !== '' ||
     filtres.status.length + filtres.type.length + filtres.origin.length > 0 ||
@@ -121,6 +141,27 @@ export function ContactsPage() {
       <p role="status" className="mt-3 text-sm text-accent empty:hidden">
         {message}
       </p>
+      {aSupprimer !== undefined && (
+        <DeleteContactsDialog
+          ids={aSupprimer.ids}
+          {...(aSupprimer.label === undefined ? {} : { label: aSupprimer.label })}
+          onClose={() => {
+            setASupprimer(undefined);
+          }}
+          onDeleted={({ deleted, suppressed }) => {
+            setMessage(
+              `${deleted.toLocaleString('fr-FR')} contact${deleted > 1 ? 's' : ''} supprime${deleted > 1 ? 's' : ''}${
+                suppressed > 0
+                  ? `, ${suppressed.toLocaleString('fr-FR')} ajoute${suppressed > 1 ? 's' : ''} a la liste de suppression`
+                  : ''
+              }.`,
+            );
+            setASupprimer(undefined);
+            setSelection({ cle, ids: new Set() });
+            setVersion((v) => v + 1);
+          }}
+        />
+      )}
       {edition !== undefined && (
         <ContactDialog
           {...(edition === 'nouveau' ? {} : { contact: edition })}
@@ -222,6 +263,35 @@ export function ContactsPage() {
           </p>
         ) : (
           <>
+            {choisis.size > 0 && (
+              <div
+                role="toolbar"
+                aria-label="Actions sur la selection"
+                className="mb-2 flex flex-wrap items-center gap-3 rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-sm"
+              >
+                <span data-numeric>
+                  {choisis.size.toLocaleString('fr-FR')} selectionne{choisis.size > 1 ? 's' : ''}
+                </span>
+                <Button
+                  tone="danger"
+                  onClick={() => {
+                    setMessage(undefined);
+                    setASupprimer({ ids: [...choisis] });
+                  }}
+                >
+                  Supprimer
+                </Button>
+                <button
+                  type="button"
+                  className="text-accent underline"
+                  onClick={() => {
+                    setSelection({ cle, ids: new Set() });
+                  }}
+                >
+                  Deselectionner
+                </button>
+              </div>
+            )}
             <div className="overflow-x-auto rounded-md border border-line bg-surface">
               <table className="w-full min-w-[60rem] text-sm">
                 <caption className="sr-only">
@@ -230,6 +300,22 @@ export function ContactsPage() {
                 </caption>
                 <thead className="border-b border-line bg-raised text-xs text-text-faint">
                   <tr>
+                    <th scope="col" className="w-10 px-4 py-2">
+                      <input
+                        type="checkbox"
+                        aria-label="Tout selectionner sur cette page"
+                        checked={
+                          etat.contacts.length > 0 &&
+                          etat.contacts.every((contact) => choisis.has(contact.id))
+                        }
+                        onChange={(event) => {
+                          basculer(
+                            etat.contacts.map((contact) => contact.id),
+                            event.target.checked,
+                          );
+                        }}
+                      />
+                    </th>
                     {COLONNES.map((colonne) => {
                       const actif = filtres.sort === colonne.sort;
                       return (
@@ -265,7 +351,7 @@ export function ContactsPage() {
                   {etat.contacts.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={COLONNES.length + 1}
+                        colSpan={COLONNES.length + 2}
                         className="px-4 py-8 text-center text-text-soft"
                       >
                         Aucune adresse ne correspond a cette recherche.
@@ -277,6 +363,16 @@ export function ContactsPage() {
                         key={contact.id}
                         className="border-b border-line align-top last:border-b-0"
                       >
+                        <td className="px-4 py-2">
+                          <input
+                            type="checkbox"
+                            aria-label={`Selectionner ${contact.address}`}
+                            checked={choisis.has(contact.id)}
+                            onChange={(event) => {
+                              basculer([contact.id], event.target.checked);
+                            }}
+                          />
+                        </td>
                         <td className="px-4 py-2 font-mono whitespace-nowrap">{contact.address}</td>
                         <td className="px-4 py-2">
                           {contact.contactName ?? <span className="text-text-faint">-</span>}
@@ -313,6 +409,17 @@ export function ContactsPage() {
                             }}
                           >
                             Modifier
+                          </button>
+                          <button
+                            type="button"
+                            className="ml-3 text-sm text-negative underline"
+                            aria-label={`Supprimer ${contact.address}`}
+                            onClick={() => {
+                              setMessage(undefined);
+                              setASupprimer({ ids: [contact.id], label: contact.address });
+                            }}
+                          >
+                            Supprimer
                           </button>
                         </td>
                       </tr>

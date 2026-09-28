@@ -7,7 +7,7 @@ import { classifyLocalPart } from '../emails/roles.js';
 import { AppError } from '../http/problem.js';
 import { importSettingsSchema, readStoredSettings } from '../imports/settings.js';
 import { verifyEmails, type VerifyDeps } from '../pipeline/verify.js';
-import { isSuppressed, loadSuppressedHashes } from '../suppressions/repository.js';
+import { addSuppressions, isSuppressed, loadSuppressedHashes } from '../suppressions/repository.js';
 import { normalizeAddress } from '../verification/local.js';
 import { EMAIL_TYPES } from './query.js';
 
@@ -352,4 +352,41 @@ export async function updateContact(
 
   await verifyContactNow(deps, userId, id);
   return true;
+}
+
+export const deleteContactsSchema = z
+  .object({
+    ids: z.array(z.uuid()).min(1).max(1000),
+    suppress: z.boolean().default(false),
+  })
+  .strict();
+
+/**
+ * Suppression definitive (F-1015, R-05) : l'adresse, ses sources et ses
+ * verifications. Avec `suppress`, l'adresse entre d'abord dans la liste de
+ * suppression, pour ne plus jamais etre collectee (R-04).
+ */
+export async function deleteContacts(
+  userId: string,
+  ids: readonly string[],
+  suppress: boolean,
+): Promise<{ deleted: number; suppressed: number }> {
+  let suppressed = 0;
+  if (suppress) {
+    const adresses = await query<{ normalized_address: string }>(
+      'select normalized_address from emails where user_id = $1 and id = any($2::uuid[])',
+      [userId, ids],
+    );
+    const resultat = await addSuppressions(
+      userId,
+      adresses.rows.map((ligne) => ligne.normalized_address),
+      "Contact supprime par l'utilisateur",
+    );
+    suppressed = resultat.added + resultat.alreadyListed;
+  }
+  const effaces = await query('delete from emails where user_id = $1 and id = any($2::uuid[])', [
+    userId,
+    ids,
+  ]);
+  return { deleted: effaces.rowCount ?? 0, suppressed };
 }
