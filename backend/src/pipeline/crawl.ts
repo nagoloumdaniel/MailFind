@@ -3,8 +3,16 @@ import { crawlCompany, type CrawlReport } from '../crawler/engine.js';
 import { getPool, query } from '../db/pool.js';
 import { readStoredSettings } from '../imports/settings.js';
 import { getLogger } from '../observability/logger.js';
+import { classifyLocalPart } from '../emails/roles.js';
 import type { CompanyJob } from '../queue/queues.js';
-import { completeImportIfDone, finishStep, isImportCancelled, startStep } from './steps.js';
+import type { Enqueue } from './start.js';
+import {
+  completeImportIfDone,
+  finishStep,
+  isImportCancelled,
+  planStep,
+  startStep,
+} from './steps.js';
 
 /**
  * Etape `company.crawl` (section 8.4) : explorer le site, puis enregistrer
@@ -16,6 +24,7 @@ import { completeImportIfDone, finishStep, isImportCancelled, startStep } from '
 
 export interface CrawlDeps {
   readonly crawler: CrawlerClient;
+  readonly enqueue: Enqueue;
 }
 
 /**
@@ -37,12 +46,13 @@ export async function saveCrawlReport(
     for (const trouvee of report.addresses) {
       const locale = trouvee.address.split('@')[0] ?? '';
       const email = await client.query<{ id: string }>(
-        `insert into emails (company_id, user_id, address, normalized_address, local_part, origin)
-         values ($1, $2, $3, $4, $5, 'found')
+        `insert into emails
+           (company_id, user_id, address, normalized_address, local_part, type, origin)
+         values ($1, $2, $3, $4, $5, $6::email_type, 'found')
          on conflict on constraint emails_unique_per_company
          do update set updated_at = now()
          returning id`,
-        [companyId, userId, trouvee.address, trouvee.normalized, locale],
+        [companyId, userId, trouvee.address, trouvee.normalized, locale, classifyLocalPart(locale)],
       );
       // L'adresse et sa source dans la meme transaction : la base refuse
       // l'une sans l'autre.
@@ -114,10 +124,19 @@ export async function crawlStep(deps: CrawlDeps, job: CompanyJob): Promise<void>
   );
   const entreprise = lu.rows[0];
 
-  // Sans domaine, ou exploree depuis peu : rien a faire ici.
-  if (entreprise?.domain == null || (entreprise.recent && entreprise.crawl_status === 'done')) {
+  if (entreprise?.domain == null) {
     await finishStep('crawl', job, 'skipped');
     await completeImportIfDone(job.importId);
+    return;
+  }
+
+  // Exploree depuis peu : on ne refait pas les requetes, mais l'entreprise
+  // passe quand meme a l'enrichissement, dont les reglages de cet import
+  // peuvent differer du precedent.
+  if (entreprise.recent && entreprise.crawl_status === 'done') {
+    await planStep('enrich', job);
+    await finishStep('crawl', job, 'skipped');
+    await deps.enqueue('enrich', job);
     return;
   }
 
@@ -133,8 +152,11 @@ export async function crawlStep(deps: CrawlDeps, job: CompanyJob): Promise<void>
   });
 
   await saveCrawlReport(job.companyId, job.userId, rapport);
+  // L'etape suivante est declaree avant de conclure celle-ci : sinon
+  // l'import pourrait se croire termine entre les deux.
+  await planStep('enrich', job);
   await finishStep('crawl', job, 'done');
-  await completeImportIfDone(job.importId);
+  await deps.enqueue('enrich', job);
 
   logger.info(
     { pages: rapport.pages.length, adresses: rapport.addresses.length, notes: rapport.notes },
@@ -147,16 +169,19 @@ export async function crawlStep(deps: CrawlDeps, job: CompanyJob): Promise<void>
  * l'entreprise aussi, et l'import peut se terminer sans elle.
  */
 export async function failStep(
-  step: 'identify' | 'crawl',
+  step: 'identify' | 'crawl' | 'enrich',
   job: CompanyJob,
   motif: string,
 ): Promise<void> {
   await finishStep(step, job, 'failed', motif);
   if (step === 'identify') await finishStep('crawl', job, 'skipped');
-  await query(
-    `update companies set crawl_status = 'failed', crawl_error = $2, updated_at = now()
-      where id = $1`,
-    [job.companyId, motif],
-  );
+  // Un enrichissement en echec laisse intact ce que la collecte a trouve.
+  if (step !== 'enrich') {
+    await query(
+      `update companies set crawl_status = 'failed', crawl_error = $2, updated_at = now()
+        where id = $1`,
+      [job.companyId, motif],
+    );
+  }
   await completeImportIfDone(job.importId);
 }

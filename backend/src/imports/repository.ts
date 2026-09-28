@@ -219,8 +219,15 @@ export interface ImportProgress {
   readonly companies: number;
   readonly identify: StepCounts;
   readonly crawl: StepCounts;
-  /** Adresses trouvees sur les sites des entreprises de l'import, sources comprises. */
+  readonly enrich: StepCounts;
+  /** Adresses des entreprises de l'import, toutes origines. */
   readonly emails: number;
+  /** Par origine : publiees sur le site, fournies, deduites (hypotheses). */
+  readonly emailsByOrigin: {
+    readonly found: number;
+    readonly provider: number;
+    readonly deduced: number;
+  };
   /** Les entreprises qui demandent un regard : domaine a confirmer, site muet, echec. */
   readonly issues: readonly CompanyIssue[];
 }
@@ -249,16 +256,27 @@ export async function importProgress(userId: string, importId: string): Promise<
     return comptes as unknown as StepCounts;
   };
 
-  const chiffres = await query<{ companies: number; emails: number }>(
+  const chiffres = await query<{
+    companies: number;
+    emails: number;
+    found: number;
+    provider: number;
+    deduced: number;
+  }>(
     `with entreprises as (
        select distinct r.company_id
          from import_rows r
          join imports i on i.id = r.import_id
         where i.user_id = $1 and r.import_id = $2 and r.company_id is not null
      )
+     , adresses as (
+       select e.origin from emails e join entreprises x on x.company_id = e.company_id
+     )
      select (select count(*)::int from entreprises) as companies,
-            (select count(*)::int from emails e join entreprises x on x.company_id = e.company_id)
-              as emails`,
+            (select count(*)::int from adresses) as emails,
+            (select count(*)::int from adresses where origin = 'found') as found,
+            (select count(*)::int from adresses where origin = 'provider') as provider,
+            (select count(*)::int from adresses where origin = 'deduced') as deduced`,
     [userId, importId],
   );
 
@@ -296,7 +314,13 @@ export async function importProgress(userId: string, importId: string): Promise<
     companies: chiffres.rows[0]?.companies ?? 0,
     identify: compter('identify'),
     crawl: compter('crawl'),
+    enrich: compter('enrich'),
     emails: chiffres.rows[0]?.emails ?? 0,
+    emailsByOrigin: {
+      found: chiffres.rows[0]?.found ?? 0,
+      provider: chiffres.rows[0]?.provider ?? 0,
+      deduced: chiffres.rows[0]?.deduced ?? 0,
+    },
     issues: problemes.rows.map((ligne) => ({
       id: ligne.id,
       name: ligne.name,

@@ -59,13 +59,13 @@ export function isFinalFailure(
 }
 
 /**
- * La file des etapes par entreprise (section 8.4) : `company.identify` puis
- * `company.crawl`. Separee de celle des imports pour qu'un import de cinq
+ * La file des etapes par entreprise (section 8.4) : `company.identify`, puis
+ * `company.crawl`, puis `company.enrich`. Separee de celle des imports pour qu'un import de cinq
  * mille lignes planifie sans attendre la collecte d'un autre.
  */
 export const COMPANY_QUEUE = 'company';
 
-export type CompanyStep = 'identify' | 'crawl';
+export type CompanyStep = 'identify' | 'crawl' | 'enrich';
 
 export interface CompanyJob {
   readonly importId: string;

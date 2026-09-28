@@ -72,7 +72,9 @@ export interface ImportProgress {
   companies: number;
   identify: StepCounts;
   crawl: StepCounts;
+  enrich: StepCounts;
   emails: number;
+  emailsByOrigin: { found: number; provider: number; deduced: number };
   issues: CompanyIssue[];
 }
 

@@ -1,4 +1,5 @@
 import { getPool, query } from '../db/pool.js';
+import { EncryptionError, type Cipher } from '../security/crypto.js';
 
 /**
  * Credits des fournisseurs payants : reserver avant l'appel, regler apres
@@ -24,6 +25,12 @@ export interface CallScope {
   readonly credits?: number;
 }
 
+/**
+ * Plafonds d'une operation d'un fournisseur. Ils se comptent par operation,
+ * pas par fournisseur : D-14 partage les 50 credits mensuels de Hunter entre
+ * la recherche (30) et la verification (20), et l'une ne doit pas manger
+ * l'autre.
+ */
 export interface CallLimits {
   /** Plafond mensuel par utilisateur (D-14). */
   readonly perUserMonthly: number;
@@ -48,7 +55,9 @@ export async function reserveCall(scope: CallScope, limits: CallLimits): Promise
     // Un verrou par fournisseur, le temps de compter puis d'inserer : sans
     // lui, deux processus verraient chacun une place libre et prendraient la
     // meme.
-    await client.query('select pg_advisory_xact_lock(hashtext($1))', [`credits:${scope.provider}`]);
+    await client.query('select pg_advisory_xact_lock(hashtext($1))', [
+      `credits:${scope.provider}:${scope.operation}`,
+    ]);
 
     const existante = await client.query<{ status: string }>(
       'select status::text as status from provider_calls where idempotency_key = $1',
@@ -65,9 +74,9 @@ export async function reserveCall(scope: CallScope, limits: CallLimits): Promise
       `select coalesce(sum(credits) filter (where user_id = $2), 0) as utilisateur,
               coalesce(sum(credits), 0) as total
          from provider_calls
-        where provider = $1 and ${CONSOMME}
+        where provider = $1 and operation = $3 and ${CONSOMME}
           and created_at >= date_trunc('month', now() at time zone 'utc') at time zone 'utc'`,
-      [scope.provider, scope.userId],
+      [scope.provider, scope.userId, scope.operation],
     );
     const credits = scope.credits ?? 1;
     const utilisateur = Number(comptes.rows[0]?.utilisateur ?? 0);
@@ -151,4 +160,114 @@ export async function writeCache(
                    expires_at = excluded.expires_at`,
     [provider, operation, key, JSON.stringify(response), ttlDays],
   );
+}
+
+/**
+ * Cache chiffre, pour les reponses qui contiennent des adresses nominatives
+ * (F-604). Illisible avec les cles configurees, l'entree est traitee comme
+ * absente : on repaiera plutot que de servir une reponse qu'on ne peut plus
+ * relire.
+ */
+export async function readEncryptedCache<T>(
+  cipher: Cipher,
+  provider: string,
+  operation: string,
+  key: string,
+): Promise<T | undefined> {
+  const entree = await readCache<{ chiffre?: unknown }>(provider, operation, key);
+  if (typeof entree?.chiffre !== 'string') return undefined;
+  try {
+    return cipher.decryptJson<T>(entree.chiffre);
+  } catch (error) {
+    if (error instanceof EncryptionError) return undefined;
+    throw error;
+  }
+}
+
+export async function writeEncryptedCache(
+  cipher: Cipher,
+  provider: string,
+  operation: string,
+  key: string,
+  response: unknown,
+  ttlDays: number,
+): Promise<void> {
+  await writeCache(provider, operation, key, { chiffre: cipher.encryptJson(response) }, ttlDays);
+}
+
+export type PaidCallOutcome<T> =
+  | { readonly kind: 'ok'; readonly value: T; readonly paid: boolean }
+  | {
+      readonly kind: 'skipped';
+      readonly reason: 'interrupted' | 'already_settled' | 'user_quota' | 'global_quota';
+    }
+  | { readonly kind: 'failed'; readonly error: unknown };
+
+/**
+ * Un appel paye, du cache au reglement, tel que la regle du depot l'exige :
+ * le cache d'abord, qui ne coute rien ; sinon une reservation, qui respecte
+ * les plafonds et ne se fait qu'une fois par cle ; puis l'appel, son
+ * resultat au cache, et le reglement. Brave et Hunter passent tous deux par
+ * ici, pour qu'aucun des deux ne puisse l'oublier.
+ */
+export async function paidCall<T>(options: {
+  readonly scope: CallScope;
+  readonly limits: CallLimits;
+  readonly cacheKey: string;
+  readonly ttlDays: number;
+  /** Present, la reponse est chiffree au cache (F-604). */
+  readonly cipher?: Cipher;
+  readonly call: () => Promise<T>;
+}): Promise<PaidCallOutcome<T>> {
+  const { scope, cipher } = options;
+  const lire = () =>
+    cipher === undefined
+      ? readCache<T>(scope.provider, scope.operation, options.cacheKey)
+      : readEncryptedCache<T>(cipher, scope.provider, scope.operation, options.cacheKey);
+
+  const connue = await lire();
+  if (connue !== undefined) return { kind: 'ok', value: connue, paid: false };
+
+  const reservation = await reserveCall(scope, options.limits);
+  switch (reservation.kind) {
+    case 'already_settled': {
+      const apres = await lire();
+      return apres === undefined
+        ? { kind: 'skipped', reason: 'already_settled' }
+        : { kind: 'ok', value: apres, paid: false };
+    }
+    case 'interrupted':
+      return { kind: 'skipped', reason: 'interrupted' };
+    case 'user_quota_reached':
+      return { kind: 'skipped', reason: 'user_quota' };
+    case 'global_quota_reached':
+      return { kind: 'skipped', reason: 'global_quota' };
+    case 'reserved':
+      break;
+  }
+
+  try {
+    const value = await options.call();
+    if (cipher === undefined) {
+      await writeCache(scope.provider, scope.operation, options.cacheKey, value, options.ttlDays);
+    } else {
+      await writeEncryptedCache(
+        cipher,
+        scope.provider,
+        scope.operation,
+        options.cacheKey,
+        value,
+        options.ttlDays,
+      );
+    }
+    await settleCall(reservation.id, 'confirmed');
+    return { kind: 'ok', value, paid: true };
+  } catch (error) {
+    await settleCall(
+      reservation.id,
+      'failed',
+      error instanceof Error ? error.message.slice(0, 500) : 'erreur',
+    );
+    return { kind: 'failed', error };
+  }
 }

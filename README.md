@@ -6,7 +6,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 
 ## Statut
 
-**Phase 3 construite (28 septembre 2026), en attente de recette sur des entreprises réelles.** Chaque entreprise importée est identifiée (API Recherche d'entreprises, recherche du site officiel par Brave) puis son site est exploré : robots.txt respecté, une requête par seconde et par domaine, adresses privées refusées, adresses relevées avec la page où elles figurent. La page d'un import suit chaque étape. Deux critères de fin de phase sur trois sont prouvés par les tests ; le troisième, sur 50 entreprises réelles, demande un accès à Internet : `npm run crawl:check` le vérifie en une commande. La Phase 2 est terminée depuis le 26 septembre 2026.
+**Phase 4 terminée (28 septembre 2026), Phase 3 en attente de sa recette sur des entreprises réelles.** Quand le site d'une entreprise ne donne pas un type d'adresse recherché, les fournisseurs prennent le relais dans l'ordre configuré (Hunter pour commencer), puis les adresses de rôle probables sur un domaine qui reçoit du courrier. Chaque appel payant est compté, mis en cache chiffré trente jours et plafonné ; un import rejoué ne paie jamais deux fois. Les deux critères de fin de la Phase 4 sont prouvés par les tests. Pour la Phase 3, `npm run crawl:check -- docs/recette/phase-3-domaines.txt` vérifie sur cinquante sites réels que chaque adresse figure sur la page citée.
 
 ## Documents
 
@@ -23,7 +23,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 - [x] Phase 1 : Comptes et socle applicatif
 - [x] Phase 2 : Import CSV et entreprises
 - [ ] Phase 3 : Identification et collecte sur les sites
-- [ ] Phase 4 : Fournisseurs et adresses candidates
+- [x] Phase 4 : Fournisseurs et adresses candidates
 - [ ] Phase 5 : Vérification avancée et score
 - [ ] Phase 6 : Bibliothèque, page Contacts et exports
 - [ ] Phase 7 : API publique et intégration Campaign Mailer
@@ -60,10 +60,10 @@ npm run test:integration
 
 `TEST_REDIS_URL` active les tests de la file de politesse par domaine, qui vit dans Redis (`docker run -d -p 6379:6379 redis:8`). Sans lui, ces tests sont sautés, les autres tournent.
 
-Recette de la Phase 3 sur de vraies entreprises, un domaine par ligne :
+Recette de la Phase 3 sur de vraies entreprises. Une liste de cinquante domaines est prête, à compléter ou remplacer par les entreprises réellement visées :
 
 ```text
-npm run crawl:check -- domaines.txt
+npm run crawl:check -- docs/recette/phase-3-domaines.txt
 ```
 
 Chaque site est exploré avec les vraies règles, puis chaque adresse relevée est recherchée à nouveau dans la page citée comme source. Le script conclut « critère tenu » seulement si toutes y figurent, et « non démontré » si aucune adresse n'a été relevée.

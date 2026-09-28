@@ -6,10 +6,15 @@ import {
   createRechercheEntreprisesClient,
   RECHERCHE_ENTREPRISES_INTERVAL_MS,
 } from '../providers/recherche-entreprises.js';
+import type { EnrichmentProvider } from '../providers/enrichment.js';
+import { createHunter } from '../providers/hunter.js';
 import { createBraveSearch } from '../providers/web-search.js';
+import { getLogger } from '../observability/logger.js';
+import { createCipher } from '../security/crypto.js';
 import { getQueueConnection } from '../queue/connection.js';
 import { enqueueCompanyStep } from '../queue/queues.js';
 import type { CrawlDeps } from './crawl.js';
+import type { EnrichDeps } from './enrich.js';
 import type { IdentifyDeps } from './identify.js';
 
 /**
@@ -17,7 +22,7 @@ import type { IdentifyDeps } from './identify.js';
  * tests en construisent d'autres, sur le jeu de sites local et des
  * fournisseurs simules.
  */
-export function createPipelineDeps(): IdentifyDeps & CrawlDeps & { fetcher: Fetcher } {
+export function createPipelineDeps(): IdentifyDeps & CrawlDeps & EnrichDeps & { fetcher: Fetcher } {
   const environment = getEnvironment();
   const fetcher = createFetcher();
   // La file par domaine est dans Redis : tous les processus de traitement la
@@ -41,8 +46,40 @@ export function createPipelineDeps(): IdentifyDeps & CrawlDeps & { fetcher: Fetc
       gate.run('recherche-entreprises.api.gouv.fr', RECHERCHE_ENTREPRISES_INTERVAL_MS, tache),
   });
 
+  // Les fournisseurs d'enrichissement, dans l'ordre de repli (F-603), et
+  // seulement ceux qui ont une cle. Sans cle de chiffrement, aucun : leurs
+  // reponses contiennent des adresses nominatives, gardees chiffrees ou pas
+  // du tout (F-604).
+  const cipher =
+    environment.ENCRYPTION_KEY === ''
+      ? undefined
+      : createCipher(environment.ENCRYPTION_KEY, environment.ENCRYPTION_KEY_PREVIOUS);
+  const disponibles: Record<string, EnrichmentProvider | undefined> = {
+    hunter:
+      environment.HUNTER_API_KEY === ''
+        ? undefined
+        : createHunter({
+            apiKey: environment.HUNTER_API_KEY,
+            baseUrl: environment.HUNTER_BASE_URL,
+          }),
+  };
+  const providers = environment.PROVIDER_ORDER.split(',')
+    .map((nom) => disponibles[nom.trim().toLowerCase()])
+    .filter((fournisseur): fournisseur is EnrichmentProvider => fournisseur !== undefined);
+  if (providers.length > 0 && cipher === undefined) {
+    getLogger().warn('ENCRYPTION_KEY vide : les fournisseurs d enrichissement restent desactives');
+  }
+
   const cle = environment.BRAVE_SEARCH_API_KEY;
   return {
+    providers: cipher === undefined ? [] : providers,
+    ...(cipher === undefined ? {} : { cipher }),
+    providerLimits: {
+      hunter: {
+        perUserMonthly: environment.QUOTA_PROVIDER_SEARCHES_PER_USER_PER_MONTH,
+        globalMonthly: environment.HUNTER_MONTHLY_SEARCH_CREDITS,
+      },
+    },
     fetcher,
     crawler,
     entreprises,

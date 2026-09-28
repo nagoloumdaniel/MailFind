@@ -3,7 +3,7 @@
 Plan d'exécution, du dépôt vide à la bêta publique.
 Référence : [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md), version 1.0 du 22 septembre 2026.
 
-- **Statut** : Phases 0, 1 et 2 terminées. Phase 3 construite, en attente de sa recette sur 50 entreprises réelles.
+- **Statut** : Phases 0, 1, 2 et 4 terminées. Phase 3 construite, en attente de sa recette sur 50 entreprises réelles. Phase 5 à démarrer après la revue.
 - **Dernière mise à jour** : 28 septembre 2026
 - **Cadence de révision** : fin de chaque phase
 
@@ -291,6 +291,21 @@ Total du MVP (phases 0 à 10) : environ 53 jours ouvrés pour une personne.
 
 - Une seconde recherche sur le même domaine dans les 30 jours ne consomme aucun crédit.
 - Un import rejoué après une coupure ne consomme pas deux fois le même crédit (A5).
+
+### Bilan (28 septembre 2026)
+
+Démarrée en parallèle de la recette de la Phase 3, à la demande du propriétaire.
+
+**Preuves de la Definition of Done**, sur PostgreSQL 18 :
+
+- *Une seconde recherche sur le même domaine dans les 30 jours ne consomme aucun crédit* : un second import du même domaine, par un autre utilisateur, n'appelle pas le fournisseur et n'ajoute aucun crédit ; le résultat vient du cache chiffré.
+- *Un import rejoué après une coupure ne consomme pas deux fois le même crédit (A5)* : une tâche morte entre la réservation et le règlement n'appelle pas le fournisseur au rejeu ; une étape rejouée normalement non plus.
+
+**Livré.** Chiffrement au repos AES-256-GCM avec rotation de clé (S-01) ; interface commune des fournisseurs et adaptateur Hunter ; `paidCall`, le chemin unique de tout appel payant, que Brave emprunte désormais aussi ; plafonds comptés par opération (30 recherches et 20 vérifications Hunter par mois, D-14) ; étape `company.enrich` avec l'ordre de repli de `PROVIDER_ORDER` ; adresses de rôle candidates, cinq au plus, sur un domaine qui a des MX ; adresses nominatives seulement à partir d'un nom fourni et d'un format observé.
+
+**Avancé d'une phase.** La classification par préfixe (6.8) est arrivée ici, parce que le repli des fournisseurs et les candidates ont besoin de savoir quel type manque. L'affinage par le contexte de la page reste en Phase 5.
+
+**Reste à faire.** Hunter n'est testé que sur un serveur local au format de son API : l'environnement de développement bloque api.hunter.io et la clé n'existe pas encore. Les adresses fournies et déduites sont `unverified` ; leur vérification (F-503) est en Phase 5.
 
 ---
 

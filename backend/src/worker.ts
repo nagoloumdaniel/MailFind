@@ -4,6 +4,7 @@ import { listImportsToResume, markImportFailed, planImport } from './imports/pla
 import { getLogger } from './observability/logger.js';
 import { crawlStep, failStep } from './pipeline/crawl.js';
 import { createPipelineDeps } from './pipeline/deps.js';
+import { enrichStep } from './pipeline/enrich.js';
 import { identifyCompany } from './pipeline/identify.js';
 import { startPipeline } from './pipeline/start.js';
 import { listStepsToResume } from './pipeline/steps.js';
@@ -62,6 +63,7 @@ const collecte = new Worker<CompanyJob>(
   async (job) => {
     if (job.name === 'company.identify') await identifyCompany(dependances, job.data);
     else if (job.name === 'company.crawl') await crawlStep(dependances, job.data);
+    else if (job.name === 'company.enrich') await enrichStep(dependances, job.data);
     else throw new Error(`Etape inconnue : ${job.name}`);
   },
   {
@@ -104,7 +106,12 @@ collecte.on('failed', (job, error) => {
     return;
   }
   logger.error({ jobId: job.id, err: error }, 'etape abandonnee');
-  const etape = job.name === 'company.identify' ? 'identify' : 'crawl';
+  const etape =
+    job.name === 'company.identify'
+      ? 'identify'
+      : job.name === 'company.enrich'
+        ? 'enrich'
+        : 'crawl';
   // Le motif montre a l'utilisateur reste general : le detail technique est
   // dans les journaux (S-03).
   void failStep(etape, job.data, "L'etape a echoue apres plusieurs tentatives.").catch(

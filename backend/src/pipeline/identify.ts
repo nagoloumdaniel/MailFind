@@ -7,13 +7,7 @@ import {
 import { query } from '../db/pool.js';
 import { readStoredSettings } from '../imports/settings.js';
 import { getLogger } from '../observability/logger.js';
-import {
-  readCache,
-  reserveCall,
-  settleCall,
-  writeCache,
-  type CallLimits,
-} from '../providers/credits.js';
+import { paidCall, type CallLimits } from '../providers/credits.js';
 import type {
   LegalIdentity,
   RechercheEntreprisesClient,
@@ -121,9 +115,17 @@ interface EnCache {
   confidence?: number;
 }
 
+const MOTIFS_SAUT: Record<string, string> = {
+  interrupted: 'Recherche interrompue, non relancee pour ne pas la payer deux fois.',
+  already_settled: 'Recherche deja faite pour cette entreprise dans cet import.',
+  user_quota: 'Plafond mensuel de recherches atteint pour ce compte.',
+  global_quota: 'Credits de recherche du mois epuises.',
+};
+
 /**
- * Le site officiel par recherche web, compte, mis en cache et plafonne. Rend
- * le site choisi, ou un motif quand la recherche n'a pas pu se faire.
+ * Le site officiel par recherche web, compte, mis en cache et plafonne par
+ * `paidCall`. Rend le site choisi, ou un motif quand la recherche n'a pas pu
+ * se faire.
  */
 async function rechercherSite(
   deps: IdentifyDeps,
@@ -133,20 +135,8 @@ async function rechercherSite(
   const recherche = deps.webSearch;
   if (recherche === undefined) return { note: 'Recherche web non configuree.' };
 
-  const cle = `${entreprise.normalized_name}|${(entreprise.city ?? '').toLowerCase()}`;
-  const lireCache = async () => readCache<EnCache>(recherche.name, 'official_site', cle);
-  const depuisCache = (valeur: EnCache) =>
-    valeur.domain === undefined || valeur.confidence === undefined
-      ? {}
-      : { site: { domain: valeur.domain, confidence: valeur.confidence } };
-
-  // Une recherche deja faite pour ce nom, par n'importe quelle tache, ne
-  // coute rien.
-  const connue = await lireCache();
-  if (connue !== undefined) return depuisCache(connue);
-
-  const reservation = await reserveCall(
-    {
+  const issue = await paidCall<EnCache>({
+    scope: {
       provider: recherche.name,
       operation: 'web_search',
       userId: job.userId,
@@ -154,35 +144,24 @@ async function rechercherSite(
       companyId: job.companyId,
       idempotencyKey: `web_search:${job.importId}:${job.companyId}`,
     },
-    deps.webSearchLimits,
-  );
+    limits: deps.webSearchLimits,
+    // Une recherche deja faite pour ce nom et cette ville, par n'importe
+    // quelle tache, ne coute rien.
+    cacheKey: `${entreprise.normalized_name}|${(entreprise.city ?? '').toLowerCase()}`,
+    ttlDays: CACHE_JOURS,
+    call: async () => {
+      const requete = [entreprise.name, entreprise.city].filter(Boolean).join(' ');
+      return chooseOfficialSite(await recherche.search(requete), entreprise.name) ?? {};
+    },
+  });
 
-  switch (reservation.kind) {
-    case 'already_settled': {
-      const apres = await lireCache();
-      return apres === undefined ? {} : depuisCache(apres);
-    }
-    case 'interrupted':
-      return { note: 'Recherche interrompue, non relancee pour ne pas la payer deux fois.' };
-    case 'user_quota_reached':
-      return { note: 'Plafond mensuel de recherches atteint pour ce compte.' };
-    case 'global_quota_reached':
-      return { note: 'Credits de recherche du mois epuises.' };
-    case 'reserved':
-      break;
-  }
-
-  try {
-    const requete = [entreprise.name, entreprise.city].filter(Boolean).join(' ');
-    const site = chooseOfficialSite(await recherche.search(requete), entreprise.name);
-    await writeCache(recherche.name, 'official_site', cle, site ?? {}, CACHE_JOURS);
-    await settleCall(reservation.id, 'confirmed');
-    return site === undefined ? {} : { site };
-  } catch (error) {
-    const motif = error instanceof Error ? error.message : 'erreur';
-    await settleCall(reservation.id, 'failed', motif);
+  if (issue.kind === 'skipped') return { note: MOTIFS_SAUT[issue.reason] ?? '' };
+  if (issue.kind === 'failed') {
+    const motif = issue.error instanceof Error ? issue.error.message : 'erreur';
     return { note: `Recherche web indisponible : ${motif}` };
   }
+  const { domain, confidence } = issue.value;
+  return domain === undefined || confidence === undefined ? {} : { site: { domain, confidence } };
 }
 
 async function appliquerSite(job: CompanyJob, site: OfficialSite): Promise<boolean> {

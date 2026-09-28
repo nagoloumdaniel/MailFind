@@ -170,6 +170,14 @@ export function ImportDetailPage() {
             sansObjet={progression.crawl.skipped}
             aide="Seules les entreprises au domaine connu ou confirme sont explorees."
           />
+          <Etape
+            libelle="Recherche complementaire"
+            fait={finished(progression.enrich)}
+            sur={total(progression.enrich)}
+            echecs={progression.enrich.failed}
+            sansObjet={progression.enrich.skipped}
+            aide="Fournisseurs puis adresses deduites, seulement quand le site n'a pas donne un type d'adresse recherche."
+          />
         </ol>
 
         <dl className="mt-6 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
@@ -183,9 +191,19 @@ export function ImportDetailPage() {
           <Chiffre libelle="Ecartees" valeur={importe.rejectedRows} alerte />
           <Chiffre libelle="Entreprises" valeur={progression.companies} />
           <Chiffre
-            libelle="Adresses trouvees"
-            valeur={progression.emails}
-            aide="Publiees sur les sites des entreprises, chacune avec sa source. Aucune n'est encore verifiee."
+            libelle="Sur les sites"
+            valeur={progression.emailsByOrigin.found}
+            aide="Publiees sur les sites des entreprises, chacune avec la page ou elle figure."
+          />
+          <Chiffre
+            libelle="Par les fournisseurs"
+            valeur={progression.emailsByOrigin.provider}
+            aide="Fournies par un fournisseur d'enrichissement, avec son nom et la confiance qu'il annonce."
+          />
+          <Chiffre
+            libelle="Deduites"
+            valeur={progression.emailsByOrigin.deduced}
+            aide="Adresses de role probables ou nominatives deduites d'un format observe : des hypotheses."
           />
         </dl>
       </section>
@@ -213,9 +231,10 @@ export function ImportDetailPage() {
         {importe.status === 'completed' && (
           <p className="text-text-soft">
             {progression.emails === 0
-              ? "Aucune adresse n'a ete trouvee sur les sites explores."
-              : `${progression.emails.toLocaleString('fr-FR')} adresses trouvees sur les sites des entreprises, chacune avec la page ou elle figure.`}{' '}
-            Elles ne sont pas encore verifiees : aucune ne doit etre tenue pour valide a ce stade.
+              ? "Aucune adresse n'a ete trouvee."
+              : `${progression.emails.toLocaleString('fr-FR')} adresses, chacune avec sa source : la page ou elle figure, le fournisseur qui l'a donnee, ou la regle qui l'a deduite.`}{' '}
+            Aucune n&apos;est encore verifiee, et les adresses deduites ne sont que des hypotheses :
+            aucune ne doit etre tenue pour valide a ce stade.
           </p>
         )}
         {importe.status === 'cancelled' && (
