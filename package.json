@@ -26,6 +26,7 @@
     "dev:frontend": "npm run dev --workspace frontend",
     "dev:worker": "npm run dev:worker --workspace backend",
     "check:services": "npm run check:services --workspace backend",
+    "crawl:check": "npm run crawl:check --workspace backend --",
     "migrate": "npm run migrate --workspace backend --",
     "prepare": "husky"
   },

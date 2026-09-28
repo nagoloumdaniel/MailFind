@@ -4,6 +4,7 @@ import { startTestSites, type TestSites } from '../test/sites/server.js';
 import { createCrawlerClient, type CrawlerClient } from './client.js';
 import { crawlCompany } from './engine.js';
 import { createMemoryGate } from './politeness.js';
+import { appearsIn } from './verify.js';
 
 let sites: TestSites;
 let fetcher: Fetcher;
@@ -49,6 +50,18 @@ describe('crawlCompany sur un site de boulangerie', () => {
       'recrutement@boulangerie.test written_form /recrutement',
       'rh@boulangerie.test text /contact',
     ]);
+  });
+
+  it('cite pour chaque adresse une page ou elle figure vraiment (DoD Phase 3)', async () => {
+    const rapport = await crawlCompany(client, { domain: 'boulangerie.test', depth: 'deep' });
+    expect(rapport.addresses.length).toBeGreaterThan(0);
+    for (const trouvee of rapport.addresses) {
+      const page = await fetcher.fetchPage(trouvee.pageUrl);
+      expect(
+        appearsIn(page.body, trouvee.address),
+        `${trouvee.address} sur ${trouvee.pageUrl}`,
+      ).toBe(true);
+    }
   });
 
   it('ecarte l hebergeur, l exemple et le nom de fichier (F-410)', async () => {
