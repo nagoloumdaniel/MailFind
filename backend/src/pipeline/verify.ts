@@ -292,8 +292,8 @@ async function enregistrer(
     await client.query('begin');
     for (const verification of nouvelles) {
       await client.query(
-        `insert into verifications (email_id, level, status, sub_status, reason, provider)
-         values ($1, $2, $3::email_status, $4, $5, $6)`,
+        `insert into verifications (email_id, level, status, sub_status, reason, provider, address)
+         values ($1, $2, $3::email_status, $4, $5, $6, $7)`,
         [
           email.id,
           verification.level,
@@ -301,6 +301,7 @@ async function enregistrer(
           verification.subStatus ?? null,
           verification.reason,
           verification.provider ?? null,
+          email.normalized_address,
         ],
       );
     }
