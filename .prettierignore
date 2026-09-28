@@ -8,3 +8,7 @@ package-lock.json
 # du cahier des charges en diff de plusieurs centaines de lignes.
 *.md
 docs/
+
+# Les sites du jeu de test imitent de vraies pages, maladresses comprises :
+# les reformater changerait ce que le moteur de collecte doit savoir lire.
+backend/src/test/sites/*/

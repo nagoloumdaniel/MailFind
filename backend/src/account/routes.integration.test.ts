@@ -73,7 +73,7 @@ describe('GET /api/account/export (F-104)', () => {
     expect(reponse.body.imports[0]).toMatchObject({
       id: importId,
       filename: 'salon.csv',
-      status: 'completed',
+      status: 'running',
       settings: { depth: 'quick', tags: ['salon'] },
     });
     expect(reponse.body.imports[0].rows).toEqual([

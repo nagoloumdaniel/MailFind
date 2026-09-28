@@ -41,11 +41,70 @@ export async function createImport(input: {
   return cree;
 }
 
-export async function fetchImport(
-  id: string,
-): Promise<{ import: ImportSummary; rejectedRows: RejectedRow[] }> {
+export interface StepCounts {
+  pending: number;
+  running: number;
+  done: number;
+  failed: number;
+  skipped: number;
+}
+
+export type CrawlNote =
+  | 'robots_disallowed'
+  | 'masked_address'
+  | 'dynamic_content'
+  | 'contact_form'
+  | 'no_website'
+  | 'unreachable';
+
+export interface CompanyIssue {
+  id: string;
+  name: string;
+  domain: string | null;
+  domainStatus: 'unknown' | 'provided' | 'confirmed' | 'to_confirm';
+  domainConfidence: number | null;
+  crawlStatus: string;
+  notes: CrawlNote[];
+  error: string | null;
+}
+
+export interface ImportProgress {
+  companies: number;
+  identify: StepCounts;
+  crawl: StepCounts;
+  emails: number;
+  issues: CompanyIssue[];
+}
+
+export async function fetchImport(id: string): Promise<{
+  import: ImportSummary;
+  rejectedRows: RejectedRow[];
+  progress: ImportProgress;
+}> {
   return apiFetch(`/api/imports/${encodeURIComponent(id)}`);
 }
+
+/** Une etape est finie pour une entreprise quand elle ne l'attend plus. */
+export function finished(etape: StepCounts): number {
+  return etape.done + etape.failed + etape.skipped;
+}
+
+export function total(etape: StepCounts): number {
+  return finished(etape) + etape.pending + etape.running;
+}
+
+/**
+ * Ce que la collecte a constate, dit a l'utilisateur. Le formulaire de
+ * contact n'y figure pas seul : c'est un canal, pas un probleme.
+ */
+export const NOTE_LABELS: Record<CrawlNote, string> = {
+  robots_disallowed: 'robots.txt interdit la visite de tout ou partie du site',
+  unreachable: 'Site injoignable',
+  dynamic_content: 'Site construit en JavaScript, contenu non analyse',
+  masked_address: 'Adresse masquee par le site, non decodee : formulaire de contact a utiliser',
+  contact_form: 'Formulaire de contact disponible',
+  no_website: 'Aucun site connu',
+};
 
 export async function fetchImports(): Promise<ImportSummary[]> {
   const { imports } = await apiFetch<{ imports: ImportSummary[] }>('/api/imports');

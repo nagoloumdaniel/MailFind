@@ -180,19 +180,19 @@ export async function planImport(importId: string, userId: string): Promise<Plan
     );
   }
 
+  // La planification est finie, pas l'import : chaque entreprise doit encore
+  // etre identifiee puis exploree. `startPipeline` prend la suite, et passe
+  // l'import en « termine » s'il n'y a rien a faire.
   await query(
     `update imports
-        set status = 'completed',
-            completed_at = now(),
+        set status = 'running',
             processed_rows = total_rows
-      where id = $1 and status <> 'cancelled'`,
+      where id = $1 and status in ('pending', 'planning')`,
     [importId],
   );
 
   logger.info({ traitees, creees, doublons }, 'planification terminee');
 
-  // La suite, identification du domaine et collecte, arrive en Phase 3. A ce
-  // stade un import termine est un import range en bibliotheque.
   return {
     processed: traitees,
     companiesCreated: creees,

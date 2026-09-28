@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /prive
+
+User-agent: MailFindBot
+Disallow: /interdit
+Allow: /interdit/public

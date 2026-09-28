@@ -3,6 +3,7 @@ import type { LookupFunction } from 'node:net';
 import { Agent, request } from 'undici';
 import { getEnvironment } from '../config/env.js';
 import { isForbiddenHostname, isForbiddenIp } from './addresses.js';
+import { registrableDomain } from './domain.js';
 
 /**
  * Le seul client HTTP autorise a joindre un site exterieur.
@@ -18,6 +19,10 @@ import { isForbiddenHostname, isForbiddenIp } from './addresses.js';
  * a la connexion, une seconde plus tard. En validant au moment ou la socket
  * s'ouvre, il n'y a plus d'intervalle a exploiter, et chaque redirection est
  * couverte sans avoir a y penser.
+ *
+ * Le respect des sites (robots.txt, une requete par seconde et par domaine)
+ * est au-dessus, dans `crawler/client.ts` : ce module-ci ne sait que lire une
+ * page sans danger.
  */
 
 export class BlockedAddressError extends Error {
@@ -34,72 +39,40 @@ export class PageTooLargeError extends Error {
   }
 }
 
+export class FetchTimeoutError extends Error {
+  constructor(limitMs: number) {
+    super(`Aucune reponse complete en ${String(limitMs / 1000)} secondes`);
+    this.name = 'FetchTimeoutError';
+  }
+}
+
 type LookupCallback = (
   error: NodeJS.ErrnoException | null,
   address: string | LookupAddress[],
   family?: number,
 ) => void;
 
+interface LookupOptions {
+  all?: boolean;
+  family?: number;
+}
+
 /**
- * Resolution DNS qui refuse toute adresse non publiquement routable.
+ * Aiguillage des tests : quelques noms d'hote reserves, resolus vers la
+ * machine locale, ou tourne le jeu de sites de la suite de tests (13.1).
  *
- * Toutes les adresses rendues sont examinees, pas seulement la premiere : un
- * nom peut en publier plusieurs, et il suffirait d'en laisser passer une.
+ * Sans lui, la garde refuserait a juste titre 127.0.0.1, et le moteur de
+ * collecte ne pourrait etre teste que sur l'Internet reel. Tout le reste passe
+ * par la garde normale, si bien que les tests de la garde tournent sur le meme
+ * client que ceux du moteur. Interdit en production.
  */
-function guardedLookup(
-  hostname: string,
-  options: { all?: boolean; family?: number },
-  callback: LookupCallback,
-): void {
-  dnsLookup(hostname, { ...options, all: true }, (error, addresses) => {
-    if (error) {
-      callback(error, []);
-      return;
-    }
-
-    const resolues = addresses;
-    const interdite = resolues.find((adresse) => isForbiddenIp(adresse.address));
-    if (interdite !== undefined) {
-      const refus = new BlockedAddressError(
-        `${hostname} resout vers ${interdite.address}`,
-      ) as NodeJS.ErrnoException;
-      refus.code = 'EBLOCKED';
-      callback(refus, []);
-      return;
-    }
-
-    if (options.all === true) {
-      callback(null, resolues);
-      return;
-    }
-
-    const premiere = resolues[0];
-    if (premiere === undefined) {
-      const vide = new Error(`${hostname} ne resout vers aucune adresse`) as NodeJS.ErrnoException;
-      vide.code = 'ENOTFOUND';
-      callback(vide, []);
-      return;
-    }
-    callback(null, premiere.address, premiere.family);
-  });
+export interface TestRouting {
+  readonly port: number;
+  readonly hosts: readonly string[];
 }
 
-let agent: Agent | undefined;
-
-function getAgent(): Agent {
-  // `request` ne suit aucune redirection par defaut : elles sont traitees a la
-  // main plus bas, pour pouvoir compter celles qui sortent du domaine.
-  agent ??= new Agent({
-    connect: { lookup: guardedLookup as unknown as LookupFunction, timeout: 10_000 },
-  });
-  return agent;
-}
-
-export async function closeSafeFetch(): Promise<void> {
-  if (agent === undefined) return;
-  const fermeture = agent;
-  agent = undefined;
-  await fermeture.close();
+export interface FetcherOptions {
+  readonly testRouting?: TestRouting;
 }
 
 export interface FetchedPage {
@@ -115,107 +88,244 @@ export interface FetchOptions {
   readonly timeoutMs?: number;
   readonly maxBytes?: number;
   readonly maxOffDomainRedirects?: number;
+  /** Types de contenu acceptes. Par defaut, ce qu'une page web peut etre. */
+  readonly accept?: 'page' | 'text';
+}
+
+export interface Fetcher {
+  fetchPage(url: string, options?: FetchOptions): Promise<FetchedPage>;
+  close(): Promise<void>;
 }
 
 /** Types de contenu que la collecte sait lire. Le reste est ignore. */
 const READABLE = /^(text\/html|application\/xhtml\+xml|text\/plain)/i;
 
-function registrableHost(hostname: string): string {
-  // Comparaison volontairement grossiere : « www.exemple.fr » et
-  // « careers.exemple.fr » comptent pour le meme domaine, ce qui suffit a
-  // distinguer une redirection interne d'un saut vers un autre site.
-  const parties = hostname.toLowerCase().split('.');
-  return parties.slice(-2).join('.');
+/** Au-dela de dix sauts, c'est une boucle, quel que soit le domaine. */
+const MAX_HOPS = 10;
+
+/**
+ * Le jeu de caracteres annonce par l'en-tete, sinon par la page elle-meme.
+ * Beaucoup de sites francais sont encore en Windows-1252 : les lire en UTF-8
+ * transformerait « societe » accentuee en caracteres de remplacement, et une
+ * adresse qui les voisine pourrait ne plus etre reconnue.
+ */
+function charsetOf(contentType: string, octets: Buffer): string {
+  const entete = /charset=["']?([\w-]+)/i.exec(contentType)?.[1];
+  if (entete !== undefined) return entete.toLowerCase();
+  const debut = octets.subarray(0, 2048).toString('latin1');
+  const meta = /<meta[^>]+charset=["']?([\w-]+)/i.exec(debut)?.[1];
+  return meta?.toLowerCase() ?? 'utf-8';
 }
 
-export async function fetchPage(rawUrl: string, options: FetchOptions = {}): Promise<FetchedPage> {
-  const environment = getEnvironment();
-  const timeoutMs = options.timeoutMs ?? environment.CRAWLER_REQUEST_TIMEOUT_MS;
-  const maxBytes = options.maxBytes ?? environment.CRAWLER_MAX_RESPONSE_BYTES;
-  const maxOffDomain = options.maxOffDomainRedirects ?? environment.CRAWLER_MAX_REDIRECTS;
+function decode(octets: Buffer, contentType: string): string {
+  try {
+    return new TextDecoder(charsetOf(contentType, octets)).decode(octets);
+  } catch {
+    // Jeu de caracteres inconnu : UTF-8 remplace ce qu'il ne sait pas lire,
+    // ce qui vaut mieux qu'une page perdue.
+    return new TextDecoder('utf-8').decode(octets);
+  }
+}
 
-  let url = new URL(rawUrl);
-  const domaineDepart = registrableHost(url.hostname);
-  let sorties = 0;
+/**
+ * Lache un corps de reponse qu'on ne lira pas. Detruit sans erreur, undici
+ * emet quand meme « Request aborted » : sans ecouteur, cette erreur remonte
+ * comme non geree, alors qu'elle ne dit rien d'autre que ce qu'on a voulu.
+ */
+function abandonner(corps: NodeJS.ReadableStream & { destroy(): void }): void {
+  corps.on('error', () => undefined);
+  corps.destroy();
+}
 
-  // Une borne dure sur le nombre total de sauts, en plus de celle sur les
-  // sorties de domaine : une boucle de redirections a l'interieur d'un site
-  // tournerait sinon sans fin.
-  for (let saut = 0; saut <= 10; saut += 1) {
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      throw new BlockedAddressError(`protocole ${url.protocol} refuse`);
+export function createFetcher(options: FetcherOptions = {}): Fetcher {
+  const routage = options.testRouting;
+  if (routage !== undefined && process.env.NODE_ENV === 'production') {
+    throw new Error("L'aiguillage de test ne peut pas etre active en production.");
+  }
+  const hotesDeTest = new Set(routage?.hosts.map((hote) => hote.toLowerCase()) ?? []);
+  const estHoteDeTest = (hostname: string) => hotesDeTest.has(hostname.toLowerCase());
+
+  /**
+   * Resolution DNS qui refuse toute adresse non publiquement routable.
+   *
+   * Toutes les adresses rendues sont examinees, pas seulement la premiere :
+   * un nom peut en publier plusieurs, et il suffirait d'en laisser passer une.
+   */
+  function guardedLookup(hostname: string, lookupOptions: LookupOptions, callback: LookupCallback) {
+    if (estHoteDeTest(hostname)) {
+      if (lookupOptions.all === true) callback(null, [{ address: '127.0.0.1', family: 4 }]);
+      else callback(null, '127.0.0.1', 4);
+      return;
     }
-    if (isForbiddenHostname(url.hostname)) {
-      throw new BlockedAddressError(url.hostname);
-    }
 
-    const reponse = await request(url, {
-      method: 'GET',
-      dispatcher: getAgent(),
-      headersTimeout: timeoutMs,
-      bodyTimeout: timeoutMs,
-      headers: {
-        'user-agent': environment.CRAWLER_USER_AGENT,
-        accept: 'text/html,application/xhtml+xml;q=0.9,text/plain;q=0.8',
-        'accept-language': 'fr,en;q=0.8',
-      },
-    });
-
-    const emplacement = reponse.headers.location;
-    const estRedirection = reponse.statusCode >= 300 && reponse.statusCode < 400;
-
-    if (estRedirection && typeof emplacement === 'string' && emplacement !== '') {
-      // Le corps d'une redirection ne sert a rien, mais le laisser ouvert
-      // retiendrait la connexion.
-      await reponse.body.dump();
-
-      const suivante = new URL(emplacement, url);
-      if (registrableHost(suivante.hostname) !== domaineDepart) {
-        sorties += 1;
-        if (sorties > maxOffDomain) {
-          throw new BlockedAddressError(
-            `trop de redirections hors du domaine (${String(sorties)})`,
-          );
-        }
+    dnsLookup(hostname, { ...lookupOptions, all: true }, (error, addresses) => {
+      if (error) {
+        callback(error, []);
+        return;
       }
-      url = suivante;
-      continue;
-    }
 
-    const typeContenu = String(reponse.headers['content-type'] ?? '');
-    if (!READABLE.test(typeContenu)) {
-      await reponse.body.dump();
+      const interdite = addresses.find((adresse) => isForbiddenIp(adresse.address));
+      if (interdite !== undefined) {
+        const refus = new BlockedAddressError(
+          `${hostname} resout vers ${interdite.address}`,
+        ) as NodeJS.ErrnoException;
+        refus.code = 'EBLOCKED';
+        callback(refus, []);
+        return;
+      }
+
+      if (lookupOptions.all === true) {
+        callback(null, addresses);
+        return;
+      }
+
+      const premiere = addresses[0];
+      if (premiere === undefined) {
+        const vide = new Error(
+          `${hostname} ne resout vers aucune adresse`,
+        ) as NodeJS.ErrnoException;
+        vide.code = 'ENOTFOUND';
+        callback(vide, []);
+        return;
+      }
+      callback(null, premiere.address, premiere.family);
+    });
+  }
+
+  const environment = getEnvironment();
+  // `request` ne suit aucune redirection par defaut : elles sont traitees a la
+  // main plus bas, pour pouvoir compter celles qui sortent du domaine.
+  const agent = new Agent({
+    connect: {
+      lookup: guardedLookup as unknown as LookupFunction,
+      timeout: environment.CRAWLER_REQUEST_TIMEOUT_MS,
+    },
+  });
+
+  /** L'URL a laquelle on se connecte vraiment : celle du jeu de test, en local. */
+  function cible(url: URL): URL {
+    if (routage === undefined || !estHoteDeTest(url.hostname)) return url;
+    const locale = new URL(url.toString());
+    locale.protocol = 'http:';
+    locale.port = String(routage.port);
+    return locale;
+  }
+
+  async function lire(rawUrl: string, fetchOptions: FetchOptions, signal: AbortSignal) {
+    const maxBytes = fetchOptions.maxBytes ?? environment.CRAWLER_MAX_RESPONSE_BYTES;
+    const maxOffDomain = fetchOptions.maxOffDomainRedirects ?? environment.CRAWLER_MAX_REDIRECTS;
+    const lisible = fetchOptions.accept === 'text' ? /^text\/plain/i : READABLE;
+
+    let url = new URL(rawUrl);
+    const domaineDepart = registrableDomain(url.hostname);
+    let sorties = 0;
+
+    for (let saut = 0; saut <= MAX_HOPS; saut += 1) {
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        throw new BlockedAddressError(`protocole ${url.protocol} refuse`);
+      }
+      if (!estHoteDeTest(url.hostname) && isForbiddenHostname(url.hostname)) {
+        throw new BlockedAddressError(url.hostname);
+      }
+
+      const reponse = await request(cible(url), {
+        method: 'GET',
+        dispatcher: agent,
+        signal,
+        headers: {
+          'user-agent': environment.CRAWLER_USER_AGENT,
+          accept: 'text/html,application/xhtml+xml;q=0.9,text/plain;q=0.8',
+          'accept-language': 'fr,en;q=0.8',
+        },
+      });
+
+      const emplacement = reponse.headers.location;
+      const estRedirection = reponse.statusCode >= 300 && reponse.statusCode < 400;
+
+      if (estRedirection && typeof emplacement === 'string' && emplacement !== '') {
+        // Le corps d'une redirection ne sert a rien, mais le laisser ouvert
+        // retiendrait la connexion.
+        abandonner(reponse.body);
+
+        const suivante = new URL(emplacement, url);
+        if (registrableDomain(suivante.hostname) !== domaineDepart) {
+          sorties += 1;
+          if (sorties > maxOffDomain) {
+            throw new BlockedAddressError(
+              `trop de redirections hors du domaine (${String(sorties)})`,
+            );
+          }
+        }
+        url = suivante;
+        continue;
+      }
+
+      const typeContenu = String(reponse.headers['content-type'] ?? '');
+      // Un fichier texte sans type annonce reste lisible pour robots.txt.
+      if (!lisible.test(typeContenu) && !(fetchOptions.accept === 'text' && typeContenu === '')) {
+        abandonner(reponse.body);
+        return {
+          url: url.toString(),
+          status: reponse.statusCode,
+          contentType: typeContenu,
+          body: '',
+          redirects: saut,
+        };
+      }
+
+      // Lecture bornee : on s'arrete des le depassement plutot que de charger
+      // une page de cent megaoctets pour la jeter ensuite.
+      let taille = 0;
+      const morceaux: Buffer[] = [];
+      for await (const morceau of reponse.body) {
+        const bloc = Buffer.isBuffer(morceau) ? morceau : Buffer.from(morceau as Uint8Array);
+        taille += bloc.byteLength;
+        if (taille > maxBytes) {
+          abandonner(reponse.body);
+          throw new PageTooLargeError(maxBytes);
+        }
+        morceaux.push(bloc);
+      }
+
       return {
         url: url.toString(),
         status: reponse.statusCode,
         contentType: typeContenu,
-        body: '',
+        body: decode(Buffer.concat(morceaux), typeContenu),
         redirects: saut,
       };
     }
 
-    // Lecture bornee : on s'arrete des le depassement plutot que de charger
-    // une page de cent megaoctets pour la jeter ensuite.
-    let taille = 0;
-    const morceaux: Buffer[] = [];
-    for await (const morceau of reponse.body) {
-      const bloc = Buffer.isBuffer(morceau) ? morceau : Buffer.from(morceau as Uint8Array);
-      taille += bloc.byteLength;
-      if (taille > maxBytes) {
-        await reponse.body.dump();
-        throw new PageTooLargeError(maxBytes);
-      }
-      morceaux.push(bloc);
-    }
-
-    return {
-      url: url.toString(),
-      status: reponse.statusCode,
-      contentType: typeContenu,
-      body: Buffer.concat(morceaux).toString('utf8'),
-      redirects: saut,
-    };
+    throw new BlockedAddressError('boucle de redirections');
   }
 
-  throw new BlockedAddressError('boucle de redirections');
+  return {
+    /**
+     * Le delai couvre tout : resolution, redirections et lecture du corps. Les
+     * delais propres a undici ne comptent que l'inactivite, si bien qu'un site
+     * qui distille un octet toutes les neuf secondes les respecterait tous en
+     * tenant la connexion indefiniment.
+     */
+    async fetchPage(rawUrl, fetchOptions = {}) {
+      const delai = fetchOptions.timeoutMs ?? environment.CRAWLER_REQUEST_TIMEOUT_MS;
+      // Un minuteur annule a la fin, et non `AbortSignal.timeout` : celui-ci
+      // continue de courir apres la lecture, et viendrait interrompre plus
+      // tard des corps deja termines, en erreurs que personne n'ecoute.
+      const controleur = new AbortController();
+      const minuteur = setTimeout(() => {
+        controleur.abort();
+      }, delai);
+      try {
+        return await lire(rawUrl, fetchOptions, controleur.signal);
+      } catch (error) {
+        if (controleur.signal.aborted) throw new FetchTimeoutError(delai);
+        throw error;
+      } finally {
+        clearTimeout(minuteur);
+      }
+    },
+    async close() {
+      await agent.close();
+    },
+  };
 }

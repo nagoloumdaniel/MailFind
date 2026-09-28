@@ -11,6 +11,7 @@
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/index.js",
     "check:services": "tsx src/scripts/check-services.ts",
+    "crawl:check": "tsx src/scripts/crawl-check.ts",
     "migrate": "tsx src/db/migrate.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -35,8 +36,10 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1138.0",
     "bullmq": "^6.3.8",
+    "cheerio": "^1.2.0",
     "connect-redis": "^10.0.0",
     "cors": "^2.8.6",
+    "domhandler": "^6.0.1",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "helmet": "^8.3.0",

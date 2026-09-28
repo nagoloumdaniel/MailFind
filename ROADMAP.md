@@ -3,8 +3,8 @@
 Plan d'exécution, du dépôt vide à la bêta publique.
 Référence : [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md), version 1.0 du 22 septembre 2026.
 
-- **Statut** : Phases 0, 1 et 2 terminées. Phase 3 à démarrer après la revue de la Phase 2.
-- **Dernière mise à jour** : 26 septembre 2026
+- **Statut** : Phases 0, 1 et 2 terminées. Phase 3 construite, en attente de sa recette sur 50 entreprises réelles.
+- **Dernière mise à jour** : 28 septembre 2026
 - **Cadence de révision** : fin de chaque phase
 
 ---
@@ -243,6 +243,26 @@ Total du MVP (phases 0 à 10) : environ 53 jours ouvrés pour une personne.
 ### Risques
 
 - Sites construits en JavaScript : les signaler (F-412), ne pas ajouter de navigateur sans interface avant la Phase 11.
+
+### Bilan (28 septembre 2026)
+
+**Livré.** Tous les lots ci-dessus. La garde des adresses et le client HTTP ont été posés par le propriétaire le 28 septembre ; le reste s'est construit dessus.
+
+**Preuves de la Definition of Done.**
+
+- *Un site dont robots.txt interdit l'agent n'est jamais visité (A6)* : prouvé sur le jeu de sites local, par le journal des requêtes du serveur de test. Un site qui interdit tout reçoit une seule requête, pour robots.txt, y compris à travers tout le pipeline.
+- *Aucune requête vers une adresse privée, même par redirection* : prouvé sur le client qui sert aussi aux tests du moteur. Machine locale par IP, par nom, en IPv6, en IPv4 déguisée en IPv6, et redirection vers 169.254.169.254 : tout est refusé.
+- *Sur 50 entreprises réelles, chaque adresse relevée pointe vers la page où elle figure* : **pas encore prouvé**. L'environnement de développement n'a pas accès à Internet. Le critère est vérifié sur le site de test de la boulangerie, en profondeur approfondie, et `npm run crawl:check -- domaines.txt` le vérifie sur de vrais sites en une commande. La phase se coche quand cette commande conclut « critère tenu » sur 50 entreprises.
+
+**Défauts trouvés en cours de phase, et corrigés.**
+
+- La garde laissait passer `http://[::ffff:169.254.169.254]/`, que le parseur d'URL réécrit en hexadécimal. Les adresses IPv6 sont désormais jugées comme des nombres, et tout ce qui n'est pas de l'unicast global est refusé.
+- Le délai d'expiration ne mesurait que l'inactivité : une page qui distille un octet toutes les trois cents millisecondes tenait la connexion sans fin. Les pages en Windows-1252 étaient lues en UTF-8.
+- Trois pages demandées en même temps sur un site inconnu lisaient trois fois robots.txt.
+- Un site injoignable était noté « robots.txt interdit ».
+- Hérité de la Phase 2 : un lien Welcome to the Jungle ou LinkedIn dans la colonne « site » donnait son domaine à l'entreprise, et le dédoublonnage fondait en une seule toutes celles qui n'avaient que ce lien.
+
+**Reste à faire hors de cette phase.** Les clients Recherche d'entreprises et Brave sont testés sur des serveurs locaux au format des API, pas encore sur les API réelles : la clé Brave est à créer, et l'environnement de développement bloque ces deux hôtes. La classification des adresses (6.8) et leur vérification restent en Phase 5 : toutes les adresses trouvées sont `unverified`.
 
 ---
 

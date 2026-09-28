@@ -1,3 +1,5 @@
+import { thirdPartyKind } from './third-party';
+
 /**
  * Rapprochement des colonnes du fichier avec les champs que MailFind connait
  * (F-203). La proposition est automatique, et l'utilisateur la corrige : elle
@@ -213,15 +215,26 @@ function rejectionOf(values: Partial<Record<KnownField, string>>): string | unde
 
   const { company_name: nom, domain: domaine, website_url: site, careers_url: carrieres } = values;
   const nomUtile = nom !== undefined && foldName(nom) !== '';
-  const adresseUtile = [domaine, site, carrieres].some(
-    (valeur) => valeur !== undefined && usableDomain(valeur) !== undefined,
-  );
+
+  // Un domaine ou un site heberge par un tiers ne vaut pas domaine (F-306) ;
+  // une plateforme de recrutement vaut encore page carrieres.
+  const hoteDomaine = domaine === undefined ? undefined : usableDomain(domaine);
+  const hoteSite = site === undefined ? undefined : usableDomain(site);
+  const tiersDomaine = hoteDomaine === undefined ? undefined : thirdPartyKind(hoteDomaine);
+  const tiersSite = hoteSite === undefined ? undefined : thirdPartyKind(hoteSite);
+  const adresseUtile =
+    (hoteDomaine !== undefined && tiersDomaine !== 'social' && tiersDomaine !== 'directory') ||
+    (hoteSite !== undefined && tiersSite !== 'social' && tiersSite !== 'directory') ||
+    (carrieres !== undefined && usableDomain(carrieres) !== undefined);
   if (nomUtile || adresseUtile) return undefined;
 
   const fautif = domaine ?? site ?? carrieres ?? '';
-  return fautif === ''
-    ? "Le nom d'entreprise est vide apres nettoyage."
-    : `« ${fautif.slice(0, 80)} » n'est pas un domaine ni une adresse de site exploitable.`;
+  const tiers = tiersDomaine ?? tiersSite;
+  if (fautif === '') return "Le nom d'entreprise est vide apres nettoyage.";
+  if (tiers === 'social' || tiers === 'directory') {
+    return `« ${fautif.slice(0, 80)} » est une page de reseau social ou d'annuaire, pas le site de l'entreprise : ajoutez son nom ou son domaine.`;
+  }
+  return `« ${fautif.slice(0, 80)} » n'est pas un domaine ni une adresse de site exploitable.`;
 }
 
 /** Ce qui reste d'un nom une fois accents, ponctuation et espaces retires. */

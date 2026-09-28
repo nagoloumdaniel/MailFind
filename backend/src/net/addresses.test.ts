@@ -72,6 +72,46 @@ describe('isForbiddenIp, IPv6', () => {
 
   it('refuse la plage de documentation', () => {
     expect(isForbiddenIp('2001:db8::1')).toBe(true);
+    expect(isForbiddenIp('3fff::1')).toBe(true);
+  });
+
+  it('voit l IPv4 cachee meme ecrite en hexadecimal', () => {
+    // C'est la forme que rend `URL.hostname` : « [::ffff:169.254.169.254] »
+    // devient « [::ffff:a9fe:a9fe] ». Sur une machine qui parle IPv6, elle
+    // mene droit a l'adresse des metadonnees.
+    expect(isForbiddenIp('::ffff:a9fe:a9fe')).toBe(true);
+    expect(isForbiddenIp('::ffff:7f00:1')).toBe(true);
+    expect(isForbiddenIp('0:0:0:0:0:ffff:7f00:1')).toBe(true);
+    expect(isForbiddenIp('::FFFF:A9FE:A9FE')).toBe(true);
+    expect(isForbiddenIp('::ffff:5db8:d822')).toBe(false);
+  });
+
+  it('refuse les formes de transition qui embarquent une IPv4', () => {
+    expect(isForbiddenIp('::7f00:1')).toBe(true); // IPv4 compatible, abandonnee
+    expect(isForbiddenIp('::127.0.0.1')).toBe(true);
+    expect(isForbiddenIp('64:ff9b::7f00:1')).toBe(true); // NAT64
+    expect(isForbiddenIp('2002:7f00:1::1')).toBe(true); // 6to4
+    expect(isForbiddenIp('2001:0:4136:e378:8000:63bf:3fff:fdd2')).toBe(true); // Teredo
+  });
+
+  it('refuse par defaut ce qui n est pas de l unicast global', () => {
+    expect(isForbiddenIp('100::1')).toBe(true);
+    expect(isForbiddenIp('4000::1')).toBe(true);
+    expect(isForbiddenIp('1::1')).toBe(true);
+  });
+
+  it('refuse une adresse IPv6 mal formee', () => {
+    expect(isForbiddenIp('1:::2')).toBe(true);
+    expect(isForbiddenIp('1:2:3:4:5:6:7:8:9')).toBe(true);
+  });
+
+  it('juge une adresse de lien local portant sa zone', () => {
+    expect(isForbiddenIp('fe80::1%eth0')).toBe(true);
+  });
+
+  it('accepte des adresses IPv6 publiques courantes', () => {
+    expect(isForbiddenIp('2a00:1450:4007:80f::200e')).toBe(false);
+    expect(isForbiddenIp('2001:4860:4860::8888')).toBe(false);
   });
 });
 
@@ -104,6 +144,17 @@ describe('isForbiddenHostname', () => {
     expect(isForbiddenHostname('[::1]')).toBe(true);
     expect(isForbiddenHostname('[fe80::1]')).toBe(true);
     expect(isForbiddenHostname('[2606:2800:220:1:248:1893:25c8:1946]')).toBe(false);
+  });
+
+  it('refuse ce que le parseur d URL reecrit depuis une IPv4 mappee', () => {
+    for (const url of [
+      'http://[::ffff:169.254.169.254]/',
+      'http://[::ffff:127.0.0.1]/',
+      'http://[0:0:0:0:0:ffff:127.0.0.1]/',
+      'http://[::127.0.0.1]/',
+    ]) {
+      expect(isForbiddenHostname(new URL(url).hostname), url).toBe(true);
+    }
   });
 
   it('accepte un domaine ordinaire', () => {

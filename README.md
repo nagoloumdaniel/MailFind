@@ -6,7 +6,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 
 ## Statut
 
-**Phase 2 terminée (26 septembre 2026).** Un fichier CSV devient une liste d'entreprises dédoublonnées : lecture dans le navigateur (encodage, séparateur, 5 000 lignes), correspondance des colonnes, aperçu qui applique les règles du serveur, paramètres de l'import, suivi de la progression et annulation. Les deux critères de fin de phase sont prouvés par des tests d'intégration sur PostgreSQL 18 et par un parcours complet dans un navigateur. La Phase 3, identification des domaines et collecte sur les sites, démarre après la revue de la Phase 2 par le propriétaire.
+**Phase 3 construite (28 septembre 2026), en attente de recette sur des entreprises réelles.** Chaque entreprise importée est identifiée (API Recherche d'entreprises, recherche du site officiel par Brave) puis son site est exploré : robots.txt respecté, une requête par seconde et par domaine, adresses privées refusées, adresses relevées avec la page où elles figurent. La page d'un import suit chaque étape. Deux critères de fin de phase sur trois sont prouvés par les tests ; le troisième, sur 50 entreprises réelles, demande un accès à Internet : `npm run crawl:check` le vérifie en une commande. La Phase 2 est terminée depuis le 26 septembre 2026.
 
 ## Documents
 
@@ -54,8 +54,19 @@ Les tests d'intégration parlent à un vrai PostgreSQL 18, dont le nom de base d
 ```text
 docker run -d -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=mailfind_test -p 5432:5432 postgres:18
 $env:TEST_DATABASE_URL = "postgresql://test:test@localhost:5432/mailfind_test?sslmode=disable"   # PowerShell
+$env:TEST_REDIS_URL = "redis://localhost:6379"                                                  # facultatif
 npm run test:integration
 ```
+
+`TEST_REDIS_URL` active les tests de la file de politesse par domaine, qui vit dans Redis (`docker run -d -p 6379:6379 redis:8`). Sans lui, ces tests sont sautés, les autres tournent.
+
+Recette de la Phase 3 sur de vraies entreprises, un domaine par ligne :
+
+```text
+npm run crawl:check -- domaines.txt
+```
+
+Chaque site est exploré avec les vraies règles, puis chaque adresse relevée est recherchée à nouveau dans la page citée comme source. Le script conclut « critère tenu » seulement si toutes y figurent, et « non démontré » si aucune adresse n'a été relevée.
 
 ## Licence
 

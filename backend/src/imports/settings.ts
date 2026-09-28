@@ -70,3 +70,20 @@ export function readSettingsTags(settings: unknown): string[] {
   if (!Array.isArray(etiquettes)) return [];
   return etiquettes.filter((valeur): valeur is string => typeof valeur === 'string');
 }
+
+/**
+ * Relit les reglages enregistres d'un import. Les colonnes du fichier y sont
+ * rangees aussi : elles sont ecartees avant la validation, stricte. Un import
+ * plus ancien que ce lot, ou abime, prend les valeurs par defaut plutot que
+ * de bloquer le pipeline.
+ */
+export function readStoredSettings(settings: unknown): ImportSettings {
+  const brut = typeof settings === 'object' && settings !== null ? settings : {};
+  const { depth, emailTypes, providers, tags } = brut as Record<string, unknown>;
+  const lu = importSettingsSchema.safeParse(
+    Object.fromEntries(
+      Object.entries({ depth, emailTypes, providers, tags }).filter(([, v]) => v !== undefined),
+    ),
+  );
+  return lu.success ? lu.data : importSettingsSchema.parse({});
+}

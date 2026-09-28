@@ -6,8 +6,13 @@ import { ApiError } from '../lib/api';
 import {
   cancelImport,
   fetchImport,
+  finished,
   isInProgress,
+  NOTE_LABELS,
   STATUS_LABELS,
+  total,
+  type CompanyIssue,
+  type ImportProgress,
   type ImportStatus,
   type ImportSummary,
   type RejectedRow,
@@ -37,6 +42,7 @@ const TONS: Record<ImportStatus, string> = {
 interface Etat {
   import: ImportSummary;
   rejectedRows: RejectedRow[];
+  progress: ImportProgress;
 }
 
 export function ImportDetailPage() {
@@ -121,9 +127,7 @@ export function ImportDetailPage() {
     );
   }
 
-  const { import: importe, rejectedRows } = etat;
-  const pourcentage =
-    importe.totalRows === 0 ? 0 : Math.round((importe.processedRows / importe.totalRows) * 100);
+  const { import: importe, rejectedRows, progress: progression } = etat;
   const enCours = statut !== undefined && isInProgress(statut);
 
   return (
@@ -145,29 +149,30 @@ export function ImportDetailPage() {
       </p>
 
       <section className="mt-8 max-w-xl" aria-label="Progression">
-        <div className="flex items-baseline justify-between text-sm">
-          <span className="font-medium">Lignes traitees</span>
-          <span className="text-text-soft" data-numeric>
-            {importe.processedRows.toLocaleString('fr-FR')} sur{' '}
-            {importe.totalRows.toLocaleString('fr-FR')}
-          </span>
-        </div>
-        <div
-          className="mt-2 h-2 overflow-hidden rounded-sm bg-line"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={pourcentage}
-        >
-          <div
-            className={`h-full transition-[width] duration-500 ${
-              importe.status === 'failed' ? 'bg-negative' : 'bg-accent'
-            }`}
-            style={{ width: `${String(pourcentage)}%` }}
+        <ol className="space-y-4">
+          <Etape
+            libelle="Preparation des lignes"
+            fait={importe.processedRows}
+            sur={importe.totalRows}
+            echec={importe.status === 'failed'}
           />
-        </div>
+          <Etape
+            libelle="Identification des entreprises"
+            fait={finished(progression.identify)}
+            sur={Math.max(total(progression.identify), progression.companies)}
+            echecs={progression.identify.failed}
+          />
+          <Etape
+            libelle="Exploration des sites"
+            fait={finished(progression.crawl)}
+            sur={total(progression.crawl)}
+            echecs={progression.crawl.failed}
+            sansObjet={progression.crawl.skipped}
+            aide="Seules les entreprises au domaine connu ou confirme sont explorees."
+          />
+        </ol>
 
-        <dl className="mt-5 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+        <dl className="mt-6 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
           <Chiffre libelle="Lignes du fichier" valeur={importe.totalRows} />
           <Chiffre libelle="Retenues" valeur={importe.acceptedRows} />
           <Chiffre
@@ -176,6 +181,12 @@ export function ImportDetailPage() {
             aide="Rattachees a une entreprise du fichier ou de la bibliotheque, sans en creer une autre."
           />
           <Chiffre libelle="Ecartees" valeur={importe.rejectedRows} alerte />
+          <Chiffre libelle="Entreprises" valeur={progression.companies} />
+          <Chiffre
+            libelle="Adresses trouvees"
+            valeur={progression.emails}
+            aide="Publiees sur les sites des entreprises, chacune avec sa source. Aucune n'est encore verifiee."
+          />
         </dl>
       </section>
 
@@ -192,11 +203,19 @@ export function ImportDetailPage() {
             entreprise, nouvelle ou deja dans votre bibliotheque.
           </p>
         )}
+        {importe.status === 'running' && (
+          <p className="text-text-soft">
+            Chaque entreprise est identifiee, puis son site est explore : robots.txt respecte, une
+            requete par seconde et par site. Vous pouvez quitter cette page : l&apos;import continue
+            sans vous.
+          </p>
+        )}
         {importe.status === 'completed' && (
           <p className="text-text-soft">
-            Les entreprises de ce fichier sont rangees dans votre bibliotheque, sans doublon.
-            L&apos;identification des domaines et la recherche des adresses ne sont pas encore
-            disponibles.
+            {progression.emails === 0
+              ? "Aucune adresse n'a ete trouvee sur les sites explores."
+              : `${progression.emails.toLocaleString('fr-FR')} adresses trouvees sur les sites des entreprises, chacune avec la page ou elle figure.`}{' '}
+            Elles ne sont pas encore verifiees : aucune ne doit etre tenue pour valide a ce stade.
           </p>
         )}
         {importe.status === 'cancelled' && (
@@ -242,6 +261,8 @@ export function ImportDetailPage() {
           )}
         </div>
       )}
+
+      {progression.issues.length > 0 && <ARegarder entreprises={progression.issues} />}
 
       {rejectedRows.length > 0 && (
         <section className="mt-10">
@@ -315,5 +336,124 @@ function Chiffre({
         {valeur.toLocaleString('fr-FR')}
       </dd>
     </div>
+  );
+}
+
+function Etape({
+  libelle,
+  fait,
+  sur,
+  echec = false,
+  echecs = 0,
+  sansObjet = 0,
+  aide,
+}: {
+  libelle: string;
+  fait: number;
+  sur: number;
+  echec?: boolean;
+  echecs?: number;
+  /** Entreprises pour lesquelles l'etape n'avait pas lieu d'etre. */
+  sansObjet?: number;
+  aide?: string;
+}) {
+  const pourcentage = sur === 0 ? 0 : Math.round((fait / sur) * 100);
+  return (
+    <li>
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className="font-medium" title={aide}>
+          {libelle}
+        </span>
+        <span className="text-text-soft" data-numeric>
+          {sur === 0
+            ? 'en attente'
+            : `${fait.toLocaleString('fr-FR')} sur ${sur.toLocaleString('fr-FR')}`}
+          {sansObjet > 0 && <span> dont {sansObjet.toLocaleString('fr-FR')} sans objet</span>}
+          {echecs > 0 && (
+            <span className="text-negative"> dont {echecs.toLocaleString('fr-FR')} en echec</span>
+          )}
+        </span>
+      </div>
+      <div
+        className="mt-1.5 h-2 overflow-hidden rounded-sm bg-line"
+        role="progressbar"
+        aria-label={libelle}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pourcentage}
+      >
+        <div
+          className={`h-full transition-[width] duration-500 ${echec ? 'bg-negative' : 'bg-accent'}`}
+          style={{ width: `${String(pourcentage)}%` }}
+        />
+      </div>
+    </li>
+  );
+}
+
+/** Ce qu'une entreprise demande a l'utilisateur, en une phrase. */
+function constat(entreprise: CompanyIssue): string {
+  const phrases: string[] = [];
+  if (entreprise.domainStatus === 'to_confirm') {
+    phrases.push(
+      `Domaine a confirmer${
+        entreprise.domainConfidence === null
+          ? ''
+          : ` (confiance ${String(entreprise.domainConfidence)} sur 100)`
+      }, site non explore en attendant`,
+    );
+  }
+  for (const note of entreprise.notes) {
+    if (note !== 'contact_form') phrases.push(NOTE_LABELS[note]);
+  }
+  if (entreprise.crawlStatus === 'failed') phrases.push('Echec du traitement');
+  if (entreprise.error !== null) phrases.push(entreprise.error);
+  return phrases.join('. ');
+}
+
+function ARegarder({ entreprises }: { entreprises: CompanyIssue[] }) {
+  return (
+    <section className="mt-10">
+      <h2 className="text-base font-semibold">Entreprises a regarder</h2>
+      <p className="mt-1 max-w-[70ch] text-sm text-text-soft">
+        Un domaine a confirmer, un site muet ou qui refuse la visite, une etape en echec. Les autres
+        entreprises de l&apos;import se sont deroulees sans remarque.
+      </p>
+      <div className="mt-4 overflow-x-auto rounded-md border border-line bg-surface">
+        <table className="w-full text-sm">
+          <thead className="border-b border-line bg-raised text-xs text-text-faint">
+            <tr>
+              <th scope="col" className="px-4 py-2 text-left font-medium">
+                Entreprise
+              </th>
+              <th scope="col" className="hidden px-4 py-2 text-left font-medium sm:table-cell">
+                Domaine
+              </th>
+              <th scope="col" className="px-4 py-2 text-left font-medium">
+                Constat
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {entreprises.map((entreprise) => (
+              <tr key={entreprise.id} className="border-b border-line align-top last:border-b-0">
+                <td className="px-4 py-2 font-medium">
+                  {entreprise.name}
+                  {/* Sur un telephone, le domaine passe sous le nom : le constat
+                      garde la largeur, c'est lui qu'on lit. */}
+                  <span className="block font-mono text-xs font-normal text-text-soft sm:hidden">
+                    {entreprise.domain ?? ''}
+                  </span>
+                </td>
+                <td className="hidden px-4 py-2 font-mono text-xs whitespace-nowrap text-text-soft sm:table-cell">
+                  {entreprise.domain ?? '-'}
+                </td>
+                <td className="px-4 py-2 text-text-soft">{constat(entreprise)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

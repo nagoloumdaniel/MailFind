@@ -5,6 +5,7 @@ import {
   normalizeTags,
   normalizeUrl,
 } from '../companies/normalize.js';
+import { thirdPartyKind } from '../companies/third-party.js';
 import { IDENTIFYING_FIELDS, type KnownField } from './fields.js';
 
 /**
@@ -94,12 +95,28 @@ export function validateRow(
     };
   }
 
-  const domaine =
-    (domaineBrut === undefined ? undefined : normalizeDomain(domaineBrut)) ??
-    (siteBrut === undefined ? undefined : normalizeDomain(siteBrut));
+  // Une page hebergee par une plateforme de recrutement, un reseau social ou
+  // un annuaire designe l'entreprise sans etre son site (F-306) : son domaine
+  // n'est pas le sien. Le prendre fondrait en une seule toutes les entreprises
+  // dont le fichier ne donne qu'un lien Welcome to the Jungle.
+  const domaineColonne = domaineBrut === undefined ? undefined : normalizeDomain(domaineBrut);
+  const domaineSite = siteBrut === undefined ? undefined : normalizeDomain(siteBrut);
+  const tiersColonne = domaineColonne === undefined ? undefined : thirdPartyKind(domaineColonne);
+  const tiersSite = domaineSite === undefined ? undefined : thirdPartyKind(domaineSite);
 
-  const site = siteBrut === undefined ? undefined : normalizeUrl(siteBrut);
-  const carrieres = carrieresBrut === undefined ? undefined : normalizeUrl(carrieresBrut);
+  const domaine =
+    (tiersColonne === undefined ? domaineColonne : undefined) ??
+    (tiersSite === undefined ? domaineSite : undefined);
+
+  const site =
+    siteBrut === undefined || tiersSite !== undefined ? undefined : normalizeUrl(siteBrut);
+  // Une offre sur une plateforme de recrutement reste utile : c'est la page
+  // carrieres de l'entreprise.
+  const carrieresBrutes =
+    carrieresBrut ??
+    (tiersSite === 'careers' ? siteBrut : undefined) ??
+    (tiersColonne === 'careers' ? domaineBrut : undefined);
+  const carrieres = carrieresBrutes === undefined ? undefined : normalizeUrl(carrieresBrutes);
   const nomNormalise = nom === undefined ? undefined : normalizeCompanyName(nom);
 
   // Une ligne dont le nom est vide et dont aucune URL n'est exploitable n'a
@@ -111,13 +128,15 @@ export function validateRow(
     carrieres === undefined
   ) {
     const fautif = domaineBrut ?? siteBrut ?? carrieresBrut ?? '';
-    return {
-      accepted: false,
-      reason:
-        fautif === ''
-          ? "Le nom d'entreprise est vide apres nettoyage."
-          : `« ${fautif.slice(0, 80)} » n'est pas un domaine ni une adresse de site exploitable.`,
-    };
+    const tiers = tiersColonne ?? tiersSite;
+    let reason: string;
+    if (fautif === '') reason = "Le nom d'entreprise est vide apres nettoyage.";
+    else if (tiers === 'social' || tiers === 'directory') {
+      reason = `« ${fautif.slice(0, 80)} » est une page de reseau social ou d'annuaire, pas le site de l'entreprise : ajoutez son nom ou son domaine.`;
+    } else {
+      reason = `« ${fautif.slice(0, 80)} » n'est pas un domaine ni une adresse de site exploitable.`;
+    }
+    return { accepted: false, reason };
   }
 
   const etiquettes = valeurs.get('tags');

@@ -137,3 +137,46 @@ describe('validateRow', () => {
     expect(verdict.draft.siren).toBe('794598813');
   });
 });
+
+describe('validateRow, pages tierces (F-306)', () => {
+  const entetes = ['Entreprise', 'Domaine', 'Site', 'Carrieres'];
+  const correspondance: KnownField[] = ['company_name', 'domain', 'website_url', 'careers_url'];
+  const valider = (ligne: string[]) => validateRow(entetes, correspondance, ligne);
+
+  it('prend une offre sur une plateforme pour la page carrieres, pas pour le domaine', () => {
+    const verdict = valider([
+      'Acme',
+      '',
+      'https://www.welcometothejungle.com/fr/companies/acme',
+      '',
+    ]);
+    expect(verdict.accepted).toBe(true);
+    if (!verdict.accepted) return;
+    expect(verdict.draft.domain).toBeUndefined();
+    expect(verdict.draft.websiteUrl).toBeUndefined();
+    expect(verdict.draft.careersUrl).toBe('https://www.welcometothejungle.com/fr/companies/acme');
+  });
+
+  it('ne tire aucun domaine d une page LinkedIn', () => {
+    const verdict = valider(['Initech', '', 'https://www.linkedin.com/company/initech', '']);
+    expect(verdict.accepted && verdict.draft.domain).toBeUndefined();
+  });
+
+  it('refuse lever.co dans la colonne des domaines', () => {
+    const verdict = valider(['Globex', 'jobs.lever.co/globex', '', '']);
+    expect(verdict.accepted && verdict.draft.domain).toBeUndefined();
+  });
+
+  it('garde le vrai site quand la page carrieres est chez un tiers', () => {
+    const verdict = valider(['Acme', '', 'acme.fr', 'https://acme.teamtailor.com/jobs']);
+    expect(verdict.accepted && verdict.draft.domain).toBe('acme.fr');
+  });
+
+  it('ecarte une ligne reduite a une page de reseau social, en le disant', () => {
+    const verdict = valider(['', '', 'https://www.facebook.com/acme', '']);
+    expect(verdict).toMatchObject({
+      accepted: false,
+      reason: expect.stringMatching(/reseau social/),
+    });
+  });
+});
