@@ -14,7 +14,13 @@ import { ALLOW_ALL, DISALLOW_ALL, parseRobots, productToken, type RobotsRules } 
 
 export type CrawlOutcome =
   | { readonly kind: 'page'; readonly page: FetchedPage }
-  | { readonly kind: 'disallowed' }
+  /**
+   * `robots` : le site l'interdit. `unreachable` : robots.txt n'a pas pu etre
+   * lu (panne, refus, reseau), et la RFC impose alors de ne rien visiter. Les
+   * deux ne se disent pas pareil a l'utilisateur : dans le second cas, le
+   * site n'a rien interdit, il n'a pas repondu.
+   */
+  | { readonly kind: 'disallowed'; readonly because: 'robots' | 'unreachable' }
   | { readonly kind: 'failed'; readonly reason: string };
 
 export interface CrawlerClient {
@@ -47,6 +53,18 @@ export function rulesForStatus(status: number, body: string, token: string): Rob
   return DISALLOW_ALL;
 }
 
+/** Vrai quand robots.txt n'a pas ete lu, plutot que lu et restrictif. */
+function injoignable(status: number): boolean {
+  return status === 429 || status >= 500 || status < 200 || (status >= 300 && status < 400);
+}
+
+interface Robots {
+  readonly regles: RobotsRules;
+  readonly injoignable: boolean;
+  /** robots.txt n'a meme pas pu etre demande : le site ne repond pas. */
+  readonly erreurReseau?: string;
+}
+
 function raison(error: unknown): string {
   return error instanceof Error ? error.message : 'erreur inconnue';
 }
@@ -55,22 +73,25 @@ export function createCrawlerClient(options: CrawlerClientOptions): CrawlerClien
   const token = productToken(options.userAgent);
   // La promesse, et non la reponse : trois pages demandees en meme temps sur
   // un site encore inconnu ne doivent pas lire trois fois robots.txt.
-  const robots = new Map<string, { regles: Promise<RobotsRules>; expire: number }>();
+  const robots = new Map<string, { regles: Promise<Robots>; expire: number }>();
 
-  async function lireRobots(origine: URL): Promise<RobotsRules> {
+  async function lireRobots(origine: URL): Promise<Robots> {
     try {
       const fichier = await options.gate.run(
         registrableDomain(origine.hostname),
         options.minIntervalMs,
         () => options.fetcher.fetchPage(`${origine.origin}/robots.txt`, { accept: 'text' }),
       );
-      return rulesForStatus(fichier.status, fichier.body, token);
-    } catch {
-      return DISALLOW_ALL;
+      return {
+        regles: rulesForStatus(fichier.status, fichier.body, token),
+        injoignable: injoignable(fichier.status),
+      };
+    } catch (error) {
+      return { regles: DISALLOW_ALL, injoignable: true, erreurReseau: raison(error) };
     }
   }
 
-  function reglesDe(origine: URL): Promise<RobotsRules> {
+  function reglesDe(origine: URL): Promise<Robots> {
     const cle = origine.origin;
     const connues = robots.get(cle);
     if (connues !== undefined && connues.expire > Date.now()) return connues.regles;
@@ -93,8 +114,16 @@ export function createCrawlerClient(options: CrawlerClientOptions): CrawlerClien
         return { kind: 'failed', reason: 'adresse de page invalide' };
       }
 
-      const regles = await reglesDe(url);
-      if (!regles.isAllowed(`${url.pathname}${url.search}`)) return { kind: 'disallowed' };
+      const { regles, injoignable: enPanne, erreurReseau } = await reglesDe(url);
+      // Le site ne repond pas du tout : la page n'est pas demandee non plus,
+      // et c'est un echec de connexion, que l'appelant peut retenter
+      // autrement (en http apres https, par exemple).
+      if (erreurReseau !== undefined) {
+        return { kind: 'failed', reason: `site injoignable : ${erreurReseau}` };
+      }
+      if (!regles.isAllowed(`${url.pathname}${url.search}`)) {
+        return { kind: 'disallowed', because: enPanne ? 'unreachable' : 'robots' };
+      }
 
       const intervalle = Math.max(options.minIntervalMs, regles.crawlDelayMs ?? 0);
       try {

@@ -123,6 +123,23 @@ describe('politesse (F-405)', () => {
 });
 
 describe('echecs', () => {
+  it('rend un echec de connexion, sans rien demander, quand le site ne repond pas', async () => {
+    // « .invalid » est reserve : ce nom ne se resout nulle part.
+    const issue = await client.get('https://mailfind-test.invalid/contact');
+    expect(issue).toMatchObject({ kind: 'failed', reason: expect.stringMatching(/injoignable/) });
+  });
+
+  it('dit « injoignable » et non « interdit » quand robots.txt est en panne', async () => {
+    expect(await client.get('https://panne.test/')).toEqual({
+      kind: 'disallowed',
+      because: 'unreachable',
+    });
+    expect(await client.get('https://robots.test/interdit')).toEqual({
+      kind: 'disallowed',
+      because: 'robots',
+    });
+  });
+
   it('rend le motif d une page illisible au lieu de lever', async () => {
     const issue = await client.get('https://libre.test/__enorme');
     expect(issue).toMatchObject({ kind: 'failed', reason: expect.stringMatching(/volumineuse/) });

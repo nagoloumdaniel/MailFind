@@ -78,7 +78,7 @@ export async function crawlCompany(client: CrawlerClient, input: CrawlInput): Pr
     tentees.add(pageKey(url));
     const issue = await client.get(url.toString());
     if (issue.kind === 'disallowed') {
-      notes.add('robots_disallowed');
+      notes.add(issue.because === 'robots' ? 'robots_disallowed' : 'unreachable');
       pages.push({ url: url.toString(), outcome: 'disallowed' });
       return undefined;
     }
@@ -112,11 +112,15 @@ export async function crawlCompany(client: CrawlerClient, input: CrawlInput): Pr
     if (essayees.has(url.href)) continue;
     essayees.add(url.href);
     accueil = await visiter(url);
-    if (accueil !== undefined || notes.has('robots_disallowed')) break;
+    // Un site qui a repondu, meme pour refuser, n'est pas retente sur un
+    // autre protocole : seul un echec de connexion le justifie.
+    if (accueil !== undefined || pages.at(-1)?.outcome === 'disallowed') break;
   }
 
   if (accueil === undefined) {
-    if (!notes.has('robots_disallowed')) notes.add('unreachable');
+    // Une seule raison, la vraie : interdit par le site, ou injoignable.
+    if (notes.has('robots_disallowed')) notes.delete('unreachable');
+    else notes.add('unreachable');
     return { pages, addresses: [], notes: [...notes] };
   }
 

@@ -10,7 +10,13 @@ let fetcher: Fetcher;
 let client: CrawlerClient;
 
 beforeAll(async () => {
-  sites = await startTestSites(['boulangerie.test', 'spa.test', 'ferme.test', 'absent.test']);
+  sites = await startTestSites([
+    'boulangerie.test',
+    'spa.test',
+    'ferme.test',
+    'absent.test',
+    'panne.test',
+  ]);
   fetcher = createFetcher({ testRouting: sites });
 });
 
@@ -104,6 +110,14 @@ describe('crawlCompany, sites difficiles', () => {
     const rapport = await crawlCompany(client, { domain: 'ferme.test', depth: 'deep' });
     expect(rapport.notes).toEqual(['robots_disallowed']);
     expect(sites.requests.filter((r) => r.host === 'ferme.test').map((r) => r.path)).toEqual([
+      '/robots.txt',
+    ]);
+  });
+
+  it('dit injoignable, et non interdit, un site dont robots.txt est en panne', async () => {
+    const rapport = await crawlCompany(client, { domain: 'panne.test', depth: 'standard' });
+    expect(rapport.notes).toEqual(['unreachable']);
+    expect(sites.requests.filter((r) => r.host === 'panne.test').map((r) => r.path)).toEqual([
       '/robots.txt',
     ]);
   });
