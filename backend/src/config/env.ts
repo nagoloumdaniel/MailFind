@@ -57,6 +57,27 @@ const environmentSchema = z.object({
   CRAWLER_MAX_RESPONSE_BYTES: z.coerce.number().int().positive().default(2_000_000),
   /** Redirections hors du domaine, F-405. */
   CRAWLER_MAX_REDIRECTS: z.coerce.number().int().min(0).max(10).default(2),
+
+  /** Identification legale des entreprises francaises (D-10). Gratuite, sans cle. */
+  RECHERCHE_ENTREPRISES_BASE_URL: z
+    .string()
+    .min(1)
+    .default('https://recherche-entreprises.api.gouv.fr'),
+
+  /**
+   * Recherche du site officiel (D-07). Vide, la recherche web est desactivee :
+   * seules les entreprises importees avec leur domaine ou leur site sont
+   * explorees.
+   */
+  BRAVE_SEARCH_API_KEY: z.string().default(''),
+  BRAVE_SEARCH_BASE_URL: z.string().min(1).default('https://api.search.brave.com'),
+  /** D-14 : recherches de site officiel par utilisateur et par mois. */
+  QUOTA_WEB_SEARCHES_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(80),
+  /**
+   * D-13 : aucun appel payant. Au-dela des requetes offertes chaque mois par
+   * Brave, la recherche s'arrete pour tout le monde, jusqu'au mois suivant.
+   */
+  BRAVE_MONTHLY_FREE_QUERIES: z.coerce.number().int().min(0).default(1000),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;
