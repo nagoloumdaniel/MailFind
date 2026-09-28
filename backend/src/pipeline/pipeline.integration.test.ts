@@ -4,7 +4,7 @@ import { createMemoryGate } from '../crawler/politeness.js';
 import { closePool, query } from '../db/pool.js';
 import type { KnownField } from '../imports/fields.js';
 import { cancelImport, planImport } from '../imports/plan.js';
-import { createImport, type PreparedRow } from '../imports/repository.js';
+import { createImport, importProgress, type PreparedRow } from '../imports/repository.js';
 import { validateRow } from '../imports/validate.js';
 import { createFetcher, type Fetcher } from '../net/safe-fetch.js';
 import type { LegalIdentity } from '../providers/recherche-entreprises.js';
@@ -363,5 +363,36 @@ describe('pipeline d un import', () => {
     const importId = await importer([['Acme Industrie', '', 'Villeurbanne']]);
     await lancer(importId);
     expect(recherchesLegales).toBe(1);
+  });
+
+  it('rend une progression fidele, etape par etape, et les entreprises a regarder', async () => {
+    const importId = await importer([
+      ['Boulangerie Martin', 'boulangerie.test', 'Lyon'],
+      ['Spa Zen', 'spa.test', 'Lyon'],
+      ['Garage Dupont', '', 'Lyon'],
+    ]);
+    await lancer(importId);
+
+    const progression = await importProgress(userId, importId);
+    expect(progression).toMatchObject({
+      companies: 3,
+      identify: { pending: 0, running: 0, done: 3, failed: 0, skipped: 0 },
+      crawl: { pending: 0, running: 0, done: 2, failed: 0, skipped: 1 },
+      emails: 5,
+    });
+    // La boulangerie a une page interdite et une adresse masquee, mais elle a
+    // donne cinq adresses : rien a y regarder.
+    expect(progression.issues.map((issue) => [issue.name, issue.domainStatus])).toEqual([
+      ['Garage Dupont', 'to_confirm'],
+      ['Spa Zen', 'provided'],
+    ]);
+
+    // Un autre compte ne voit rien de cet import (S-04).
+    const autre = await createUser();
+    expect(await importProgress(autre, importId)).toMatchObject({
+      companies: 0,
+      emails: 0,
+      issues: [],
+    });
   });
 });

@@ -195,3 +195,117 @@ export async function listRejectedRows(
 
   return result.rows.map((row) => ({ line: row.line, error: row.error ?? 'Ligne inexploitable.' }));
 }
+
+export interface StepCounts {
+  readonly pending: number;
+  readonly running: number;
+  readonly done: number;
+  readonly failed: number;
+  readonly skipped: number;
+}
+
+export interface CompanyIssue {
+  readonly id: string;
+  readonly name: string;
+  readonly domain: string | null;
+  readonly domainStatus: string;
+  readonly domainConfidence: number | null;
+  readonly crawlStatus: string;
+  readonly notes: readonly string[];
+  readonly error: string | null;
+}
+
+export interface ImportProgress {
+  readonly companies: number;
+  readonly identify: StepCounts;
+  readonly crawl: StepCounts;
+  /** Adresses trouvees sur les sites des entreprises de l'import, sources comprises. */
+  readonly emails: number;
+  /** Les entreprises qui demandent un regard : domaine a confirmer, site muet, echec. */
+  readonly issues: readonly CompanyIssue[];
+}
+
+const AUCUNE: StepCounts = { pending: 0, running: 0, done: 0, failed: 0, skipped: 0 };
+
+/** Au-dela, la page renverra vers la bibliotheque (Phase 6). */
+const ISSUES_MAX = 200;
+
+/**
+ * La progression reelle d'un import, etape par etape, telle que la base la
+ * connait. L'appartenance est verifiee dans chaque requete (S-04).
+ */
+export async function importProgress(userId: string, importId: string): Promise<ImportProgress> {
+  const etapes = await query<{ step: string; status: string; n: number }>(
+    `select p.step::text as step, p.status::text as status, count(*)::int as n
+       from pipeline_jobs p
+       join imports i on i.id = p.import_id
+      where i.user_id = $1 and p.import_id = $2
+      group by p.step, p.status`,
+    [userId, importId],
+  );
+  const compter = (etape: string): StepCounts => {
+    const comptes: Record<string, number> = { ...AUCUNE };
+    for (const ligne of etapes.rows) if (ligne.step === etape) comptes[ligne.status] = ligne.n;
+    return comptes as unknown as StepCounts;
+  };
+
+  const chiffres = await query<{ companies: number; emails: number }>(
+    `with entreprises as (
+       select distinct r.company_id
+         from import_rows r
+         join imports i on i.id = r.import_id
+        where i.user_id = $1 and r.import_id = $2 and r.company_id is not null
+     )
+     select (select count(*)::int from entreprises) as companies,
+            (select count(*)::int from emails e join entreprises x on x.company_id = e.company_id)
+              as emails`,
+    [userId, importId],
+  );
+
+  const problemes = await query<{
+    id: string;
+    name: string;
+    domain: string | null;
+    domain_status: string;
+    domain_confidence: number | null;
+    crawl_status: string;
+    notes: string[];
+    error: string | null;
+  }>(
+    `select distinct c.id, c.name, c.domain, c.domain_status::text as domain_status,
+            c.domain_confidence, c.crawl_status::text as crawl_status,
+            c.crawl_notes::text[] as notes, c.crawl_error as error
+       from companies c
+       join import_rows r on r.company_id = c.id
+       join imports i on i.id = r.import_id
+      where i.user_id = $1 and r.import_id = $2
+        and (c.crawl_status = 'failed'
+             or c.domain_status = 'to_confirm'
+             or c.crawl_error is not null
+             or c.crawl_notes && array['unreachable', 'dynamic_content', 'no_website']::crawl_note[]
+             -- Une page interdite ou une adresse masquee n'est un probleme que
+             -- si l'entreprise n'a rien donne d'autre.
+             or (c.crawl_notes && array['robots_disallowed', 'masked_address']::crawl_note[]
+                 and not exists (select 1 from emails e where e.company_id = c.id)))
+      order by c.name
+      limit $3`,
+    [userId, importId, ISSUES_MAX],
+  );
+
+  return {
+    companies: chiffres.rows[0]?.companies ?? 0,
+    identify: compter('identify'),
+    crawl: compter('crawl'),
+    emails: chiffres.rows[0]?.emails ?? 0,
+    issues: problemes.rows.map((ligne) => ({
+      id: ligne.id,
+      name: ligne.name,
+      domain: ligne.domain,
+      domainStatus: ligne.domain_status,
+      domainConfidence: ligne.domain_confidence,
+      crawlStatus: ligne.crawl_status,
+      notes: ligne.notes,
+      error: ligne.error,
+    })),
+  };
+}

@@ -11,6 +11,7 @@ import { cancelImport } from './plan.js';
 import {
   createImport,
   findImport,
+  importProgress,
   listImports,
   listRejectedRows,
   type PreparedRow,
@@ -183,6 +184,7 @@ export function createImportsRouter(): Router {
         res.json({
           import: resume,
           rejectedRows: await listRejectedRows(user.id, identifiant),
+          progress: await importProgress(user.id, identifiant),
         });
       } catch (error) {
         next(error);
