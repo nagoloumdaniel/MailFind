@@ -13,8 +13,8 @@ Ce que MailFind a besoin de trouver en face de lui, et comment l'obtenir. Les ch
 | Redis Cloud, base `mailfind`, Redis 8.6.2 | En service | 23 septembre 2026 |
 | Cloudflare R2, bucket privé `mailfind-exports`, ENAM | En service, jeton limité au bucket | 23 septembre 2026 |
 | Google Cloud, identifiants OAuth | Créés, portées d'identité seulement | 23 septembre 2026 |
-| Brave Search API, clé | A créer, sert à partir de la Phase 3 | |
-| Hunter, clé | A créer, sert à partir de la Phase 3 | |
+| Brave Search API, clé | A créer : sans elle, seules les entreprises importées avec leur domaine ou leur site sont explorées | |
+| Hunter, clé | A créer, sert à partir de la Phase 4 | |
 
 ```text
 npm run check:services
