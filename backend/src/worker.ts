@@ -7,7 +7,8 @@ import { createPipelineDeps } from './pipeline/deps.js';
 import { enrichStep } from './pipeline/enrich.js';
 import { identifyCompany } from './pipeline/identify.js';
 import { startPipeline } from './pipeline/start.js';
-import { listStepsToResume } from './pipeline/steps.js';
+import { listStepsToResume, planStep } from './pipeline/steps.js';
+import { verifyStep } from './pipeline/verify.js';
 import { closeQueueConnection, getQueueConnection, queuePrefix } from './queue/connection.js';
 import { getEnvironment } from './config/env.js';
 import { refreshDisposableDomains } from './verification/disposable.js';
@@ -22,6 +23,7 @@ import {
   IMPORT_QUEUE,
   isFinalFailure,
   type CompanyJob,
+  type CompanyStep,
   type ImportPlanJob,
 } from './queue/queues.js';
 
@@ -69,6 +71,7 @@ const collecte = new Worker<CompanyJob>(
     if (job.name === 'company.identify') await identifyCompany(dependances, job.data);
     else if (job.name === 'company.crawl') await crawlStep(dependances, job.data);
     else if (job.name === 'company.enrich') await enrichStep(dependances, job.data);
+    else if (job.name === 'company.verify') await verifyStep(dependances, job.data);
     else throw new Error(`Etape inconnue : ${job.name}`);
   },
   {
@@ -122,19 +125,26 @@ collecte.on('failed', (job, error) => {
     return;
   }
   logger.error({ jobId: job.id, err: error }, 'etape abandonnee');
-  const etape =
-    job.name === 'company.identify'
-      ? 'identify'
-      : job.name === 'company.enrich'
-        ? 'enrich'
-        : 'crawl';
-  // Le motif montre a l'utilisateur reste general : le detail technique est
-  // dans les journaux (S-03).
-  void failStep(etape, job.data, "L'etape a echoue apres plusieurs tentatives.").catch(
-    (erreur: unknown) => {
-      logger.error({ jobId: job.id, err: erreur }, "l'echec de l'etape n'a pas pu etre note");
-    },
-  );
+  const etapes: Record<string, CompanyStep> = {
+    'company.identify': 'identify',
+    'company.crawl': 'crawl',
+    'company.enrich': 'enrich',
+    'company.verify': 'verify',
+  };
+  const etape = etapes[job.name] ?? 'crawl';
+  // Un enrichissement abandonne n'empeche pas de verifier ce que la collecte a
+  // trouve. La verification est declaree avant l'echec, pour que l'import ne
+  // se croie pas termine entre les deux.
+  const suite = etape === 'enrich';
+  void (async () => {
+    if (suite) await planStep('verify', job.data);
+    // Le motif montre a l'utilisateur reste general : le detail technique est
+    // dans les journaux (S-03).
+    await failStep(etape, job.data, "L'etape a echoue apres plusieurs tentatives.");
+    if (suite) await enqueueCompanyStep('verify', job.data);
+  })().catch((erreur: unknown) => {
+    logger.error({ jobId: job.id, err: erreur }, "l'echec de l'etape n'a pas pu etre note");
+  });
 });
 
 logger.info({ queues: [IMPORT_QUEUE, COMPANY_QUEUE] }, "processus de traitement a l'ecoute");

@@ -68,13 +68,37 @@ export interface CompanyIssue {
   error: string | null;
 }
 
+/** Section 6.7 : un statut, jamais une promesse. */
+export type EmailStatus =
+  | 'valid'
+  | 'accept_all'
+  | 'risky'
+  | 'unknown'
+  | 'invalid'
+  | 'disposable'
+  | 'suppressed'
+  | 'unverified';
+
+export const EMAIL_STATUS_LABELS: Record<EmailStatus, string> = {
+  valid: 'Valide',
+  accept_all: 'Domaine accepte tout',
+  risky: 'Risquee',
+  unknown: 'Inconnue',
+  invalid: 'Invalide',
+  disposable: 'Jetable',
+  suppressed: 'Supprimee',
+  unverified: 'Non verifiee',
+};
+
 export interface ImportProgress {
   companies: number;
   identify: StepCounts;
   crawl: StepCounts;
   enrich: StepCounts;
+  verify: StepCounts;
   emails: number;
   emailsByOrigin: { found: number; provider: number; deduced: number };
+  emailsByStatus: Partial<Record<EmailStatus, number>>;
   issues: CompanyIssue[];
 }
 

@@ -220,6 +220,7 @@ export interface ImportProgress {
   readonly identify: StepCounts;
   readonly crawl: StepCounts;
   readonly enrich: StepCounts;
+  readonly verify: StepCounts;
   /** Adresses des entreprises de l'import, toutes origines. */
   readonly emails: number;
   /** Par origine : publiees sur le site, fournies, deduites (hypotheses). */
@@ -228,6 +229,11 @@ export interface ImportProgress {
     readonly provider: number;
     readonly deduced: number;
   };
+  /**
+   * Par statut de verification (6.7). Les adresses ecartees sans etre
+   * montrees (F-503) n'y sont pas.
+   */
+  readonly emailsByStatus: Readonly<Record<string, number>>;
   /** Les entreprises qui demandent un regard : domaine a confirmer, site muet, echec. */
   readonly issues: readonly CompanyIssue[];
 }
@@ -270,13 +276,25 @@ export async function importProgress(userId: string, importId: string): Promise<
         where i.user_id = $1 and r.import_id = $2 and r.company_id is not null
      )
      , adresses as (
+       -- F-503 : une candidate que la verification a refusee n'est pas montree.
        select e.origin from emails e join entreprises x on x.company_id = e.company_id
+        where not (e.origin = 'deduced' and e.excluded)
      )
      select (select count(*)::int from entreprises) as companies,
             (select count(*)::int from adresses) as emails,
             (select count(*)::int from adresses where origin = 'found') as found,
             (select count(*)::int from adresses where origin = 'provider') as provider,
             (select count(*)::int from adresses where origin = 'deduced') as deduced`,
+    [userId, importId],
+  );
+
+  const statuts = await query<{ status: string; n: number }>(
+    `select e.status::text as status, count(*)::int as n
+       from emails e
+      where e.user_id = $1 and not (e.origin = 'deduced' and e.excluded)
+        and e.company_id in (
+          select r.company_id from import_rows r where r.import_id = $2 and r.company_id is not null)
+      group by e.status`,
     [userId, importId],
   );
 
@@ -315,12 +333,14 @@ export async function importProgress(userId: string, importId: string): Promise<
     identify: compter('identify'),
     crawl: compter('crawl'),
     enrich: compter('enrich'),
+    verify: compter('verify'),
     emails: chiffres.rows[0]?.emails ?? 0,
     emailsByOrigin: {
       found: chiffres.rows[0]?.found ?? 0,
       provider: chiffres.rows[0]?.provider ?? 0,
       deduced: chiffres.rows[0]?.deduced ?? 0,
     },
+    emailsByStatus: Object.fromEntries(statuts.rows.map((ligne) => [ligne.status, ligne.n])),
     issues: problemes.rows.map((ligne) => ({
       id: ligne.id,
       name: ligne.name,

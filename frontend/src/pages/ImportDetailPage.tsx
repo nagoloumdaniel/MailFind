@@ -178,6 +178,14 @@ export function ImportDetailPage() {
             sansObjet={progression.enrich.skipped}
             aide="Fournisseurs puis adresses deduites, seulement quand le site n'a pas donne un type d'adresse recherche."
           />
+          <Etape
+            libelle="Verification et score"
+            fait={finished(progression.verify)}
+            sur={total(progression.verify)}
+            echecs={progression.verify.failed}
+            sansObjet={progression.verify.skipped}
+            aide="Syntaxe, domaine, serveur de messagerie, domaines jetables et liste de suppression pour chaque adresse ; la boite chez le fournisseur seulement si vous l'avez demande."
+          />
         </ol>
 
         <dl className="mt-6 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
@@ -233,8 +241,9 @@ export function ImportDetailPage() {
             {progression.emails === 0
               ? "Aucune adresse n'a ete trouvee."
               : `${progression.emails.toLocaleString('fr-FR')} adresses, chacune avec sa source : la page ou elle figure, le fournisseur qui l'a donnee, ou la regle qui l'a deduite.`}{' '}
-            Aucune n&apos;est encore verifiee, et les adresses deduites ne sont que des hypotheses :
-            aucune ne doit etre tenue pour valide a ce stade.
+            {(progression.emailsByStatus.valid ?? 0) === 0
+              ? "Aucune n'est confirmee valide : les adresses deduites restent des hypotheses tant qu'une verification de boite ne les a pas confirmees."
+              : `${(progression.emailsByStatus.valid ?? 0).toLocaleString('fr-FR')} confirmee(s) valide(s) par la verification de boite. Les autres portent leur statut : aucune n'est a tenir pour valide sans lui.`}
           </p>
         )}
         {importe.status === 'cancelled' && (
