@@ -1,0 +1,67 @@
+# Recette de la Phase 3 : 50 entreprises et organisations reelles, un domaine par ligne.
+#
+#   npm run crawl:check -- docs/recette/phase-3-domaines.txt
+#
+# Critere : chaque adresse relevee figure sur la page citee comme source. Les
+# lignes qui commencent par # sont ignorees. Liste de depart, a remplacer ou a
+# completer par les entreprises reellement visees : de grands groupes publient
+# rarement une adresse, d'ou le melange de jeunes pousses, d'entreprises de
+# taille moyenne et d'associations.
+
+# Jeunes pousses et editeurs de logiciels
+doctolib.fr
+alan.com
+qonto.com
+backmarket.fr
+blablacar.fr
+payfit.com
+malt.fr
+lydia-app.com
+ledger.com
+contentsquare.com
+dataiku.com
+mirakl.com
+spendesk.com
+pennylane.com
+yousign.com
+agicap.com
+swile.co
+manomano.fr
+welcometothejungle.com
+leboncoin.fr
+
+# Entreprises de taille moyenne et marques
+sezane.com
+leslipfrancais.fr
+alltricks.fr
+ovhcloud.com
+deezer.com
+vinted.fr
+cdiscount.com
+boulanger.com
+fnac.com
+decathlon.fr
+
+# Industrie et services
+michelin.com
+saint-gobain.com
+legrand.com
+lactalis.com
+bonduelle.com
+capgemini.com
+soprasteria.com
+wavestone.com
+sncf.com
+laposte.fr
+
+# Mutuelles, medias et associations
+maif.fr
+macif.fr
+ouest-france.fr
+lemonde.fr
+restosducoeur.org
+emmaus-france.org
+secours-populaire.fr
+croix-rouge.fr
+ratp.fr
+bouyguestelecom.fr

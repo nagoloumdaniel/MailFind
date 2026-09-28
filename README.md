@@ -60,10 +60,10 @@ npm run test:integration
 
 `TEST_REDIS_URL` active les tests de la file de politesse par domaine, qui vit dans Redis (`docker run -d -p 6379:6379 redis:8`). Sans lui, ces tests sont sautés, les autres tournent.
 
-Recette de la Phase 3 sur de vraies entreprises, un domaine par ligne :
+Recette de la Phase 3 sur de vraies entreprises. Une liste de cinquante domaines est prête, à compléter ou remplacer par les entreprises réellement visées :
 
 ```text
-npm run crawl:check -- domaines.txt
+npm run crawl:check -- docs/recette/phase-3-domaines.txt
 ```
 
 Chaque site est exploré avec les vraies règles, puis chaque adresse relevée est recherchée à nouveau dans la page citée comme source. Le script conclut « critère tenu » seulement si toutes y figurent, et « non démontré » si aucune adresse n'a été relevée.
