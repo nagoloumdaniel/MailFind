@@ -1,0 +1,125 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createFetcher, type Fetcher } from '../net/safe-fetch.js';
+import { startTestSites, type TestSites } from '../test/sites/server.js';
+import { createCrawlerClient, type CrawlerClient } from './client.js';
+import { crawlCompany } from './engine.js';
+import { createMemoryGate } from './politeness.js';
+
+let sites: TestSites;
+let fetcher: Fetcher;
+let client: CrawlerClient;
+
+beforeAll(async () => {
+  sites = await startTestSites(['boulangerie.test', 'spa.test', 'ferme.test', 'absent.test']);
+  fetcher = createFetcher({ testRouting: sites });
+});
+
+beforeEach(() => {
+  client = createCrawlerClient({
+    fetcher,
+    gate: createMemoryGate(),
+    userAgent: 'MailFindBot/0.1 (+https://mailfind.app/bot)',
+    minIntervalMs: 20,
+  });
+  sites.requests.length = 0;
+});
+
+afterAll(async () => {
+  await fetcher.close();
+  await sites.close();
+});
+
+const adresses = (rapport: Awaited<ReturnType<typeof crawlCompany>>) =>
+  rapport.addresses.map((a) => `${a.normalized} ${a.method} ${new URL(a.pageUrl).pathname}`).sort();
+
+describe('crawlCompany sur un site de boulangerie', () => {
+  it('releve en profondeur standard les adresses publiees, chacune avec sa page (F-411)', async () => {
+    const rapport = await crawlCompany(client, { domain: 'boulangerie.test', depth: 'standard' });
+
+    expect(adresses(rapport)).toEqual([
+      'boulangerie.martin.lyon@gmail.com text /mentions-legales',
+      'contact@boulangerie.test mailto /contact',
+      'info@boulangerie.test json_ld /a-propos',
+      'recrutement@boulangerie.test written_form /recrutement',
+      'rh@boulangerie.test text /contact',
+    ]);
+  });
+
+  it('ecarte l hebergeur, l exemple et le nom de fichier (F-410)', async () => {
+    const rapport = await crawlCompany(client, { domain: 'boulangerie.test', depth: 'standard' });
+    const toutes = rapport.addresses.map((a) => a.normalized);
+    expect(toutes).not.toContain('support@ovh.com');
+    expect(toutes.some((a) => a.includes('png') || a.includes('exemple'))).toBe(false);
+  });
+
+  it('ne demande jamais la page que robots.txt interdit, et le note', async () => {
+    const rapport = await crawlCompany(client, { domain: 'boulangerie.test', depth: 'standard' });
+    expect(sites.requests.some((r) => r.path.startsWith('/prive'))).toBe(false);
+    expect(rapport.notes).toContain('robots_disallowed');
+    expect(rapport.addresses.some((a) => a.normalized.startsWith('secret@'))).toBe(false);
+  });
+
+  it('note l adresse masquee sans la decoder, et propose le formulaire (F-407, F-408)', async () => {
+    const rapport = await crawlCompany(client, { domain: 'boulangerie.test', depth: 'standard' });
+    expect(rapport.notes).toEqual(expect.arrayContaining(['masked_address', 'contact_form']));
+    expect(rapport.contactFormUrl).toBe('https://boulangerie.test/contact');
+  });
+
+  it('releve la page carrieres, le standard et LinkedIn', async () => {
+    const rapport = await crawlCompany(client, { domain: 'boulangerie.test', depth: 'standard' });
+    expect(rapport.careersUrl).toBe('https://boulangerie.test/recrutement');
+    expect(rapport.phone).toBe('+33478000000');
+    expect(rapport.linkedinUrl).toBe('https://www.linkedin.com/company/boulangerie-martin');
+  });
+
+  it('se limite a l accueil et au contact en profondeur rapide (F-402)', async () => {
+    const rapport = await crawlCompany(client, { domain: 'boulangerie.test', depth: 'quick' });
+    expect(rapport.pages.map((p) => new URL(p.url).pathname)).toEqual(['/', '/contact']);
+    expect(adresses(rapport)).toEqual([
+      'contact@boulangerie.test mailto /contact',
+      'rh@boulangerie.test text /contact',
+    ]);
+  });
+
+  it('va chercher les pages sans mot cle en profondeur approfondie', async () => {
+    const rapport = await crawlCompany(client, { domain: 'boulangerie.test', depth: 'deep' });
+    expect(adresses(rapport)).toContain('commandes@boulangerie.test text /produits');
+    expect(rapport.pages.length).toBeLessThanOrEqual(25);
+  });
+
+  it('respecte le plafond de pages, accueil et page interdite compris', async () => {
+    const rapport = await crawlCompany(client, { domain: 'boulangerie.test', depth: 'standard' });
+    expect(rapport.pages.length).toBeLessThanOrEqual(10);
+  });
+});
+
+describe('crawlCompany, sites difficiles', () => {
+  it('signale un site construit en JavaScript au lieu de le dire vide (F-412)', async () => {
+    const rapport = await crawlCompany(client, { domain: 'spa.test', depth: 'standard' });
+    expect(rapport.notes).toContain('dynamic_content');
+    expect(rapport.addresses).toEqual([]);
+  });
+
+  it('ne visite rien d un site qui interdit tout (A6)', async () => {
+    const rapport = await crawlCompany(client, { domain: 'ferme.test', depth: 'deep' });
+    expect(rapport.notes).toEqual(['robots_disallowed']);
+    expect(sites.requests.filter((r) => r.host === 'ferme.test').map((r) => r.path)).toEqual([
+      '/robots.txt',
+    ]);
+  });
+
+  it('dit qu un site est injoignable plutot que vide', async () => {
+    const rapport = await crawlCompany(client, { domain: 'absent.test', depth: 'standard' });
+    expect(rapport.notes).toEqual(['unreachable']);
+    expect(rapport.pages.every((p) => p.outcome === 'failed')).toBe(true);
+  });
+
+  it('part du site donne par l import quand il est sur le domaine', async () => {
+    const rapport = await crawlCompany(client, {
+      domain: 'boulangerie.test',
+      websiteUrl: 'https://boulangerie.test/contact',
+      depth: 'quick',
+    });
+    expect(new URL(rapport.pages[0]?.url ?? '').pathname).toBe('/contact');
+  });
+});
