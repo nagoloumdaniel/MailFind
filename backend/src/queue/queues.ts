@@ -98,11 +98,48 @@ export async function enqueueCompanyStep(step: CompanyStep, job: CompanyJob): Pr
   await getCompanyQueue().add(`company.${step}`, job, { jobId: companyJobId(step, job) });
 }
 
+/**
+ * Taches d'entretien, sans rapport avec un import : le rechargement hebdomadaire
+ * de la liste des domaines jetables (niveau 4 de 6.7).
+ */
+export const MAINTENANCE_QUEUE = 'maintenance';
+const UNE_SEMAINE_MS = 7 * 24 * 60 * 60 * 1000;
+
+let fileEntretien: Queue | undefined;
+
+export function getMaintenanceQueue(): Queue {
+  fileEntretien ??= new Queue(MAINTENANCE_QUEUE, {
+    connection: getQueueConnection(),
+    prefix: queuePrefix(),
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 60_000 },
+      removeOnComplete: { count: 10 },
+      removeOnFail: { count: 10 },
+    },
+  });
+  return fileEntretien;
+}
+
+/**
+ * Le planificateur est idempotent : chaque processus de traitement le
+ * declare a son demarrage, et BullMQ n'en garde qu'un.
+ */
+export async function scheduleMaintenance(): Promise<void> {
+  await getMaintenanceQueue().upsertJobScheduler(
+    'disposable-domains',
+    { every: UNE_SEMAINE_MS },
+    { name: 'disposable.refresh' },
+  );
+}
+
 export async function closeImportQueue(): Promise<void> {
   const fermetures: Promise<void>[] = [];
   if (queue !== undefined) fermetures.push(queue.close());
   if (fileEntreprises !== undefined) fermetures.push(fileEntreprises.close());
+  if (fileEntretien !== undefined) fermetures.push(fileEntretien.close());
   queue = undefined;
   fileEntreprises = undefined;
+  fileEntretien = undefined;
   await Promise.all(fermetures);
 }

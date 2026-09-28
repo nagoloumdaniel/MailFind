@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { closePool } from './db/pool.js';
+import { closePool, query } from './db/pool.js';
 import { listImportsToResume, markImportFailed, planImport } from './imports/plan.js';
 import { getLogger } from './observability/logger.js';
 import { crawlStep, failStep } from './pipeline/crawl.js';
@@ -9,9 +9,14 @@ import { identifyCompany } from './pipeline/identify.js';
 import { startPipeline } from './pipeline/start.js';
 import { listStepsToResume } from './pipeline/steps.js';
 import { closeQueueConnection, getQueueConnection, queuePrefix } from './queue/connection.js';
+import { getEnvironment } from './config/env.js';
+import { refreshDisposableDomains } from './verification/disposable.js';
 import {
   closeImportQueue,
   COMPANY_QUEUE,
+  getMaintenanceQueue,
+  MAINTENANCE_QUEUE,
+  scheduleMaintenance,
   enqueueCompanyStep,
   enqueueImportPlan,
   IMPORT_QUEUE,
@@ -74,6 +79,17 @@ const collecte = new Worker<CompanyJob>(
     // chargent aucun site davantage.
     concurrency: 4,
   },
+);
+
+const entretien = new Worker(
+  MAINTENANCE_QUEUE,
+  async (job) => {
+    if (job.name !== 'disposable.refresh') return undefined;
+    const issue = await refreshDisposableDomains({ url: getEnvironment().DISPOSABLE_DOMAINS_URL });
+    logger.info({ issue }, 'liste des domaines jetables');
+    return issue;
+  },
+  { connection: getQueueConnection(), prefix: queuePrefix(), concurrency: 1 },
 );
 
 planification.on('completed', (job, resultat) => {
@@ -139,11 +155,27 @@ try {
   logger.error({ err: error }, 'reprise du travail en attente impossible');
 }
 
+// La liste des domaines jetables se recharge chaque semaine ; sur une base
+// neuve, elle se charge tout de suite plutot que dans sept jours.
+try {
+  await scheduleMaintenance();
+  const connus = await query<{ n: number }>('select count(*)::int as n from disposable_domains');
+  if ((connus.rows[0]?.n ?? 0) === 0) {
+    await getMaintenanceQueue().add(
+      'disposable.refresh',
+      {},
+      { jobId: 'disposable-refresh-initial' },
+    );
+  }
+} catch (error) {
+  logger.error({ err: error }, 'entretien non planifie');
+}
+
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'arret demande');
   // `close` attend la fin de la tache en cours : une tache coupee au milieu
   // repartirait de zero, alors qu'elle sait reprendre.
-  await Promise.all([planification.close(), collecte.close()]);
+  await Promise.all([planification.close(), collecte.close(), entretien.close()]);
   await dependances.fetcher.close();
   await closeImportQueue();
   await closeQueueConnection();

@@ -233,6 +233,18 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 
 ---
 
+## D-17. Une adresse de rôle garde son statut
+
+**Décision.** Une adresse de rôle (recrutement@, rh@, contact@) est typée et signalée, mais pas déclassée en `risky`. Le statut `risky` reste réservé aux messageries grand public et aux vérifications partielles.
+
+**Raison.** Le tableau des statuts de la section 6.7 range les adresses de rôle parmi les `risky`, « incluses si l'utilisateur l'autorise ». Appliqué à la lettre, il marquerait comme risquées exactement les adresses que la section 6.8 place en priorité très haute pour une candidature, et les exclurait par défaut des envois vers Campaign Mailer. Le produit trouve des adresses de recrutement : les déclasser toutes irait contre son objet.
+
+**Conséquences.** Le type de l'adresse est porté par la colonne `type`, et le score donne +5 à une adresse de rôle pertinente pour les types recherchés (6.9). Une messagerie grand public passe `risky` dès les contrôles locaux (niveau 6).
+
+**Ce qui la rouvrirait.** Le propriétaire, s'il préfère la lecture littérale du tableau de 6.7.
+
+---
+
 ## Journal des révisions
 
 | Date | Décision | Changement |
@@ -242,3 +254,4 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | 26 septembre 2026 | D-16 | Une seconde barrière s'ajoute à `npm run verify` sans la remplacer : `npm run test:integration`, sur un PostgreSQL 18 jetable, pour ce que les tests unitaires ne voient pas (index d'unicité, transactions, reprise d'un import). Hors de `verify`, qui doit tourner sans base, et dans un second job du flux d'intégration continue. |
 | 28 septembre 2026 | D-07, D-16 | La recherche web passe par la réservation puis le règlement des crédits (`provider_calls`), avec deux plafonds mensuels : 80 recherches par utilisateur (D-14) et les 1 000 requêtes offertes par Brave pour tout MailFind (D-13, `BRAVE_MONTHLY_FREE_QUERIES`). Le cache garde le domaine déduit et sa confiance, pas la réponse brute. La suite d'intégration teste aussi la file de politesse sur un vrai Redis, quand `TEST_REDIS_URL` est donnée. |
 | 28 septembre 2026 | D-08, D-14 | Les plafonds se comptent par fournisseur et par opération : les 50 crédits mensuels de Hunter sont partagés en 30 pour la recherche par domaine (`HUNTER_MONTHLY_SEARCH_CREDITS`) et 20 pour la vérification, pour que l'une ne mange pas l'autre. Sans `ENCRYPTION_KEY`, aucun fournisseur d'enrichissement n'est appelé : leurs réponses contiennent des adresses nominatives et ne sont gardées que chiffrées (F-604). |
+| 28 septembre 2026 | D-17 | Nouvelle décision : une adresse de rôle garde son statut au lieu de passer `risky`. |

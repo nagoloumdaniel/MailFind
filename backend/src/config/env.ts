@@ -90,6 +90,14 @@ const environmentSchema = z.object({
   /** F-603 : ordre de repli des fournisseurs, separes par des virgules. */
   PROVIDER_ORDER: z.string().default('hunter'),
 
+  /** Niveau 4 de 6.7 : liste publique des domaines jetables, rechargee chaque semaine. */
+  DISPOSABLE_DOMAINS_URL: z
+    .string()
+    .min(1)
+    .default(
+      'https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/main/disposable_email_blocklist.conf',
+    ),
+
   /** D-14 : recherches de site officiel par utilisateur et par mois. */
   QUOTA_WEB_SEARCHES_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(80),
   /**
