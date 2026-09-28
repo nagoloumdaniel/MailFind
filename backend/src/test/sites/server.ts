@@ -110,6 +110,17 @@ async function servir(req: IncomingMessage, res: ServerResponse): Promise<void> 
     default:
   }
 
+  // Un site peut simuler un robots.txt en panne : son dossier porte alors un
+  // fichier « robots.status » qui contient le code a rendre.
+  if (url.pathname === '/robots.txt') {
+    const etat = await lireFichier(hote, '/robots.status');
+    if (etat !== undefined) {
+      res.writeHead(Number(etat[0].toString('utf8').trim()));
+      res.end();
+      return;
+    }
+  }
+
   const trouve = await lireFichier(hote, decodeURIComponent(url.pathname));
   if (trouve === undefined) {
     res.writeHead(404, { 'content-type': 'text/html' });

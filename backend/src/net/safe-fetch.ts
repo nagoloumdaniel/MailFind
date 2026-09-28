@@ -3,6 +3,7 @@ import type { LookupFunction } from 'node:net';
 import { Agent, request } from 'undici';
 import { getEnvironment } from '../config/env.js';
 import { isForbiddenHostname, isForbiddenIp } from './addresses.js';
+import { registrableDomain } from './domain.js';
 
 /**
  * Le seul client HTTP autorise a joindre un site exterieur.
@@ -101,14 +102,6 @@ const READABLE = /^(text\/html|application\/xhtml\+xml|text\/plain)/i;
 
 /** Au-dela de dix sauts, c'est une boucle, quel que soit le domaine. */
 const MAX_HOPS = 10;
-
-function registrableHost(hostname: string): string {
-  // Comparaison volontairement grossiere : « www.exemple.fr » et
-  // « careers.exemple.fr » comptent pour le meme domaine, ce qui suffit a
-  // distinguer une redirection interne d'un saut vers un autre site.
-  const parties = hostname.toLowerCase().split('.');
-  return parties.slice(-2).join('.');
-}
 
 /**
  * Le jeu de caracteres annonce par l'en-tete, sinon par la page elle-meme.
@@ -224,7 +217,7 @@ export function createFetcher(options: FetcherOptions = {}): Fetcher {
     const lisible = fetchOptions.accept === 'text' ? /^text\/plain/i : READABLE;
 
     let url = new URL(rawUrl);
-    const domaineDepart = registrableHost(url.hostname);
+    const domaineDepart = registrableDomain(url.hostname);
     let sorties = 0;
 
     for (let saut = 0; saut <= MAX_HOPS; saut += 1) {
@@ -255,7 +248,7 @@ export function createFetcher(options: FetcherOptions = {}): Fetcher {
         abandonner(reponse.body);
 
         const suivante = new URL(emplacement, url);
-        if (registrableHost(suivante.hostname) !== domaineDepart) {
+        if (registrableDomain(suivante.hostname) !== domaineDepart) {
           sorties += 1;
           if (sorties > maxOffDomain) {
             throw new BlockedAddressError(
