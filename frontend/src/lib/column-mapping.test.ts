@@ -196,3 +196,23 @@ describe('usableDomain', () => {
     expect(usableDomain('   ')).toBeUndefined();
   });
 });
+
+describe('describeRow, pages tierces comme le serveur (F-306)', () => {
+  const headers = ['entreprise', 'site'];
+  const mapping = suggestMapping(headers);
+
+  it('ecarte une ligne reduite a une page de reseau social', () => {
+    const vue = describeRow(headers, mapping, ['', 'https://www.linkedin.com/company/acme'], 2);
+    expect(vue.rejection).toMatch(/reseau social/);
+  });
+
+  it('garde une ligne reduite a une offre sur une plateforme de recrutement', () => {
+    const vue = describeRow(
+      headers,
+      mapping,
+      ['', 'https://www.welcometothejungle.com/fr/companies/acme'],
+      2,
+    );
+    expect(vue.rejection).toBeUndefined();
+  });
+});
