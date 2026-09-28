@@ -58,6 +58,15 @@ const environmentSchema = z.object({
   /** Redirections hors du domaine, F-405. */
   CRAWLER_MAX_REDIRECTS: z.coerce.number().int().min(0).max(10).default(2),
 
+  /**
+   * Chiffrement au repos (S-01), 32 octets en hexadecimal. Vide, les
+   * fournisseurs d'enrichissement restent desactives : leurs reponses
+   * contiennent des adresses nominatives et ne sont gardees que chiffrees.
+   */
+  ENCRYPTION_KEY: z.string().default(''),
+  /** L'ancienne cle, gardee le temps d'une rotation pour dechiffrer ce qu'elle a chiffre. */
+  ENCRYPTION_KEY_PREVIOUS: z.string().default(''),
+
   /** Identification legale des entreprises francaises (D-10). Gratuite, sans cle. */
   RECHERCHE_ENTREPRISES_BASE_URL: z
     .string()
