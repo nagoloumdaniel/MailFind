@@ -353,3 +353,104 @@ export async function importProgress(userId: string, importId: string): Promise<
     })),
   };
 }
+
+export interface ImportEmail {
+  readonly id: string;
+  readonly companyId: string;
+  readonly companyName: string;
+  readonly address: string;
+  readonly type: string;
+  readonly origin: string;
+  readonly status: string;
+  readonly score: number | null;
+  /** Le calcul du score, critere par critere (6.9) ; nul avant la verification. */
+  readonly scoreBreakdown: unknown;
+  /** Le motif de la derniere verification, lisible. */
+  readonly verificationReason: string | null;
+  readonly verifiedAt: Date | null;
+  /** La premiere source connue : la page, le fournisseur ou la regle. */
+  readonly source: {
+    readonly kind: string;
+    readonly url: string | null;
+    readonly provider: string | null;
+  } | null;
+}
+
+/** Au-dela, la page Contacts de la Phase 6 prendra le relais, paginee. */
+export const IMPORT_EMAILS_MAX = 500;
+
+/**
+ * Les adresses des entreprises d'un import, dans l'ordre des exports (6.11) :
+ * par entreprise, puis par type (recrutement d'abord), puis par score
+ * decroissant. Une candidate que la verification a refusee n'y est pas
+ * (F-503). L'appartenance est verifiee dans la requete (S-04).
+ */
+export async function listImportEmails(
+  userId: string,
+  importId: string,
+): Promise<{ emails: ImportEmail[]; truncated: boolean }> {
+  const result = await query<{
+    id: string;
+    company_id: string;
+    company_name: string;
+    address: string;
+    type: string;
+    origin: string;
+    status: string;
+    score: number | null;
+    score_breakdown: unknown;
+    reason: string | null;
+    verified_at: Date | null;
+    source_kind: string | null;
+    source_url: string | null;
+    source_provider: string | null;
+  }>(
+    `select e.id, c.id as company_id, c.name as company_name, e.address,
+            e.type::text as type, e.origin::text as origin, e.status::text as status,
+            e.score, e.score_breakdown, v.reason, e.last_verified_at as verified_at,
+            s.kind::text as source_kind, s.url as source_url, s.provider as source_provider
+       from emails e
+       join companies c on c.id = e.company_id
+       left join lateral (
+         select reason from verifications
+          where email_id = e.id order by verified_at desc, level desc limit 1
+       ) v on true
+       left join lateral (
+         select kind, url, provider from email_sources
+          where email_id = e.id order by discovered_at, id limit 1
+       ) s on true
+      where e.user_id = $1
+        and not (e.origin = 'deduced' and e.excluded)
+        and e.company_id in (
+          select r.company_id from import_rows r
+            join imports i on i.id = r.import_id
+           where i.user_id = $1 and r.import_id = $2 and r.company_id is not null)
+      order by c.name, c.id,
+               array_position(array['recruitment', 'hr', 'generic', 'sales', 'press',
+                                    'support', 'personal', 'unknown'], e.type::text),
+               e.score desc nulls last, e.normalized_address
+      limit $3`,
+    [userId, importId, IMPORT_EMAILS_MAX + 1],
+  );
+  const lignes = result.rows.slice(0, IMPORT_EMAILS_MAX);
+  return {
+    truncated: result.rows.length > IMPORT_EMAILS_MAX,
+    emails: lignes.map((ligne) => ({
+      id: ligne.id,
+      companyId: ligne.company_id,
+      companyName: ligne.company_name,
+      address: ligne.address,
+      type: ligne.type,
+      origin: ligne.origin,
+      status: ligne.status,
+      score: ligne.score,
+      scoreBreakdown: ligne.score_breakdown,
+      verificationReason: ligne.reason,
+      verifiedAt: ligne.verified_at,
+      source:
+        ligne.source_kind === null
+          ? null
+          : { kind: ligne.source_kind, url: ligne.source_url, provider: ligne.source_provider },
+    })),
+  };
+}

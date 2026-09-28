@@ -96,7 +96,7 @@ function motifBoite(fournisseur: string, resultat: MailboxResult): string {
     case 'disposable':
       return `Domaine jetable selon ${fournisseur}.`;
     case 'webmail':
-      return 'Messagerie grand public : ce n est pas une adresse d entreprise confirmee.';
+      return "Messagerie grand public : ce n'est pas une adresse d'entreprise confirmee.";
   }
 }
 
@@ -112,7 +112,7 @@ const ECARTES: ReadonlySet<EmailStatus> = new Set(['invalid', 'disposable', 'sup
 
 function motifExclusion(origin: EmailOrigin, statut: EmailStatus): string {
   // F-503 : une candidate invalide est ecartee sans etre montree.
-  if (origin === 'deduced') return 'Candidate ecartee : la verification l a refusee.';
+  if (origin === 'deduced') return "Candidate ecartee : la verification l'a refusee.";
   if (statut === 'suppressed') return 'Adresse dans votre liste de suppression.';
   if (statut === 'disposable') return 'Domaine jetable.';
   return 'Adresse invalide.';

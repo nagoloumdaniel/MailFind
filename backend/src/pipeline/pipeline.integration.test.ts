@@ -4,7 +4,12 @@ import { createMemoryGate } from '../crawler/politeness.js';
 import { closePool, query } from '../db/pool.js';
 import type { KnownField } from '../imports/fields.js';
 import { cancelImport, planImport } from '../imports/plan.js';
-import { createImport, importProgress, type PreparedRow } from '../imports/repository.js';
+import {
+  createImport,
+  importProgress,
+  listImportEmails,
+  type PreparedRow,
+} from '../imports/repository.js';
 import { validateRow } from '../imports/validate.js';
 import { createFetcher, type Fetcher } from '../net/safe-fetch.js';
 import type { LegalIdentity } from '../providers/recherche-entreprises.js';
@@ -705,6 +710,31 @@ describe('verification et score (Phase 5)', () => {
     const progression = await importProgress(userId, importId);
     expect(progression.verify).toMatchObject({ done: 1 });
     expect(progression.emailsByStatus).toEqual({ risky: 1, unverified: 4 });
+
+    // La liste rendue a la page : recrutement d'abord, puis par score, avec
+    // le detail du calcul et le motif de la verification.
+    const { emails, truncated } = await listImportEmails(userId, importId);
+    expect(truncated).toBe(false);
+    expect(emails.map((e) => `${e.address} ${e.type} ${String(e.score)}`)).toEqual([
+      'recrutement@boulangerie.test recruitment 45',
+      'rh@boulangerie.test hr 55',
+      'contact@boulangerie.test generic 55',
+      'info@boulangerie.test generic 45',
+      'boulangerie.martin.lyon@gmail.com unknown 50',
+    ]);
+    expect(emails[0]).toMatchObject({
+      companyName: 'Boulangerie Martin',
+      status: 'unverified',
+      verificationReason: expect.any(String),
+      source: { kind: 'website', url: 'https://boulangerie.test/recrutement' },
+      scoreBreakdown: {
+        score: 45,
+        criteria: [
+          { criterion: 'official_site', points: 40 },
+          { criterion: 'relevant_role', points: 5 },
+        ],
+      },
+    });
   });
 
   it('verifie les boites quand l import le demande, et ecarte une candidate invalide (F-702, F-503)', async () => {

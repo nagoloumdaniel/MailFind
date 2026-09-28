@@ -12,6 +12,7 @@ import {
   createImport,
   findImport,
   importProgress,
+  listImportEmails,
   listImports,
   listRejectedRows,
   type PreparedRow,
@@ -186,6 +187,30 @@ export function createImportsRouter(): Router {
           rejectedRows: await listRejectedRows(user.id, identifiant),
           progress: await importProgress(user.id, identifiant),
         });
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
+
+  /**
+   * Les adresses trouvees par l'import, avec leur statut, leur score et le
+   * detail de son calcul (6.9).
+   */
+  router.get('/:id/emails', (req, res, next) => {
+    void (async () => {
+      try {
+        const user = req.currentUser;
+        if (user === undefined) {
+          next(unauthenticated());
+          return;
+        }
+        const identifiant = req.params.id ?? '';
+        if ((await findImport(user.id, identifiant)) === undefined) {
+          next(AppError.notFound("Cet import n'existe pas."));
+          return;
+        }
+        res.json(await listImportEmails(user.id, identifiant));
       } catch (error) {
         next(error);
       }

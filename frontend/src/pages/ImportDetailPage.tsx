@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { Button } from '../components/Button';
+import { ImportEmails } from '../components/ImportEmails';
 import { Skeleton, TableSkeleton } from '../components/Skeleton';
 import { ApiError } from '../lib/api';
 import {
@@ -288,6 +289,15 @@ export function ImportDetailPage() {
             </Button>
           )}
         </div>
+      )}
+
+      {progression.emails > 0 && (
+        <ImportEmails
+          importId={importe.id}
+          // Relue quand une entreprise de plus est verifiee, pas a chaque
+          // rafraichissement de la progression.
+          version={`${importe.status}-${String(finished(progression.verify))}-${String(progression.emails)}`}
+        />
       )}
 
       {progression.issues.length > 0 && <ARegarder entreprises={progression.issues} />}

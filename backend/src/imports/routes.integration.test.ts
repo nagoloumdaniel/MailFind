@@ -206,5 +206,14 @@ describe('GET /api/imports/:id et annulation', () => {
     const autre = await agentAvecJeton();
 
     expect((await autre.agent.get(`/api/imports/${cree.body.import.id}`)).status).toBe(404);
+    expect((await autre.agent.get(`/api/imports/${cree.body.import.id}/emails`)).status).toBe(404);
+  });
+
+  it('rend les adresses de l import, vides tant que rien n est trouve', async () => {
+    const { agent, jeton } = await agentAvecJeton();
+    const cree = await agent.post('/api/imports').set('x-csrf-token', jeton).send(FICHIER);
+    const reponse = await agent.get(`/api/imports/${cree.body.import.id}/emails`);
+    expect(reponse.status).toBe(200);
+    expect(reponse.body).toEqual({ emails: [], truncated: false });
   });
 });
