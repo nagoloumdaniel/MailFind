@@ -74,6 +74,25 @@ export async function loadDisposableDomains(): Promise<Set<string>> {
   return new Set([...BASE, ...lus.rows.map((ligne) => ligne.domain)]);
 }
 
+/**
+ * La liste relue au plus une fois l'heure : elle change une fois la semaine,
+ * la relire a chaque entreprise serait dix mille lignes pour rien.
+ */
+export function createDisposableCache(ttlMs = 60 * 60 * 1000): () => Promise<ReadonlySet<string>> {
+  let connue: { expire: number; liste: Promise<ReadonlySet<string>> } | undefined;
+  return () => {
+    if (connue === undefined || connue.expire < Date.now()) {
+      const liste = loadDisposableDomains();
+      connue = { expire: Date.now() + ttlMs, liste };
+      // Un echec de lecture ne doit pas rester en memoire une heure.
+      liste.catch(() => {
+        connue = undefined;
+      });
+    }
+    return connue.liste;
+  };
+}
+
 /** Les domaines d'un fichier texte, un par ligne, commentaires ignores. */
 export function parseDomainList(texte: string): string[] {
   const vus = new Set<string>();

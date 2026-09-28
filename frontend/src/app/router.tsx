@@ -8,6 +8,7 @@ import { ImportPage } from '../pages/ImportPage';
 import { LoginPage } from '../pages/LoginPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { TermsPage } from '../pages/TermsPage';
+import { VerifyPage } from '../pages/VerifyPage';
 
 /**
  * Les chemins sont en francais, comme le reste de l'interface. Ce sont des
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
           { path: '/', element: <DashboardPage /> },
           { path: '/import', element: <ImportPage /> },
           { path: '/imports/:id', element: <ImportDetailPage /> },
+          { path: '/verifier', element: <VerifyPage /> },
           { path: '/conditions', element: <TermsPage /> },
           { path: '/compte', element: <AccountPage /> },
           { path: '*', element: <NotFoundPage /> },

@@ -12,9 +12,11 @@ import { useSession } from '../lib/session';
  * ecran a venir serait une promesse que le produit ne tient pas encore.
  */
 const DESTINATIONS = [
-  // « Tableau de bord » ne tient pas a cote des deux autres sur un telephone.
-  { to: '/', label: 'Tableau de bord', short: 'Accueil', end: true },
+  // Sur un telephone, le tableau de bord n'a pas d'onglet : le logo y mene
+  // deja, et quatre onglets ne tiennent pas sur 360 pixels.
+  { to: '/', label: 'Tableau de bord', short: null, end: true },
   { to: '/import', label: 'Importer', short: 'Importer', end: false },
+  { to: '/verifier', label: 'Verifier', short: 'Verifier', end: false },
   { to: '/compte', label: 'Compte', short: 'Compte', end: false },
 ];
 
@@ -45,14 +47,14 @@ export function AppLayout() {
                 to={to}
                 end={end}
                 className={({ isActive }) =>
-                  `rounded-sm px-1.5 py-1.5 text-sm whitespace-nowrap sm:px-2.5 ${
+                  `${short === null ? 'hidden sm:block' : ''} rounded-sm px-1.5 py-1.5 text-sm whitespace-nowrap sm:px-2.5 ${
                     isActive
                       ? 'bg-raised font-medium text-text'
                       : 'text-text-soft hover:bg-raised hover:text-text'
                   }`
                 }
               >
-                <span className="sm:hidden">{short}</span>
+                {short !== null && <span className="sm:hidden">{short}</span>}
                 <span className="hidden sm:inline">{label}</span>
               </NavLink>
             ))}

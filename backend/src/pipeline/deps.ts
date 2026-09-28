@@ -17,7 +17,7 @@ import type { CrawlDeps } from './crawl.js';
 import type { EnrichDeps } from './enrich.js';
 import type { IdentifyDeps } from './identify.js';
 import type { VerifyDeps } from './verify.js';
-import { loadDisposableDomains } from '../verification/disposable.js';
+import { createDisposableCache } from '../verification/disposable.js';
 import { createMailDns } from '../verification/local.js';
 
 /**
@@ -76,25 +76,10 @@ export function createPipelineDeps(): IdentifyDeps &
     getLogger().warn('ENCRYPTION_KEY vide : les fournisseurs d enrichissement restent desactives');
   }
 
-  // La liste des domaines jetables change une fois la semaine : la relire a
-  // chaque entreprise serait dix mille lignes pour rien.
-  let jetables: { expire: number; liste: Promise<ReadonlySet<string>> } | undefined;
-  const disposableDomains = () => {
-    if (jetables === undefined || jetables.expire < Date.now()) {
-      const liste = loadDisposableDomains();
-      jetables = { expire: Date.now() + 60 * 60 * 1000, liste };
-      // Un echec de lecture ne doit pas rester en memoire une heure.
-      liste.catch(() => {
-        jetables = undefined;
-      });
-    }
-    return jetables.liste;
-  };
-
   const cle = environment.BRAVE_SEARCH_API_KEY;
   return {
     mailDns: createMailDns(),
-    disposableDomains,
+    disposableDomains: createDisposableCache(),
     ...(cipher === undefined || environment.HUNTER_API_KEY === ''
       ? {}
       : {

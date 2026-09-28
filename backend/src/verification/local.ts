@@ -202,8 +202,14 @@ export async function checkLocally(address: string, contexte: LocalContext): Pro
   };
 }
 
+/** Au-dela, le cache est vide : le processus tourne des semaines. */
+const CACHE_DNS_MAX = 5000;
+
 /** Le resolveur reel, avec un cache par domaine le temps d'une verification. */
 export function createMailDns(ttlMs = 60 * 60 * 1000): MailDns {
+  // Un delai court et deux essais : une liste de mille adresses ne doit pas
+  // attendre vingt secondes chaque domaine qui ne repond pas.
+  const resolveur = new dns.Resolver({ timeout: 3000, tries: 2 });
   const mx = new Map<
     string,
     { expire: number; valeur: Promise<{ exchange: string; priority: number }[]> }
@@ -216,6 +222,7 @@ export function createMailDns(ttlMs = 60 * 60 * 1000): MailDns {
   ) => {
     const connu = cache.get(cle);
     if (connu !== undefined && connu.expire > Date.now()) return connu.valeur;
+    if (cache.size >= CACHE_DNS_MAX) cache.clear();
     const valeur = calcul();
     cache.set(cle, { expire: Date.now() + ttlMs, valeur });
     // Une erreur ne reste pas en cache : la prochaine demande retente.
@@ -223,10 +230,13 @@ export function createMailDns(ttlMs = 60 * 60 * 1000): MailDns {
     return valeur;
   };
   return {
-    mx: (domaine) => memoriser(mx, domaine, () => dns.resolveMx(domaine)),
+    mx: (domaine) => memoriser(mx, domaine, () => resolveur.resolveMx(domaine)),
     hasAddress: (domaine) =>
       memoriser(adresses, domaine, async () => {
-        const [v4, v6] = await Promise.allSettled([dns.resolve4(domaine), dns.resolve6(domaine)]);
+        const [v4, v6] = await Promise.allSettled([
+          resolveur.resolve4(domaine),
+          resolveur.resolve6(domaine),
+        ]);
         if (v4.status === 'fulfilled' && v4.value.length > 0) return true;
         if (v6.status === 'fulfilled' && v6.value.length > 0) return true;
         const erreur = v4.status === 'rejected' ? (v4.reason as NodeJS.ErrnoException) : undefined;

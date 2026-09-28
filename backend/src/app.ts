@@ -11,6 +11,7 @@ import { createSessionMiddleware } from './auth/session.js';
 import { getEnvironment } from './config/env.js';
 import { createImportsRouter } from './imports/routes.js';
 import { createSuppressionsRouter } from './suppressions/routes.js';
+import { createVerificationsRouter } from './verification/routes.js';
 import { getLogger } from './observability/logger.js';
 import { csrfProtection } from './http/middleware/csrf.js';
 import { errorHandler, notFoundHandler } from './http/middleware/error-handler.js';
@@ -88,6 +89,7 @@ export function createApp(options: AppOptions = {}): Express {
   app.use('/api/account', createAccountRouter());
   app.use('/api/imports', createImportsRouter());
   app.use('/api/suppressions', createSuppressionsRouter());
+  app.use('/api/verifications', createVerificationsRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);
