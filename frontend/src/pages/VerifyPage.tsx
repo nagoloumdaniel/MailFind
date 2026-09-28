@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Button } from '../components/Button';
 import { ApiError } from '../lib/api';
 import { decodeCsv, MAX_FILE_BYTES } from '../lib/csv';
-import { EMAIL_STATUS_LABELS, type EmailStatus } from '../lib/imports';
+import { EMAIL_STATUS_LABELS, STATUS_TONES, type EmailStatus } from '../lib/imports';
 import {
   checkAddresses,
   extractAddresses,
@@ -10,17 +10,6 @@ import {
   resultsToCsv,
   type OneOffResult,
 } from '../lib/one-off';
-
-const TONS_STATUT: Record<EmailStatus, string> = {
-  valid: 'text-accent',
-  accept_all: 'text-caution',
-  risky: 'text-caution',
-  unknown: 'text-text-soft',
-  invalid: 'text-negative',
-  disposable: 'text-negative',
-  suppressed: 'text-negative',
-  unverified: 'text-text-soft',
-};
 
 /** Ordre du resume : ce qui est a ecarter d'abord. */
 const ORDRE: EmailStatus[] = ['invalid', 'disposable', 'suppressed', 'risky', 'unverified'];
@@ -158,7 +147,7 @@ export function VerifyPage() {
             {ORDRE.filter((statut) => (comptes.get(statut) ?? 0) > 0).map((statut) => (
               <div key={statut}>
                 <dt className="text-xs text-text-faint">{EMAIL_STATUS_LABELS[statut]}</dt>
-                <dd className={`text-lg font-semibold ${TONS_STATUT[statut]}`} data-numeric>
+                <dd className={`text-lg font-semibold ${STATUS_TONES[statut]}`} data-numeric>
                   {(comptes.get(statut) ?? 0).toLocaleString('fr-FR')}
                 </dd>
               </div>
@@ -183,7 +172,7 @@ export function VerifyPage() {
                 {resultats.map((r) => (
                   <tr key={r.input} className="border-b border-line align-top last:border-b-0">
                     <td className="px-4 py-2 font-mono break-all">{r.address ?? r.input}</td>
-                    <td className={`px-4 py-2 ${TONS_STATUT[r.status]}`}>
+                    <td className={`px-4 py-2 ${STATUS_TONES[r.status]}`}>
                       {EMAIL_STATUS_LABELS[r.status]}
                     </td>
                     <td className="px-4 py-2 text-text-soft">{r.reason}</td>

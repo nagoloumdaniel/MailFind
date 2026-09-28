@@ -90,6 +90,21 @@ export const EMAIL_STATUS_LABELS: Record<EmailStatus, string> = {
   unverified: 'Non verifiee',
 };
 
+/**
+ * Seul `valid` porte la couleur de l'accent : un autre statut n'est jamais
+ * presente comme verifie (regle du depot).
+ */
+export const STATUS_TONES: Record<EmailStatus, string> = {
+  valid: 'text-accent',
+  accept_all: 'text-caution',
+  risky: 'text-caution',
+  unknown: 'text-text-soft',
+  invalid: 'text-negative',
+  disposable: 'text-negative',
+  suppressed: 'text-negative',
+  unverified: 'text-text-soft',
+};
+
 export interface ImportProgress {
   companies: number;
   identify: StepCounts;
@@ -165,7 +180,7 @@ export interface ImportEmail {
   companyName: string;
   address: string;
   type: string;
-  origin: 'found' | 'provider' | 'deduced' | 'imported';
+  origin: EmailOrigin;
   status: EmailStatus;
   score: number | null;
   scoreBreakdown: unknown;
@@ -192,9 +207,12 @@ export const ALL_EMAIL_TYPE_LABELS: Record<string, string> = {
   unknown: 'Autre',
 };
 
-export const ORIGIN_LABELS: Record<ImportEmail['origin'], string> = {
+export type EmailOrigin = 'found' | 'provider' | 'deduced' | 'imported' | 'manual';
+
+export const ORIGIN_LABELS: Record<EmailOrigin, string> = {
   found: 'Sur le site',
   provider: 'Fournisseur',
   deduced: 'Deduite',
   imported: 'Importee',
+  manual: 'Saisie',
 };

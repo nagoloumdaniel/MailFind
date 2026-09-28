@@ -2,28 +2,13 @@ import { useEffect, useState } from 'react';
 import {
   ALL_EMAIL_TYPE_LABELS,
   EMAIL_STATUS_LABELS,
+  STATUS_TONES,
   fetchImportEmails,
   ORIGIN_LABELS,
-  type EmailStatus,
   type ImportEmail,
 } from '../lib/imports';
 import { ScoreBadge } from './ScoreBadge';
 import { TableSkeleton } from './Skeleton';
-
-/**
- * Seul `valid` porte la couleur de l'accent : un autre statut n'est jamais
- * presente comme verifie (regle du depot).
- */
-const TONS_STATUT: Record<EmailStatus, string> = {
-  valid: 'text-accent',
-  accept_all: 'text-caution',
-  risky: 'text-caution',
-  unknown: 'text-text-soft',
-  invalid: 'text-negative',
-  disposable: 'text-negative',
-  suppressed: 'text-negative',
-  unverified: 'text-text-soft',
-};
 
 /** Une URL de page n'est un lien que si elle est en http ou https (S-06). */
 function lienSur(url: string | null): string | undefined {
@@ -146,7 +131,7 @@ export function ImportEmails({ importId, version }: { importId: string; version:
                 </td>
                 <td className="px-4 py-2">{ALL_EMAIL_TYPE_LABELS[email.type] ?? email.type}</td>
                 <td className="px-4 py-2">
-                  <span className={TONS_STATUT[email.status]}>
+                  <span className={STATUS_TONES[email.status]}>
                     {EMAIL_STATUS_LABELS[email.status]}
                   </span>
                   {email.verificationReason !== null && (

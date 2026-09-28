@@ -1,0 +1,288 @@
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
+import { MultiFilter } from '../components/MultiFilter';
+import { Pagination } from '../components/Pagination';
+import { ScoreBadge } from '../components/ScoreBadge';
+import { TableSkeleton } from '../components/Skeleton';
+import { ApiError } from '../lib/api';
+import {
+  fetchContacts,
+  filtersFromSearch,
+  filtersToSearch,
+  nextSort,
+  ORIGIN_FILTERS,
+  STATUS_FILTERS,
+  TYPE_FILTERS,
+  type Contact,
+  type ContactFilters,
+  type ContactSort,
+} from '../lib/contacts';
+import {
+  ALL_EMAIL_TYPE_LABELS,
+  EMAIL_STATUS_LABELS,
+  ORIGIN_LABELS,
+  STATUS_TONES,
+} from '../lib/imports';
+
+/** Delai avant de chercher pendant la frappe : une requete par pause, pas par touche. */
+const FRAPPE_MS = 300;
+
+const COLONNES: { sort: ContactSort; label: string; className?: string }[] = [
+  { sort: 'address', label: 'Adresse' },
+  { sort: 'name', label: 'Nom' },
+  { sort: 'company', label: 'Entreprise' },
+  { sort: 'type', label: 'Type' },
+  { sort: 'status', label: 'Statut' },
+  { sort: 'score', label: 'Score', className: 'text-right' },
+  { sort: 'origin', label: 'Origine' },
+  { sort: 'created', label: 'Ajoutee le' },
+];
+
+/**
+ * Page Contacts (F-1010 a F-1012) : toutes les adresses de la bibliotheque,
+ * quelle que soit leur origine. Les filtres, le tri et la page sont dans
+ * l'adresse de la page.
+ */
+export function ContactsPage() {
+  const [params, setParams] = useSearchParams();
+  const filtres = filtersFromSearch(params);
+  const cle = filtersToSearch(filtres).toString();
+
+  const [saisie, setSaisie] = useState(filtres.q);
+  const [etat, setEtat] = useState<
+    { total: number; contacts: Contact[] } | { erreur: string } | undefined
+  >(undefined);
+
+  function appliquer(suivants: ContactFilters) {
+    setParams(filtersToSearch(suivants));
+  }
+
+  // La recherche part apres une pause dans la frappe, et revient a la page 1.
+  useEffect(() => {
+    if (saisie === filtres.q) return;
+    const minuterie = setTimeout(() => {
+      appliquer({ ...filtres, q: saisie, page: 1 });
+    }, FRAPPE_MS);
+    return () => {
+      clearTimeout(minuterie);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seule la frappe relance la minuterie
+  }, [saisie]);
+
+  useEffect(() => {
+    let actif = true;
+    fetchContacts(filtersFromSearch(new URLSearchParams(cle)))
+      .then((resultat) => {
+        if (actif) setEtat(resultat);
+      })
+      .catch((error: unknown) => {
+        if (actif) {
+          setEtat({
+            erreur: error instanceof ApiError ? error.message : "La liste n'a pas pu etre chargee.",
+          });
+        }
+      });
+    return () => {
+      actif = false;
+    };
+  }, [cle]);
+
+  const filtresActifs =
+    filtres.q !== '' ||
+    filtres.status.length + filtres.type.length + filtres.origin.length > 0 ||
+    filtres.tag !== '';
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="text-2xl font-bold">Contacts</h1>
+        {etat !== undefined && 'total' in etat && (
+          <p className="text-sm text-text-soft" data-numeric>
+            {etat.total.toLocaleString('fr-FR')} adresse{etat.total > 1 ? 's' : ''}
+          </p>
+        )}
+      </div>
+      <p className="mt-2 max-w-[70ch] text-sm text-text-soft">
+        Toutes les adresses de votre bibliotheque, trouvees, fournies, deduites ou saisies. Chacune
+        garde sa source et son statut : seul « Valide » dit qu&apos;une boite a ete confirmee.
+      </p>
+
+      <search className="mt-6 flex flex-wrap items-center gap-2">
+        <label className="min-w-0 flex-1 basis-64">
+          <span className="sr-only">Rechercher</span>
+          <input
+            type="search"
+            value={saisie}
+            onChange={(event) => {
+              setSaisie(event.target.value);
+            }}
+            placeholder="Adresse, nom, entreprise ou domaine"
+            className="w-full rounded-sm border border-line-strong bg-surface px-3 py-1.5 text-sm text-text"
+          />
+        </label>
+        <MultiFilter
+          label="Statut"
+          options={STATUS_FILTERS}
+          labels={EMAIL_STATUS_LABELS}
+          selected={filtres.status}
+          onChange={(status) => {
+            appliquer({ ...filtres, status, page: 1 });
+          }}
+        />
+        <MultiFilter
+          label="Type"
+          options={TYPE_FILTERS}
+          labels={ALL_EMAIL_TYPE_LABELS}
+          selected={filtres.type}
+          onChange={(type) => {
+            appliquer({ ...filtres, type, page: 1 });
+          }}
+        />
+        <MultiFilter
+          label="Origine"
+          options={ORIGIN_FILTERS}
+          labels={ORIGIN_LABELS}
+          selected={filtres.origin}
+          onChange={(origin) => {
+            appliquer({ ...filtres, origin, page: 1 });
+          }}
+        />
+        {filtresActifs && (
+          <button
+            type="button"
+            className="px-2 text-sm text-accent underline"
+            onClick={() => {
+              setSaisie('');
+              appliquer({
+                ...filtres,
+                q: '',
+                status: [],
+                type: [],
+                origin: [],
+                tag: '',
+                page: 1,
+              });
+            }}
+          >
+            Effacer les filtres
+          </button>
+        )}
+      </search>
+
+      <div className="mt-4">
+        {etat === undefined ? (
+          <TableSkeleton rows={8} />
+        ) : 'erreur' in etat ? (
+          <p role="alert" className="text-sm text-negative">
+            {etat.erreur}
+          </p>
+        ) : etat.total === 0 && !filtresActifs ? (
+          <p className="rounded-md border border-line bg-surface px-4 py-8 text-center text-sm text-text-soft">
+            Aucune adresse pour l&apos;instant.{' '}
+            <Link to="/import" className="text-accent underline">
+              Importez une liste d&apos;entreprises
+            </Link>{' '}
+            pour commencer.
+          </p>
+        ) : (
+          <>
+            <div className="overflow-x-auto rounded-md border border-line bg-surface">
+              <table className="w-full min-w-[60rem] text-sm">
+                <caption className="sr-only">
+                  Contacts, tries par {COLONNES.find((c) => c.sort === filtres.sort)?.label}{' '}
+                  {filtres.dir === 'asc' ? 'croissant' : 'decroissant'}
+                </caption>
+                <thead className="border-b border-line bg-raised text-xs text-text-faint">
+                  <tr>
+                    {COLONNES.map((colonne) => {
+                      const actif = filtres.sort === colonne.sort;
+                      return (
+                        <th
+                          key={colonne.sort}
+                          scope="col"
+                          aria-sort={
+                            actif ? (filtres.dir === 'asc' ? 'ascending' : 'descending') : 'none'
+                          }
+                          className={`px-4 py-2 text-left font-medium ${colonne.className ?? ''}`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              appliquer(nextSort(filtres, colonne.sort));
+                            }}
+                            className={`inline-flex items-center gap-1 hover:text-text ${actif ? 'text-text' : ''}`}
+                          >
+                            {colonne.label}
+                            <span aria-hidden="true">
+                              {actif ? (filtres.dir === 'asc' ? '▲' : '▼') : ''}
+                            </span>
+                          </button>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {etat.contacts.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={COLONNES.length}
+                        className="px-4 py-8 text-center text-text-soft"
+                      >
+                        Aucune adresse ne correspond a cette recherche.
+                      </td>
+                    </tr>
+                  ) : (
+                    etat.contacts.map((contact) => (
+                      <tr
+                        key={contact.id}
+                        className="border-b border-line align-top last:border-b-0"
+                      >
+                        <td className="px-4 py-2 font-mono whitespace-nowrap">{contact.address}</td>
+                        <td className="px-4 py-2">
+                          {contact.contactName ?? <span className="text-text-faint">-</span>}
+                        </td>
+                        <td className="px-4 py-2 text-text-soft">{contact.company.name}</td>
+                        <td className="px-4 py-2">
+                          {ALL_EMAIL_TYPE_LABELS[contact.type] ?? contact.type}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className={STATUS_TONES[contact.status]}>
+                            {EMAIL_STATUS_LABELS[contact.status]}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <ScoreBadge score={contact.score} breakdown={contact.scoreBreakdown} />
+                        </td>
+                        <td className="px-4 py-2 text-text-soft">
+                          {ORIGIN_LABELS[contact.origin]}
+                          {contact.origin === 'deduced' && contact.status !== 'valid' && (
+                            <span className="block text-xs text-text-faint">non confirmee</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-text-soft" data-numeric>
+                          {new Date(contact.createdAt).toLocaleDateString('fr-FR')}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              page={filtres.page}
+              pageSize={filtres.pageSize}
+              total={etat.total}
+              onPage={(page) => {
+                appliquer({ ...filtres, page });
+              }}
+              onPageSize={(pageSize) => {
+                appliquer({ ...filtres, pageSize, page: 1 });
+              }}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

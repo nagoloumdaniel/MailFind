@@ -10,6 +10,7 @@ import { createAuthRouter } from './auth/routes.js';
 import { createSessionMiddleware } from './auth/session.js';
 import { getEnvironment } from './config/env.js';
 import { createImportsRouter } from './imports/routes.js';
+import { createContactsRouter } from './contacts/routes.js';
 import { createSuppressionsRouter } from './suppressions/routes.js';
 import { createVerificationsRouter } from './verification/routes.js';
 import { getLogger } from './observability/logger.js';
@@ -88,6 +89,7 @@ export function createApp(options: AppOptions = {}): Express {
   app.use('/api/auth', createAuthRouter());
   app.use('/api/account', createAccountRouter());
   app.use('/api/imports', createImportsRouter());
+  app.use('/api/contacts', createContactsRouter());
   app.use('/api/suppressions', createSuppressionsRouter());
   app.use('/api/verifications', createVerificationsRouter());
 

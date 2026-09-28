@@ -1,4 +1,5 @@
-﻿import { NavLink, Outlet } from 'react-router';
+﻿import { useState } from 'react';
+import { NavLink, Outlet } from 'react-router';
 import { Logo } from '../components/Logo';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useSession } from '../lib/session';
@@ -12,50 +13,38 @@ import { useSession } from '../lib/session';
  * ecran a venir serait une promesse que le produit ne tient pas encore.
  */
 const DESTINATIONS = [
-  // Sur un telephone, le tableau de bord n'a pas d'onglet : le logo y mene
-  // deja, et quatre onglets ne tiennent pas sur 360 pixels.
-  { to: '/', label: 'Tableau de bord', short: null, end: true },
-  { to: '/import', label: 'Importer', short: 'Importer', end: false },
-  { to: '/verifier', label: 'Verifier', short: 'Verifier', end: false },
-  { to: '/compte', label: 'Compte', short: 'Compte', end: false },
+  { to: '/', label: 'Tableau de bord', end: true },
+  { to: '/contacts', label: 'Contacts', end: false },
+  { to: '/import', label: 'Importer', end: false },
+  { to: '/verifier', label: 'Verifier', end: false },
+  { to: '/compte', label: 'Compte', end: false },
 ];
+
+function lien({ isActive }: { isActive: boolean }): string {
+  return `block rounded-sm px-2.5 py-1.5 text-sm whitespace-nowrap ${
+    isActive ? 'bg-raised font-medium text-text' : 'text-text-soft hover:bg-raised hover:text-text'
+  }`;
+}
 
 export function AppLayout() {
   const { state } = useSession();
-
+  const [menu, setMenu] = useState(false);
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b border-line bg-surface">
-        {/* Sur un telephone, le nom a cote du logo et les marges larges
-            faisaient deborder la barre : la page entiere defilait de cote.
-            Le logo seul suffit a dire ou l'on est. */}
-        <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-3 px-4 sm:gap-6">
+      <header className="relative border-b border-line bg-surface">
+        {/* Sur un telephone, les onglets passent dans un menu : cinq ne
+            tiennent pas sur 360 pixels, et une barre qui defile de cote cache
+            des destinations sans le dire. */}
+        <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-3 px-4 md:gap-6">
           <NavLink to="/" className="flex shrink-0 items-center gap-2 text-text">
             <Logo size={24} title="MailFind" />
-            <span className="hidden font-display text-[15px] font-semibold sm:inline">
-              MailFind
-            </span>
+            <span className="font-display text-[15px] font-semibold">MailFind</span>
           </NavLink>
 
-          <nav
-            aria-label="Navigation principale"
-            className="flex min-w-0 items-center overflow-x-auto sm:gap-1"
-          >
-            {DESTINATIONS.map(({ to, label, short, end }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                className={({ isActive }) =>
-                  `${short === null ? 'hidden sm:block' : ''} rounded-sm px-1.5 py-1.5 text-sm whitespace-nowrap sm:px-2.5 ${
-                    isActive
-                      ? 'bg-raised font-medium text-text'
-                      : 'text-text-soft hover:bg-raised hover:text-text'
-                  }`
-                }
-              >
-                {short !== null && <span className="sm:hidden">{short}</span>}
-                <span className="hidden sm:inline">{label}</span>
+          <nav aria-label="Navigation principale" className="hidden items-center gap-1 md:flex">
+            {DESTINATIONS.map(({ to, label, end }) => (
+              <NavLink key={to} to={to} end={end} className={lien}>
+                {label}
               </NavLink>
             ))}
           </nav>
@@ -63,10 +52,43 @@ export function AppLayout() {
           <div className="ml-auto flex shrink-0 items-center gap-3">
             <ThemeToggle />
             {state.status === 'authenticated' && (
-              <span className="hidden text-xs text-text-faint sm:inline">{state.user.email}</span>
+              <span className="hidden text-xs text-text-faint lg:inline">{state.user.email}</span>
             )}
+            <button
+              type="button"
+              className="rounded-sm border border-line-strong px-3 py-1.5 text-sm md:hidden"
+              aria-expanded={menu}
+              aria-controls="menu-principal"
+              onClick={() => {
+                setMenu((ouvert) => !ouvert);
+              }}
+            >
+              Menu
+            </button>
           </div>
         </div>
+        {menu && (
+          <nav
+            id="menu-principal"
+            aria-label="Navigation principale"
+            className="border-t border-line bg-surface px-4 py-2 md:hidden"
+          >
+            {DESTINATIONS.map(({ to, label, end }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={lien}
+                // Une destination choisie referme le menu.
+                onClick={() => {
+                  setMenu(false);
+                }}
+              >
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+        )}
       </header>
 
       <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-8">

@@ -2,6 +2,7 @@
 import { AppLayout } from './AppLayout';
 import { RequireSession } from './RequireSession';
 import { AccountPage } from '../pages/AccountPage';
+import { ContactsPage } from '../pages/ContactsPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { ImportDetailPage } from '../pages/ImportDetailPage';
 import { ImportPage } from '../pages/ImportPage';
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { path: '/', element: <DashboardPage /> },
+          { path: '/contacts', element: <ContactsPage /> },
           { path: '/import', element: <ImportPage /> },
           { path: '/imports/:id', element: <ImportDetailPage /> },
           { path: '/verifier', element: <VerifyPage /> },
