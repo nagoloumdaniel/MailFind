@@ -71,10 +71,14 @@ export async function addSuppressions(
       `update emails
           set status = 'suppressed', score = 0, excluded = true,
               excluded_reason = 'Adresse dans votre liste de suppression.',
+              -- Le detail garde les criteres deja comptes et ajoute la mise a
+              -- zero : la somme des lignes reste egale au score (6.9).
               score_breakdown = jsonb_build_object(
                 'score', 0,
-                'criteria', jsonb_build_array(jsonb_build_object(
-                  'criterion', 'suppressed', 'effect', 'score a 0', 'applied', true))),
+                'criteria', coalesce(score_breakdown -> 'criteria', '[]'::jsonb)
+                  || jsonb_build_array(jsonb_build_object(
+                    'criterion', 'excluded_status',
+                    'points', case when score_breakdown is null then 0 else -coalesce(score, 0) end))),
               updated_at = now()
         where user_id = $1
           and encode(sha256(convert_to(normalized_address, 'UTF8')), 'hex') = any($2::text[])
