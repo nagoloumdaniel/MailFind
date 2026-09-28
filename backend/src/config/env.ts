@@ -44,6 +44,19 @@ const environmentSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GOOGLE_CALLBACK_URL: z.string().min(1),
+
+  /**
+   * L'agent de collecte s'annonce et donne une adresse de contact (F-404). Ne
+   * jamais se faire passer pour un navigateur : un site doit pouvoir nous
+   * reconnaitre, nous ecrire et nous exclure.
+   */
+  CRAWLER_USER_AGENT: z.string().min(1).default('MailFindBot/0.1 (+https://mailfind.app/bot)'),
+  /** F-405 : une requete a la fois par domaine, une seconde entre deux. */
+  CRAWLER_REQUESTS_PER_SECOND_PER_DOMAIN: z.coerce.number().positive().max(10).default(1),
+  CRAWLER_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+  CRAWLER_MAX_RESPONSE_BYTES: z.coerce.number().int().positive().default(2_000_000),
+  /** Redirections hors du domaine, F-405. */
+  CRAWLER_MAX_REDIRECTS: z.coerce.number().int().min(0).max(10).default(2),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;
