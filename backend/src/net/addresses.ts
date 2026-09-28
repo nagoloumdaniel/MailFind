@@ -55,38 +55,79 @@ function inCidr(address: number, base: string, bits: number): boolean {
   return (address & masque) >>> 0 === (reference & masque) >>> 0;
 }
 
-/** Prefixes IPv6 interdits, en minuscules et sans abreviation trompeuse. */
-const FORBIDDEN_IPV6_PREFIXES = [
-  '::', // non specifie et boucle locale, traites a part ci-dessous
-  '64:ff9b:', // traduction vers IPv4
-  '100:', // trou noir
-  '2001:db8:', // documentation
-  'fc', // unique local, fc00::/7
-  'fd',
-  'fe8', // lien local, fe80::/10
-  'fe9',
-  'fea',
-  'feb',
-  'fec', // site local, abandonne mais encore rencontre
-  'fed',
-  'fee',
-  'fef',
-  'ff', // multidiffusion
-];
+/**
+ * Les huit groupes de seize bits d'une adresse IPv6, ou `undefined` si elle
+ * est mal formee.
+ *
+ * Comparer des prefixes de texte ne suffit pas : une meme adresse s'ecrit de
+ * plusieurs facons, et le parseur d'URL en choisit une que l'on n'attend pas.
+ * « [::ffff:169.254.169.254] » devient « [::ffff:a9fe:a9fe] » dans
+ * `URL.hostname`, et cette forme passait la porte. On juge donc des nombres,
+ * pas une ecriture.
+ */
+function parseIpv6(address: string): number[] | undefined {
+  let texte = address.toLowerCase();
+
+  // Une IPv4 en fin d'adresse vaut deux groupes.
+  const ipv4 = /(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(texte);
+  if (ipv4?.[1] !== undefined) {
+    const valeur = ipv4ToNumber(ipv4[1]);
+    if (valeur === undefined) return undefined;
+    const haut = Math.floor(valeur / 0x10000).toString(16);
+    const bas = (valeur % 0x10000).toString(16);
+    texte = `${texte.slice(0, -ipv4[1].length)}${haut}:${bas}`;
+  }
+
+  const moities = texte.split('::');
+  if (moities.length > 2) return undefined;
+
+  const lire = (partie: string): number[] | undefined => {
+    if (partie === '') return [];
+    const groupes: number[] = [];
+    for (const groupe of partie.split(':')) {
+      if (!/^[0-9a-f]{1,4}$/.test(groupe)) return undefined;
+      groupes.push(Number.parseInt(groupe, 16));
+    }
+    return groupes;
+  };
+
+  const avant = lire(moities[0] ?? '');
+  const apres = lire(moities[1] ?? '');
+  if (avant === undefined || apres === undefined) return undefined;
+
+  if (moities.length === 1) return avant.length === 8 ? avant : undefined;
+
+  const manquants = 8 - avant.length - apres.length;
+  if (manquants < 1) return undefined;
+  return [...avant, ...Array<number>(manquants).fill(0), ...apres];
+}
 
 function isForbiddenIpv6(address: string): boolean {
-  const normalise = address.toLowerCase().split('%')[0] ?? '';
+  const groupes = parseIpv6(address.split('%')[0] ?? '');
+  if (groupes === undefined) return true;
+  const [g0 = 0, g1 = 0, g2 = 0, g3 = 0, g4 = 0, g5 = 0, g6 = 0, g7 = 0] = groupes;
 
-  if (normalise === '::' || normalise === '::1') return true;
+  // Une IPv4 habillee en IPv6 (::ffff:0:0/96) reste une IPv4 : elle est jugee
+  // comme telle, sinon ::ffff:127.0.0.1 ouvrirait ce que le reste ferme.
+  if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0xffff) {
+    return isForbiddenIp(
+      `${String(g6 >> 8)}.${String(g6 & 0xff)}.${String(g7 >> 8)}.${String(g7 & 0xff)}`,
+    );
+  }
 
-  // Une adresse IPv4 habillee en IPv6 reste une adresse IPv4 : la juger
-  // autrement laisserait passer ::ffff:127.0.0.1.
-  const mappee = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(normalise);
-  if (mappee?.[1] !== undefined) return isForbiddenIp(mappee[1]);
+  // Refus par defaut : seul l'unicast global, 2000::/3, designe un site de
+  // l'Internet public. Cela ecarte d'un coup la boucle locale, ::, les IPv4
+  // compatibles, NAT64 (64:ff9b::/96), le trou noir (100::/64), les adresses
+  // locales uniques (fc00::/7), le lien local (fe80::/10) et la multidiffusion.
+  if ((g0 & 0xe000) !== 0x2000) return true;
 
-  return FORBIDDEN_IPV6_PREFIXES.some(
-    (prefixe) => prefixe !== '::' && normalise.startsWith(prefixe),
-  );
+  // Dans 2000::/3, les plages a usage special.
+  if (g0 === 0x2001 && g1 < 0x0200) return true; // 2001::/23 : Teredo, bancs de test, ORCHID
+  if (g0 === 0x2001 && g1 === 0x0db8) return true; // documentation
+  if (g0 === 0x2002) return true; // 6to4 : embarque une IPv4 qu'il faudrait juger a part
+  if ((g0 & 0xfff0) === 0x3ff0) return true; // 3fff::/20 : documentation
+
+  return false;
 }
 
 /** Vrai quand cette adresse ne doit jamais etre jointe depuis nos serveurs. */
