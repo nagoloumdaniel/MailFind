@@ -14,6 +14,7 @@ import { useSession } from '../lib/session';
  */
 const DESTINATIONS = [
   { to: '/', label: 'Tableau de bord', end: true },
+  { to: '/entreprises', label: 'Entreprises', end: false },
   { to: '/contacts', label: 'Contacts', end: false },
   { to: '/import', label: 'Importer', end: false },
   { to: '/verifier', label: 'Verifier', end: false },
