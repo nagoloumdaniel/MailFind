@@ -12,7 +12,7 @@ import type { WebResult } from '../providers/web-search.js';
 import type { CompanyJob, CompanyStep } from '../queue/queues.js';
 import { createUser, resetData } from '../test/integration/db.js';
 import { startTestSites, type TestSites } from '../test/sites/server.js';
-import { crawlStep, type CrawlDeps } from './crawl.js';
+import { crawlStep, saveCrawlReport, type CrawlDeps } from './crawl.js';
 import { enrichStep, type EnrichDeps } from './enrich.js';
 import { randomBytes } from 'node:crypto';
 import { createCipher } from '../security/crypto.js';
@@ -458,6 +458,43 @@ describe('pipeline d un import', () => {
       emails: 0,
       issues: [],
     });
+  });
+
+  it('compte pour le recrutement une adresse generique revue sur la page carrieres (6.8)', async () => {
+    const importId = await importer([['Boulangerie Martin', 'boulangerie.test', 'Lyon']]);
+    await lancer(importId);
+    const entreprise = await query<{ id: string }>(
+      'select id from companies where user_id = $1 and name = $2',
+      [userId, 'Boulangerie Martin'],
+    );
+    const companyId = entreprise.rows[0]?.id ?? '';
+    const vue = (pageUrl: string) => ({
+      pages: [],
+      notes: [],
+      addresses: [
+        {
+          address: 'bonjour@boulangerie.test',
+          normalized: 'bonjour@boulangerie.test',
+          method: 'mailto' as const,
+          excerpt: 'bonjour@boulangerie.test',
+          pageUrl,
+        },
+      ],
+    });
+    const type = async () =>
+      (
+        await query<{ type: string }>(
+          `select type::text as type from emails where normalized_address = 'bonjour@boulangerie.test'`,
+        )
+      ).rows[0]?.type;
+
+    await saveCrawlReport(companyId, userId, vue('https://boulangerie.test/contact'));
+    expect(await type()).toBe('generic');
+    await saveCrawlReport(companyId, userId, vue('https://boulangerie.test/nous-rejoindre'));
+    expect(await type()).toBe('recruitment');
+    // Revue ensuite sur une page ordinaire, elle garde ce que la page carrieres a dit.
+    await saveCrawlReport(companyId, userId, vue('https://boulangerie.test/contact'));
+    expect(await type()).toBe('recruitment');
   });
 
   it('n appelle pas Hunter quand le site a donne tous les types recherches (F-603)', async () => {

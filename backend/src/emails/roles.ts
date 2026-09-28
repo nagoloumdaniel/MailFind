@@ -2,10 +2,8 @@
  * Type d'une adresse d'apres sa partie locale (section 6.8), et prefixes de
  * role des adresses candidates (annexe D).
  *
- * Ici, le prefixe seul. Le contexte de la page (une adresse generique vue sur
- * la page carrieres compte pour le recrutement) affine le type en Phase 5 ;
- * le prefixe suffit deja a decider s'il manque un type recherche, ce que le
- * repli des fournisseurs (F-603) et les candidates (F-501) demandent.
+ * Le prefixe d'abord, puis le contexte de la page : une adresse generique
+ * vue sur la page carrieres compte pour le recrutement (`typeInContext`).
  */
 
 export type EmailType =
@@ -82,4 +80,49 @@ export function classifyLocalPart(localPart: string): EmailType {
   // prudence (section 11).
   if (/^[a-z]{1,30}[._-][a-z]{2,30}$/.test(locale)) return 'personal';
   return 'unknown';
+}
+
+/** Pages dont le chemin dit qu'elles parlent de recrutement. */
+const PAGES_CARRIERES = [
+  'recrutement',
+  'carrieres',
+  'carriere',
+  'careers',
+  'career',
+  'jobs',
+  'emploi',
+  'emplois',
+  'rejoindre',
+  'nous-rejoindre',
+  'rejoignez-nous',
+  'join-us',
+];
+
+function surUnePageCarrieres(pageUrl: string): boolean {
+  let chemin: string;
+  try {
+    chemin = decodeURIComponent(new URL(pageUrl).pathname);
+  } catch {
+    return false;
+  }
+  const replie = `-${chemin
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')}-`;
+  return PAGES_CARRIERES.some((mot) => replie.includes(`-${mot}-`));
+}
+
+/**
+ * Section 6.8 : le type par le prefixe, affine par la page ou l'adresse a ete
+ * vue. Une adresse generique ou sans type, publiee sur la page carrieres, est
+ * celle ou l'entreprise attend les candidatures.
+ */
+export function typeInContext(localPart: string, pageUrl?: string): EmailType {
+  const parPrefixe = classifyLocalPart(localPart);
+  if (pageUrl === undefined) return parPrefixe;
+  if ((parPrefixe === 'generic' || parPrefixe === 'unknown') && surUnePageCarrieres(pageUrl)) {
+    return 'recruitment';
+  }
+  return parPrefixe;
 }

@@ -3,7 +3,7 @@ import { crawlCompany, type CrawlReport } from '../crawler/engine.js';
 import { getPool, query } from '../db/pool.js';
 import { readStoredSettings } from '../imports/settings.js';
 import { getLogger } from '../observability/logger.js';
-import { classifyLocalPart } from '../emails/roles.js';
+import { typeInContext } from '../emails/roles.js';
 import { isSuppressed, loadSuppressedHashes } from '../suppressions/repository.js';
 import type { CompanyJob } from '../queue/queues.js';
 import type { Enqueue } from './start.js';
@@ -54,9 +54,22 @@ export async function saveCrawlReport(
            (company_id, user_id, address, normalized_address, local_part, type, origin)
          values ($1, $2, $3, $4, $5, $6::email_type, 'found')
          on conflict on constraint emails_unique_per_company
-         do update set updated_at = now()
+         do update set updated_at = now(),
+           -- Vue a nouveau sur la page carrieres, une adresse generique
+           -- devient une adresse de recrutement (6.8).
+           type = case
+             when excluded.type = 'recruitment' and emails.type in ('generic', 'unknown')
+               then excluded.type
+             else emails.type end
          returning id`,
-        [companyId, userId, trouvee.address, trouvee.normalized, locale, classifyLocalPart(locale)],
+        [
+          companyId,
+          userId,
+          trouvee.address,
+          trouvee.normalized,
+          locale,
+          typeInContext(locale, trouvee.pageUrl),
+        ],
       );
       // L'adresse et sa source dans la meme transaction : la base refuse
       // l'une sans l'autre.
