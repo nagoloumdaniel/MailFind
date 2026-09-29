@@ -96,7 +96,17 @@ export function createApp(options: AppOptions = {}): Express {
     }),
   );
 
-  app.use(express.json({ limit: '1mb' }));
+  // Un megaoctet partout, sauf a la creation d'un import, qui lit son corps
+  // elle-meme avec sa propre limite : sinon ce lecteur-ci, passe le premier,
+  // refuserait un fichier de 5 000 lignes avant qu'elle ne le voie (F-201).
+  const lecteurJson = express.json({ limit: '1mb' });
+  app.use((req, res, next) => {
+    if (req.method === 'POST' && req.path === '/api/imports') {
+      next();
+      return;
+    }
+    lecteurJson(req, res, next);
+  });
 
   // L'API publique avant la session et le jeton CSRF : un programme qui
   // l'appelle n'a ni cookie ni formulaire, seulement sa cle.

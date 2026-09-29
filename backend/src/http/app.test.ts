@@ -59,7 +59,7 @@ describe('en-tetes', () => {
 describe('corps de requete illisible', () => {
   it('repond 400 a un JSON mal forme, pas 500', async () => {
     const response = await request(app)
-      .post('/api/imports')
+      .post('/api/suppressions')
       .set('content-type', 'application/json')
       .send('{"nom": ');
     expect(response.status).toBe(400);
@@ -69,7 +69,7 @@ describe('corps de requete illisible', () => {
 
   it('repond 413 a un corps trop volumineux', async () => {
     const response = await request(app)
-      .post('/api/imports')
+      .post('/api/suppressions')
       .set('content-type', 'application/json')
       .send(JSON.stringify({ texte: 'a'.repeat(1_100_000) }));
     expect(response.status).toBe(413);

@@ -67,6 +67,21 @@ const FICHIER = {
 };
 
 describe('POST /api/imports', () => {
+  it('accepte un fichier de 5 000 lignes au-dela d un megaoctet (F-201)', async () => {
+    const { agent, jeton } = await agentAvecJeton();
+    const rows = Array.from({ length: 5000 }, (_, i) => [
+      `Entreprise ${String(i)}`,
+      `https://entreprise-${String(i)}.fr`,
+      `Ville ${'x'.repeat(250)}`,
+    ]);
+    const corps = { ...FICHIER, rows };
+    expect(JSON.stringify(corps).length).toBeGreaterThan(1_000_000);
+
+    const reponse = await agent.post('/api/imports').set('x-csrf-token', jeton).send(corps);
+    expect(reponse.status).toBe(201);
+    expect(reponse.body.import.totalRows).toBe(5000);
+  });
+
   it('enregistre les parametres choisis, et confie l import a la file', async () => {
     const { agent, jeton } = await agentAvecJeton();
 
