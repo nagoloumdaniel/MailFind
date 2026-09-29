@@ -54,7 +54,7 @@ const environmentSchema = z.object({
   /** F-405 : une requete a la fois par domaine, une seconde entre deux. */
   CRAWLER_REQUESTS_PER_SECOND_PER_DOMAIN: z.coerce.number().positive().max(10).default(1),
   CRAWLER_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
-  CRAWLER_MAX_RESPONSE_BYTES: z.coerce.number().int().positive().default(2_000_000),
+  CRAWLER_MAX_RESPONSE_BYTES: z.coerce.number().int().positive().default(3_000_000),
   /** Redirections hors du domaine, F-405. */
   CRAWLER_MAX_REDIRECTS: z.coerce.number().int().min(0).max(10).default(2),
 

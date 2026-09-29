@@ -281,6 +281,18 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 
 ---
 
+## D-21. Une page de 3 Mo au plus
+
+**Décision.** Le collecteur lit une page jusqu'à 3 Mo (`CRAWLER_MAX_RESPONSE_BYTES=3000000`), au lieu des 2 Mo de F-405. Le reste de F-405 ne change pas : une requête à la fois par domaine, une seconde d'écart, dix secondes, deux redirections.
+
+**Raison.** La recette de la Phase 3 sur cinquante entreprises réelles a écarté vinted.fr, dont l'accueil pèse 2,0 Mo : les grands sites embarquent leurs données de page dans le HTML. Un Mo de plus suffit à les lire, sans ouvrir la porte à des fichiers qui ne sont pas des pages.
+
+**Conséquences.** Un peu plus de mémoire par page lue, bornée par une page à la fois par domaine.
+
+**Ce qui la rouvrirait.** Une consommation mémoire du processus de traitement qui dépasse l'offre Railway retenue.
+
+---
+
 ## Journal des révisions
 
 | Date | Décision | Changement |
@@ -294,4 +306,5 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | 28 septembre 2026 | D-18 | Nouvelle décision : le tableau de 6.9 fait foi pour le score, et son détail est enregistré ligne par ligne. |
 | 29 septembre 2026 | D-19 | Nouvelle décision : ce que porte un export, source et format Campaign Mailer compris. |
 | 29 septembre 2026 | D-20 | Nouvelle décision : exclure veut dire « hors des exports » ; F-503 tient au statut. |
+| 29 septembre 2026 | D-21 | Nouvelle décision : une page de 3 Mo au plus, au lieu des 2 Mo de F-405. |
 | 28 septembre 2026 | D-14 | Les vérifications de boîte se comptent en crédits : quatre par compte et par mois valent deux crédits (`QUOTA_MAILBOX_VERIFICATIONS_PER_USER_PER_MONTH`), sur les vingt réservés à la vérification (`HUNTER_MONTHLY_VERIFICATION_CREDITS`). Un appel en échec n'est pas facturé et ne compte pas. |
