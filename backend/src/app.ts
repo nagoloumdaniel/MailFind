@@ -116,6 +116,10 @@ export function createApp(options: AppOptions = {}): Express {
       ...options.v1,
       ...(options.enqueue === undefined ? {} : { enqueue: options.enqueue }),
       ...(options.verify === undefined ? {} : { verify: options.verify }),
+      ...(options.exportStorage === undefined
+        ? {}
+        : { exportStorage: () => options.exportStorage }),
+      ...(options.enqueueExport === undefined ? {} : { enqueueExport: options.enqueueExport }),
     }),
   );
 
@@ -135,6 +139,10 @@ export function createApp(options: AppOptions = {}): Express {
     createCompaniesRouter({
       ...(options.enqueue === undefined ? {} : { enqueue: options.enqueue }),
       ...(options.verify === undefined ? {} : { verify: options.verify }),
+      ...(options.exportStorage === undefined
+        ? {}
+        : { exportStorage: () => options.exportStorage }),
+      ...(options.enqueueExport === undefined ? {} : { enqueueExport: options.enqueueExport }),
     }),
   );
   app.use(

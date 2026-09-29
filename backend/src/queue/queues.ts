@@ -143,6 +143,21 @@ export async function scheduleMaintenance(): Promise<void> {
     { every: 24 * 60 * 60 * 1000 },
     { name: 'idempotency.purge' },
   );
+  // Les verifications en tache de l'API, gardees sept jours.
+  await getMaintenanceQueue().upsertJobScheduler(
+    'verification-runs-purge',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: 'verification-runs.purge' },
+  );
+}
+
+/** Une verification en tache de l'API ; l'identifiant suit le sien : elle ne part qu'une fois. */
+export async function enqueueVerificationRun(runId: string): Promise<void> {
+  await getMaintenanceQueue().add(
+    'verification.run',
+    { runId },
+    { jobId: `verification-${runId}` },
+  );
 }
 
 /**

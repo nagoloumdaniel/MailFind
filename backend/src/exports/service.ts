@@ -137,6 +137,14 @@ export async function createExport(
   },
   userId: string,
   request: ExportRequest,
+  options: {
+    /**
+     * Vrai pour l'API publique : le fichier est toujours produit en tache et
+     * garde sept jours, pour etre telecharge par son lien, quelle que soit sa
+     * taille. L'interface, elle, recoit un petit export dans la reponse.
+     */
+    readonly alwaysStore?: boolean;
+  } = {},
 ): Promise<ExportOutcome> {
   const lignes = await countExportRows(userId, request);
   const cree = await query<{ id: string }>(
@@ -145,7 +153,7 @@ export async function createExport(
   );
   const exportId = cree.rows[0]?.id ?? '';
 
-  if (lignes <= SYNC_EXPORT_MAX_ROWS) {
+  if (options.alwaysStore !== true && lignes <= SYNC_EXPORT_MAX_ROWS) {
     const file = await buildExport(userId, request, new Date());
     // Journalise sans etre garde : le fichier part dans la reponse.
     await query(
@@ -207,6 +215,16 @@ export async function runExportJob(storage: ExportStorage, exportId: string): Pr
     );
     throw error;
   }
+}
+
+/** Un export du compte, ou undefined : celui d'un autre compte n'existe pas (S-04). */
+export async function findExport(userId: string, id: string): Promise<ExportRecord | undefined> {
+  const lues = await query<Parameters<typeof versRecord>[0]>(
+    `select ${COLONNES} from exports where id = $1 and user_id = $2`,
+    [id, userId],
+  );
+  const ligne = lues.rows[0];
+  return ligne === undefined ? undefined : versRecord(ligne);
 }
 
 export async function listExports(userId: string): Promise<ExportRecord[]> {

@@ -8,7 +8,9 @@ import { getLogger } from '../observability/logger.js';
 import type { Enqueue } from '../pipeline/start.js';
 import type { VerifyDeps } from '../pipeline/verify.js';
 import { createVerifyDeps } from '../pipeline/verify-deps.js';
-import { enqueueCompanyStep } from '../queue/queues.js';
+import { enqueueCompanyStep, enqueueExportBuild } from '../queue/queues.js';
+import { createR2Storage, type ExportStorage } from '../exports/storage.js';
+import type { MailDns } from '../verification/local.js';
 import { idempotency } from './idempotency.js';
 import { registerV1Routes } from './v1/index.js';
 import { importBodyParser } from './v1/imports.js';
@@ -21,6 +23,11 @@ export interface V1Options {
   readonly enqueue?: Enqueue;
   /** La verification des adresses ; les tests y mettent un DNS simule. */
   readonly verify?: VerifyDeps;
+  /** Ou deposer les exports ; R2 par defaut. */
+  readonly exportStorage?: () => ExportStorage | undefined;
+  readonly enqueueExport?: (exportId: string, userId: string) => Promise<void>;
+  /** Le DNS de la verification d'une liste ; simule dans les tests. */
+  readonly dns?: MailDns;
   /** Pour les tests : des routes montees apres les conventions communes. */
   readonly register?: (router: Router) => void;
 }
@@ -72,9 +79,14 @@ export function createV1Router(options: V1Options = {}): Router {
   // Construite au premier besoin : lire la configuration des fournisseurs n'a
   // pas a bloquer le demarrage de l'API.
   let verification = options.verify;
+  let stockage: { valeur: ExportStorage | undefined } | undefined;
   registerV1Routes(router, {
     enqueue: options.enqueue ?? enqueueCompanyStep,
     verifyDeps: () => (verification ??= createVerifyDeps()),
+    exportStorage:
+      options.exportStorage ?? (() => (stockage ??= { valeur: createR2Storage() }).valeur),
+    enqueueExport: options.enqueueExport ?? enqueueExportBuild,
+    ...(options.dns === undefined ? {} : { dns: options.dns }),
   });
   options.register?.(router);
 

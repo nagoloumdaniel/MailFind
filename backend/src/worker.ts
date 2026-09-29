@@ -1,6 +1,7 @@
 import { UnrecoverableError, Worker } from 'bullmq';
 import { purgeExpiredExports, runExportJob } from './exports/service.js';
 import { purgeExpiredIdempotencyKeys } from './api/idempotency.js';
+import { purgeExpiredVerificationRuns, runVerification } from './verification/runs.js';
 import { createR2Storage } from './exports/storage.js';
 import { closePool, query } from './db/pool.js';
 import { listImportsToResume, markImportFailed, planImport } from './imports/plan.js';
@@ -102,6 +103,14 @@ const entretien = new Worker(
     }
     if (job.name === 'idempotency.purge') {
       return { effacees: await purgeExpiredIdempotencyKeys() };
+    }
+    if (job.name === 'verification-runs.purge') {
+      return { effacees: await purgeExpiredVerificationRuns() };
+    }
+    if (job.name === 'verification.run') {
+      const { runId } = job.data as { runId: string };
+      await runVerification(runId);
+      return { runId };
     }
     if (job.name !== 'disposable.refresh') return undefined;
     const issue = await refreshDisposableDomains({ url: getEnvironment().DISPOSABLE_DOMAINS_URL });
