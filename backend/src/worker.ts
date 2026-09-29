@@ -1,5 +1,6 @@
 import { UnrecoverableError, Worker } from 'bullmq';
 import { purgeExpiredExports, runExportJob } from './exports/service.js';
+import { purgeExpiredIdempotencyKeys } from './api/idempotency.js';
 import { createR2Storage } from './exports/storage.js';
 import { closePool, query } from './db/pool.js';
 import { listImportsToResume, markImportFailed, planImport } from './imports/plan.js';
@@ -98,6 +99,9 @@ const entretien = new Worker(
       const { exportId } = job.data as { exportId: string };
       await runExportJob(stockage, exportId);
       return { exportId };
+    }
+    if (job.name === 'idempotency.purge') {
+      return { effacees: await purgeExpiredIdempotencyKeys() };
     }
     if (job.name !== 'disposable.refresh') return undefined;
     const issue = await refreshDisposableDomains({ url: getEnvironment().DISPOSABLE_DOMAINS_URL });

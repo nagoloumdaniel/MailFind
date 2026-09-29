@@ -23,6 +23,27 @@ function cleRefusee(res: Response): AppError {
 }
 
 /**
+ * La portee demandee par une route, sur une requete deja authentifiee par
+ * requireApiKey (monte une fois pour tout le routeur `/v1`).
+ */
+export function requireScope(scope: ApiScope): RequestHandler {
+  return (req, _res, next) => {
+    if (req.apiKey?.scopes.includes(scope) === true) {
+      next();
+      return;
+    }
+    next(
+      new AppError({
+        status: 403,
+        code: 'insufficient_scope',
+        title: 'Portee insuffisante',
+        detail: `Cette cle n'a pas la portee ${scope}.`,
+      }),
+    );
+  };
+}
+
+/**
  * Authentifie une requete de l'API publique par sa cle (F-1302) et verifie
  * la portee demandee (F-1303). Pose le compte comme le ferait une session :
  * les regles metier ne savent pas par quel chemin la requete est arrivee.

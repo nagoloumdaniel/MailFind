@@ -137,6 +137,12 @@ export async function scheduleMaintenance(): Promise<void> {
     { every: 24 * 60 * 60 * 1000 },
     { name: 'exports.purge' },
   );
+  // F-1305 : les cles d'idempotence de plus de 24 heures, une fois par jour.
+  await getMaintenanceQueue().upsertJobScheduler(
+    'idempotency-purge',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: 'idempotency.purge' },
+  );
 }
 
 /**

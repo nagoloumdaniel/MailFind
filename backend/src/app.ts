@@ -7,6 +7,7 @@ import { pinoHttp } from 'pino-http';
 import type { Logger } from 'pino';
 import { createAccountRouter } from './account/routes.js';
 import { createApiKeysRouter } from './api-keys/routes.js';
+import { createV1Router, type V1Options } from './api/router.js';
 import { createAuthRouter } from './auth/routes.js';
 import { createSessionMiddleware } from './auth/session.js';
 import { getEnvironment } from './config/env.js';
@@ -42,6 +43,8 @@ export interface AppOptions {
   readonly exportStorage?: ExportStorage;
   /** La mise en file d'un export volumineux. */
   readonly enqueueExport?: (exportId: string, userId: string) => Promise<void>;
+  /** L'API publique ; les tests y mettent un compteur de debit en memoire. */
+  readonly v1?: V1Options;
 }
 
 /**
@@ -94,6 +97,10 @@ export function createApp(options: AppOptions = {}): Express {
   );
 
   app.use(express.json({ limit: '1mb' }));
+
+  // L'API publique avant la session et le jeton CSRF : un programme qui
+  // l'appelle n'a ni cookie ni formulaire, seulement sa cle.
+  app.use('/v1', createV1Router(options.v1));
 
   // Avant toute route : `/health` n'a pas besoin de session, mais la poser ici
   // garde un seul ordre de middlewares a comprendre.

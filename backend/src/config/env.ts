@@ -51,6 +51,8 @@ const environmentSchema = z.object({
    * reconnaitre, nous ecrire et nous exclure.
    */
   CRAWLER_USER_AGENT: z.string().min(1).default('MailFindBot/0.1 (+https://mailfind.app/bot)'),
+  /** F-1304 : requetes par minute et par cle d'API. */
+  API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(60),
   /** F-405 : une requete a la fois par domaine, une seconde entre deux. */
   CRAWLER_REQUESTS_PER_SECOND_PER_DOMAIN: z.coerce.number().positive().max(10).default(1),
   CRAWLER_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
