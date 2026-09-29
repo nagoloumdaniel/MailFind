@@ -55,6 +55,7 @@ interface EmailRow {
   status: EmailStatus;
   last_check: Date | null;
   last_mailbox: Date | null;
+  last_mailbox_status: EmailStatus | null;
 }
 
 interface SourceRow {
@@ -218,16 +219,22 @@ export async function verifyEmails(deps: VerifyDeps, run: VerifyRun): Promise<Ve
   if (run.emailIds !== undefined) params.push(run.emailIds);
 
   // Seules comptent les verifications de l'adresse telle qu'elle est : une
-  // adresse corrigee n'herite pas de la fraicheur de l'ancienne.
+  // adresse corrigee n'herite pas de la fraicheur de l'ancienne. Les controles
+  // locaux et la boite se datent a part : un fournisseur peut avoir verifie
+  // la boite (recherche par domaine) avant tout controle local.
   const emails = await query<EmailRow>(
     `select e.id, e.normalized_address, e.type::text as type, e.origin::text as origin,
             e.status::text as status,
             (select max(v.verified_at) from verifications v
-              where v.email_id = e.id and v.address = e.normalized_address) as last_check,
-            (select max(v.verified_at) from verifications v
               where v.email_id = e.id and v.address = e.normalized_address
-                and v.level = 8) as last_mailbox
+                and v.level < 8) as last_check,
+            b.verified_at as last_mailbox, b.status::text as last_mailbox_status
        from emails e
+       left join lateral (
+         select v.verified_at, v.status from verifications v
+          where v.email_id = e.id and v.address = e.normalized_address and v.level = 8
+          order by v.verified_at desc limit 1
+       ) b on true
       where e.company_id = $1 and e.user_id = $2 ${filtre}
       order by e.created_at, e.id`,
     params,
@@ -279,7 +286,16 @@ export async function verifyEmails(deps: VerifyDeps, run: VerifyRun): Promise<Ve
       statut = locale.status;
 
       const { verifier, cipher } = deps;
-      if (boiteDemandee && !ECARTES.has(locale.status)) {
+      // Une boite verifiee il y a moins de 30 jours, par un appel paye ou
+      // jointe a une recherche par domaine, vaut qu'elle ait ete demandee ou
+      // non : c'est ce qu'on sait de plus precis, et elle ne coute rien. Une
+      // reverification forcee la refait, et un controle local qui ecarte
+      // l'adresse l'emporte.
+      const boiteConnue =
+        run.force !== true && recent(email.last_mailbox) ? email.last_mailbox_status : null;
+      if (boiteConnue !== null && !ECARTES.has(locale.status)) {
+        statut = boiteConnue;
+      } else if (boiteDemandee && !ECARTES.has(locale.status)) {
         if (verifier === undefined || cipher === undefined) {
           sauts.set('indisponible', (sauts.get('indisponible') ?? 0) + 1);
         } else {

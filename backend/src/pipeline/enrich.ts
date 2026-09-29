@@ -62,6 +62,28 @@ interface Nouvelle {
   };
 }
 
+/** Une verification de boite que le fournisseur a jointe a sa recherche. */
+interface DejaVerifiee {
+  readonly normalized: string;
+  readonly provider: string;
+  readonly status: 'valid' | 'accept_all';
+  readonly checkedOn: string;
+}
+
+const JOUR_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * F-704 : une verification vaut 30 jours, a compter du jour ou le fournisseur
+ * l'a faite, pas de celui ou on la lit. Une date a venir est une erreur du
+ * fournisseur : ecartee.
+ */
+function encoreValable(jour: string, maintenant = Date.now()): boolean {
+  const date = Date.parse(`${jour}T00:00:00Z`);
+  if (Number.isNaN(date)) return false;
+  const age = maintenant - date;
+  return age > -JOUR_MS && age < CACHE_JOURS * JOUR_MS;
+}
+
 function surLeDomaine(adresse: string, domaine: string): boolean {
   const hote = adresse.toLowerCase().split('@')[1] ?? '';
   return hote === domaine || hote.endsWith(`.${domaine}`);
@@ -86,8 +108,12 @@ async function nomsFournis(job: CompanyJob, settings: unknown): Promise<string[]
   return [...new Set(lignes.rows.map((ligne) => ligne.nom?.trim() ?? '').filter(Boolean))];
 }
 
-async function enregistrer(job: CompanyJob, nouvelles: readonly Nouvelle[]): Promise<void> {
-  if (nouvelles.length === 0) return;
+async function enregistrer(
+  job: CompanyJob,
+  nouvelles: readonly Nouvelle[],
+  verifiees: readonly DejaVerifiee[],
+): Promise<void> {
+  if (nouvelles.length === 0 && verifiees.length === 0) return;
   const client = await getPool().connect();
   try {
     await client.query('begin');
@@ -121,6 +147,33 @@ async function enregistrer(job: CompanyJob, nouvelles: readonly Nouvelle[]): Pro
           nouvelle.source.url ?? null,
           nouvelle.source.provider ?? null,
           nouvelle.source.excerpt.slice(0, EXTRAIT_MAX),
+        ],
+      );
+    }
+    // Apres les adresses, pour trouver aussi celles qui viennent d'etre
+    // ajoutees. Au jour du fournisseur, et une seule fois : un enrichissement
+    // rejoue relit la meme reponse du cache.
+    for (const deja of verifiees) {
+      await client.query(
+        `insert into verifications
+           (email_id, level, status, sub_status, reason, provider, address, verified_at)
+         select e.id, 8, $3::email_status, 'domain_search', $4, $5, e.normalized_address,
+                $6::date
+           from emails e
+          where e.company_id = $1 and e.normalized_address = $2
+            and not exists (
+              select 1 from verifications v
+               where v.email_id = e.id and v.level = 8 and v.provider = $5
+                 and v.verified_at = $6::date)`,
+        [
+          job.companyId,
+          deja.normalized,
+          deja.status,
+          deja.status === 'valid'
+            ? `Boite confirmee par ${deja.provider} le ${deja.checkedOn}, lors de sa recherche par domaine.`
+            : 'Le domaine accepte toute adresse : celle-ci ne peut pas etre confirmee.',
+          deja.provider,
+          deja.checkedOn,
         ],
       );
     }
@@ -184,6 +237,7 @@ export async function enrichStep(deps: EnrichDeps, job: CompanyJob): Promise<voi
 
   let format: { pattern: string; provider: string } | undefined;
   const nouvelles: Nouvelle[] = [];
+  const verifiees: DejaVerifiee[] = [];
   // R-04 : ni fournie ni deduite, une adresse supprimee ne revient jamais.
   const supprimees = await loadSuppressedHashes(job.userId);
   const ajouter = (nouvelle: Nouvelle) => {
@@ -238,6 +292,21 @@ export async function enrichStep(deps: EnrichDeps, job: CompanyJob): Promise<voi
     for (const email of issue.value.emails) {
       if (!surLeDomaine(email.address, domaine)) continue;
       const locale = email.address.toLowerCase().split('@')[0] ?? '';
+      // Gratuite, elle vaut aussi pour une adresse que le site avait deja
+      // donnee ; jamais pour une adresse supprimee (R-04).
+      const normalisee = email.address.toLowerCase();
+      if (
+        email.verification !== undefined &&
+        encoreValable(email.verification.checkedOn) &&
+        !isSuppressed(supprimees, normalisee)
+      ) {
+        verifiees.push({
+          normalized: normalisee,
+          provider: fournisseur.name,
+          status: email.verification.status,
+          checkedOn: email.verification.checkedOn,
+        });
+      }
       const vue = email.sourceUrls[0];
       ajouter({
         address: email.address,
@@ -309,7 +378,7 @@ export async function enrichStep(deps: EnrichDeps, job: CompanyJob): Promise<voi
     }
   }
 
-  await enregistrer(job, nouvelles);
+  await enregistrer(job, nouvelles, verifiees);
   // La verification est declaree avant de conclure : sinon l'import pourrait
   // se croire termine entre les deux.
   await planStep('verify', job);

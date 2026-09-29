@@ -833,6 +833,82 @@ describe('verification et score (Phase 5)', () => {
     expect(refaites.rows[0]?.n).toBe(4);
   });
 
+  describe('verification jointe par Hunter a sa recherche par domaine', () => {
+    const ilYA = (jours: number) =>
+      new Date(Date.now() - jours * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const hunterQuiVerifie = (): Partial<EnrichDeps> => ({
+      providers: [
+        {
+          name: 'hunter',
+          domainSearch: (domaine) => {
+            appelsHunter += 1;
+            return Promise.resolve({
+              domain: domaine,
+              emails: [
+                {
+                  address: `jobs@${domaine}`,
+                  kind: 'generic',
+                  sourceUrls: [],
+                  verification: { status: 'valid', checkedOn: ilYA(5) },
+                },
+                {
+                  // Trop ancienne pour valoir (F-704) : ignoree.
+                  address: `marie.durand@${domaine}`,
+                  kind: 'personal',
+                  sourceUrls: [],
+                  verification: { status: 'accept_all', checkedOn: ilYA(40) },
+                },
+              ],
+            });
+          },
+        },
+      ],
+    });
+
+    it('la reprend sans payer une verification de boite, avec sa date et sa source', async () => {
+      const importId = await importer([['Spa Zen', 'spa.test', 'Lyon']], {
+        mailboxCheck: 'found',
+      });
+      await lancer(importId, dependances(undefined, hunterQuiVerifie()));
+
+      // Seule marie.durand@ est payee : jobs@ l'a deja ete par Hunter.
+      expect(verificationsHunter).toBe(1);
+      const lignes = await adresses();
+      expect(lignes.find((l) => l.adresse === 'jobs@spa.test')?.status).toBe('valid');
+      const niveau8 = await query<{ sub_status: string; provider: string; jour: string }>(
+        `select v.sub_status, v.provider, to_char(v.verified_at, 'YYYY-MM-DD') as jour
+           from verifications v join emails e on e.id = v.email_id
+          where v.level = 8 and e.normalized_address = 'jobs@spa.test'`,
+      );
+      expect(niveau8.rows).toEqual([
+        { sub_status: 'domain_search', provider: 'hunter', jour: ilYA(5) },
+      ]);
+    });
+
+    it('la reprend meme quand l import ne demande aucune verification de boite', async () => {
+      const importId = await importer([['Spa Zen', 'spa.test', 'Lyon']], {
+        mailboxCheck: 'never',
+      });
+      await lancer(importId, dependances(undefined, hunterQuiVerifie()));
+      expect(verificationsHunter).toBe(0);
+      const lignes = await adresses();
+      expect(lignes.find((l) => l.adresse === 'jobs@spa.test')?.status).toBe('valid');
+      expect(lignes.find((l) => l.adresse === 'marie.durand@spa.test')?.status).toBe('unverified');
+    });
+
+    it('ne l ecrit qu une fois quand l enrichissement est rejoue', async () => {
+      const importId = await importer([['Spa Zen', 'spa.test', 'Lyon']]);
+      const deps = dependances(undefined, hunterQuiVerifie());
+      await lancer(importId, deps);
+      const entreprise = await query<{ id: string }>('select id from companies');
+      await enrichStep(deps, { importId, companyId: entreprise.rows[0]?.id ?? '', userId });
+      const n = await query<{ n: number }>(
+        'select count(*)::int as n from verifications where level = 8',
+      );
+      expect(n.rows[0]?.n).toBe(1);
+    });
+  });
+
   it('dit pourquoi une boite n est pas verifiee sans fournisseur configure', async () => {
     const importId = await importer([['Boulangerie Martin', 'boulangerie.test', 'Lyon']], {
       mailboxCheck: 'found',

@@ -25,7 +25,20 @@ const REPONSES: Record<string, { status: number; corps?: unknown }> = {
               { domain: 'acme.fr', uri: 'https://acme.fr/equipe', extracted_on: '2026-01-02' },
             ],
           },
-          { value: 'contact@acme.fr', type: 'generic', confidence: 88, sources: [] },
+          {
+            value: 'contact@acme.fr',
+            type: 'generic',
+            confidence: 88,
+            sources: [],
+            verification: { date: '2026-09-20', status: 'valid' },
+          },
+          {
+            value: 'ventes@acme.fr',
+            type: 'generic',
+            sources: [],
+            // Rien d'utile : ni garde, ni bloquant.
+            verification: { date: '2026-09-20', status: 'unknown' },
+          },
           { value: 42 },
           // Gabarits de format que Hunter rend parmi les adresses (vu sur decathlon.fr).
           { value: 'firstl@acme.fr', type: 'personal', confidence: 80, sources: [] },
@@ -107,7 +120,14 @@ describe('createHunter (F-602)', () => {
           position: 'Directeur des ressources humaines',
           sourceUrls: ['https://acme.fr/equipe'],
         },
-        { address: 'contact@acme.fr', kind: 'generic', confidence: 88, sourceUrls: [] },
+        {
+          address: 'contact@acme.fr',
+          kind: 'generic',
+          confidence: 88,
+          sourceUrls: [],
+          verification: { status: 'valid', checkedOn: '2026-09-20' },
+        },
+        { address: 'ventes@acme.fr', kind: 'generic', sourceUrls: [] },
       ],
     });
   });
@@ -117,6 +137,7 @@ describe('createHunter (F-602)', () => {
     expect(emails.map((email) => email.address)).toEqual([
       'jean.dupont@acme.fr',
       'contact@acme.fr',
+      'ventes@acme.fr',
     ]);
   });
 

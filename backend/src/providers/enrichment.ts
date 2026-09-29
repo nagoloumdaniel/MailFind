@@ -18,6 +18,12 @@ export interface ProviderEmail {
   readonly position?: string;
   /** Pages ou le fournisseur dit l'avoir vue. */
   readonly sourceUrls: readonly string[];
+  /**
+   * Verification de boite deja faite par le fournisseur, avec son jour
+   * (AAAA-MM-JJ, une chaine : la reponse est gardee en JSON dans le cache).
+   * Seuls les verdicts qui concluent sont gardes.
+   */
+  readonly verification?: { readonly status: 'valid' | 'accept_all'; readonly checkedOn: string };
 }
 
 export interface DomainSearchResult {

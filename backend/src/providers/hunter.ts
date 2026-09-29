@@ -27,6 +27,15 @@ const emailSchema = z.object({
     .array(z.object({ uri: z.string().nullish() }).passthrough())
     .nullish()
     .catch([]),
+  // La verification de boite que Hunter a deja faite. « unknown » ou une date
+  // illisible ne concluent rien : lues comme absentes.
+  verification: z
+    .object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
+      status: z.enum(['valid', 'accept_all']),
+    })
+    .nullish()
+    .catch(null),
 });
 
 const reponseSchema = z.object({
@@ -87,6 +96,14 @@ function versAdresse(brut: unknown): ProviderEmail | undefined {
     sourceUrls: (email.sources ?? [])
       .map((source) => source.uri)
       .filter((uri): uri is string => typeof uri === 'string' && uri !== ''),
+    ...(email.verification
+      ? {
+          verification: {
+            status: email.verification.status,
+            checkedOn: email.verification.date.slice(0, 10),
+          },
+        }
+      : {}),
   };
 }
 

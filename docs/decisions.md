@@ -293,6 +293,18 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 
 ---
 
+## D-22. La vérification jointe à une recherche par domaine compte comme une vérification de boîte
+
+**Décision.** Quand la recherche par domaine de Hunter rend une adresse avec une vérification `valid` ou `accept_all` datée de moins de trente jours, elle est enregistrée dans l'historique au niveau 8, au jour donné par Hunter, avec Hunter pour fournisseur et `domain_search` pour détail. L'étape de vérification refait toujours les contrôles locaux, puis reprend cette vérification au lieu d'en payer une, que l'import ait demandé la vérification de boîte ou non. Les verdicts `unknown` ou absents ne sont pas repris.
+
+**Raison.** Vingt crédits de vérification par mois (D-14), c'est quarante boîtes. La recherche par domaine, déjà payée, rend ce verdict pour beaucoup d'adresses : le repayer serait dépenser pour rien. Le verdict a un fournisseur et une date, comme une vérification payée ; le statut reste un constat daté, jamais une promesse.
+
+**Conséquences.** La fraîcheur des contrôles locaux et celle de la boîte se comptent à part. Une revérification forcée refait la vérification payante. Un contrôle local qui écarte l'adresse l'emporte sur le verdict de Hunter.
+
+**Ce qui la rouvrirait.** Des verdicts de recherche par domaine démentis par les rebonds que Campaign Mailer signalera (F-706).
+
+---
+
 ## Journal des révisions
 
 | Date | Décision | Changement |
@@ -307,4 +319,5 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | 29 septembre 2026 | D-19 | Nouvelle décision : ce que porte un export, source et format Campaign Mailer compris. |
 | 29 septembre 2026 | D-20 | Nouvelle décision : exclure veut dire « hors des exports » ; F-503 tient au statut. |
 | 29 septembre 2026 | D-21 | Nouvelle décision : une page de 3 Mo au plus, au lieu des 2 Mo de F-405. |
+| 29 septembre 2026 | D-22 | Nouvelle décision : la vérification jointe par Hunter à sa recherche par domaine compte comme une vérification de boîte. |
 | 28 septembre 2026 | D-14 | Les vérifications de boîte se comptent en crédits : quatre par compte et par mois valent deux crédits (`QUOTA_MAILBOX_VERIFICATIONS_PER_USER_PER_MONTH`), sur les vingt réservés à la vérification (`HUNTER_MONTHLY_VERIFICATION_CREDITS`). Un appel en échec n'est pas facturé et ne compte pas. |
