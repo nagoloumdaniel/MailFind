@@ -4,6 +4,7 @@ import { RequireSession } from './RequireSession';
 import { AccountPage } from '../pages/AccountPage';
 import { CompaniesPage } from '../pages/CompaniesPage';
 import { CompanyPage } from '../pages/CompanyPage';
+import { ExportsPage } from '../pages/ExportsPage';
 import { ContactsPage } from '../pages/ContactsPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { ImportDetailPage } from '../pages/ImportDetailPage';
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
           { path: '/entreprises', element: <CompaniesPage /> },
           { path: '/entreprises/:id', element: <CompanyPage /> },
           { path: '/contacts', element: <ContactsPage /> },
+          { path: '/exports', element: <ExportsPage /> },
           { path: '/import', element: <ImportPage /> },
           { path: '/imports/:id', element: <ImportDetailPage /> },
           { path: '/verifier', element: <VerifyPage /> },

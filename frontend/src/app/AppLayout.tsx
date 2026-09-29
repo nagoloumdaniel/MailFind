@@ -18,6 +18,7 @@ const DESTINATIONS = [
   { to: '/contacts', label: 'Contacts', end: false },
   { to: '/import', label: 'Importer', end: false },
   { to: '/verifier', label: 'Verifier', end: false },
+  { to: '/exports', label: 'Exports', end: false },
   { to: '/compte', label: 'Compte', end: false },
 ];
 
@@ -36,13 +37,13 @@ export function AppLayout() {
         {/* Sur un telephone, les onglets passent dans un menu : cinq ne
             tiennent pas sur 360 pixels, et une barre qui defile de cote cache
             des destinations sans le dire. */}
-        <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-3 px-4 md:gap-6">
+        <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-3 px-4 lg:gap-6">
           <NavLink to="/" className="flex shrink-0 items-center gap-2 text-text">
             <Logo size={24} title="MailFind" />
             <span className="font-display text-[15px] font-semibold">MailFind</span>
           </NavLink>
 
-          <nav aria-label="Navigation principale" className="hidden items-center gap-1 md:flex">
+          <nav aria-label="Navigation principale" className="hidden items-center gap-1 lg:flex">
             {DESTINATIONS.map(({ to, label, end }) => (
               <NavLink key={to} to={to} end={end} className={lien}>
                 {label}
@@ -53,11 +54,11 @@ export function AppLayout() {
           <div className="ml-auto flex shrink-0 items-center gap-3">
             <ThemeToggle />
             {state.status === 'authenticated' && (
-              <span className="hidden text-xs text-text-faint lg:inline">{state.user.email}</span>
+              <span className="hidden text-xs text-text-faint xl:inline">{state.user.email}</span>
             )}
             <button
               type="button"
-              className="rounded-sm border border-line-strong px-3 py-1.5 text-sm md:hidden"
+              className="rounded-sm border border-line-strong px-3 py-1.5 text-sm lg:hidden"
               aria-expanded={menu}
               aria-controls="menu-principal"
               onClick={() => {
@@ -72,7 +73,7 @@ export function AppLayout() {
           <nav
             id="menu-principal"
             aria-label="Navigation principale"
-            className="border-t border-line bg-surface px-4 py-2 md:hidden"
+            className="border-t border-line bg-surface px-4 py-2 lg:hidden"
           >
             {DESTINATIONS.map(({ to, label, end }) => (
               <NavLink

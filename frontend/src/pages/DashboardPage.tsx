@@ -83,7 +83,7 @@ export function DashboardPage() {
             <h2 className="text-base font-semibold">Imports recents</h2>
             {lienImporter}
           </div>
-          <div className="mt-4 overflow-x-auto rounded-md border border-line bg-surface">
+          <div className="relative mt-4 overflow-x-auto rounded-md border border-line bg-surface">
             <table className="w-full text-sm">
               <thead className="border-b border-line bg-raised text-xs text-text-faint">
                 <tr>

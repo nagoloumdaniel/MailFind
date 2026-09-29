@@ -93,7 +93,7 @@ export function ImportEmails({ importId, version }: { importId: string; version:
         son calcul, critere par critere. Seul le statut « Valide » dit qu&apos;une boite a ete
         confirmee.
       </p>
-      <div className="mt-4 overflow-x-auto rounded-md border border-line bg-surface">
+      <div className="relative mt-4 overflow-x-auto rounded-md border border-line bg-surface">
         {/* Une largeur minimale : sur un telephone, le tableau defile plutot que d'ecraser ses colonnes. */}
         <table className="w-full min-w-[52rem] text-sm">
           <thead className="border-b border-line bg-raised text-xs text-text-faint">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Button } from '../components/Button';
 import { DeleteCompaniesDialog, MergeDialog } from '../components/CompanyDialogs';
+import { ExportDialog } from '../components/ExportDialog';
 import { MultiFilter } from '../components/MultiFilter';
 import { Pagination } from '../components/Pagination';
 import { TableSkeleton } from '../components/Skeleton';
@@ -87,7 +88,9 @@ export function CompaniesPage() {
     cle: '',
     ids: new Set(),
   });
-  const [dialogue, setDialogue] = useState<'fusion' | 'suppression' | undefined>(undefined);
+  const [dialogue, setDialogue] = useState<'fusion' | 'suppression' | 'export' | undefined>(
+    undefined,
+  );
   const [etiquette, setEtiquette] = useState('');
 
   function appliquer(suivants: CompanyFilters) {
@@ -194,6 +197,15 @@ export function CompaniesPage() {
           }}
           onMerged={(targetId) => {
             void navigate(`/entreprises/${targetId}`);
+          }}
+        />
+      )}
+      {dialogue === 'export' && (
+        <ExportDialog
+          scope={{ kind: 'companies', ids: [...choisis] }}
+          scopeLabel={`${choisis.size.toLocaleString('fr-FR')} entreprise${choisis.size > 1 ? 's' : ''} selectionnee${choisis.size > 1 ? 's' : ''}.`}
+          onClose={() => {
+            setDialogue(undefined);
           }}
         />
       )}
@@ -365,6 +377,13 @@ export function CompaniesPage() {
                   Fusionner
                 </Button>
                 <Button
+                  onClick={() => {
+                    setDialogue('export');
+                  }}
+                >
+                  Exporter
+                </Button>
+                <Button
                   tone="danger"
                   onClick={() => {
                     setMessage(undefined);
@@ -384,7 +403,7 @@ export function CompaniesPage() {
                 </button>
               </div>
             )}
-            <div className="overflow-x-auto rounded-md border border-line bg-surface">
+            <div className="relative overflow-x-auto rounded-md border border-line bg-surface">
               <table className="w-full min-w-[56rem] text-sm">
                 <thead className="border-b border-line bg-raised text-xs text-text-faint">
                   <tr>

@@ -153,7 +153,7 @@ export function VerifyPage() {
               </div>
             ))}
           </dl>
-          <div className="mt-4 overflow-x-auto rounded-md border border-line bg-surface">
+          <div className="relative mt-4 overflow-x-auto rounded-md border border-line bg-surface">
             <table className="w-full min-w-[40rem] text-sm">
               <thead className="border-b border-line bg-raised text-xs text-text-faint">
                 <tr>

@@ -109,6 +109,16 @@ const environmentSchema = z.object({
    * Brave, la recherche s'arrete pour tout le monde, jusqu'au mois suivant.
    */
   BRAVE_MONTHLY_FREE_QUERIES: z.coerce.number().int().min(0).default(1000),
+
+  /**
+   * F-1104 : les exports volumineux sont deposes dans R2 et gardes sept jours.
+   * Vides, seuls les exports produits tout de suite (2 000 lignes au plus)
+   * restent possibles.
+   */
+  R2_ENDPOINT: z.string().default(''),
+  R2_BUCKET: z.string().default(''),
+  R2_ACCESS_KEY_ID: z.string().default(''),
+  R2_SECRET_ACCESS_KEY: z.string().default(''),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

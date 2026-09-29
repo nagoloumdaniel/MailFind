@@ -4,6 +4,7 @@ import { Button } from '../components/Button';
 import { ContactDialog } from '../components/ContactDialog';
 import { ContactsBulkBar } from '../components/ContactsBulkBar';
 import { DeleteContactsDialog } from '../components/DeleteContactsDialog';
+import { ExportDialog } from '../components/ExportDialog';
 import { MultiFilter } from '../components/MultiFilter';
 import { Pagination } from '../components/Pagination';
 import { ScoreBadge } from '../components/ScoreBadge';
@@ -61,6 +62,7 @@ export function ContactsPage() {
     cle: '',
     ids: new Set(),
   });
+  const [aExporter, setAExporter] = useState<string[] | undefined>(undefined);
   const [aSupprimer, setASupprimer] = useState<{ ids: string[]; label?: string } | undefined>(
     undefined,
   );
@@ -143,6 +145,15 @@ export function ContactsPage() {
       <p role="status" className="mt-3 text-sm text-accent empty:hidden">
         {message}
       </p>
+      {aExporter !== undefined && (
+        <ExportDialog
+          scope={{ kind: 'contacts', ids: aExporter }}
+          scopeLabel={`${aExporter.length.toLocaleString('fr-FR')} contact${aExporter.length > 1 ? 's' : ''} selectionne${aExporter.length > 1 ? 's' : ''}.`}
+          onClose={() => {
+            setAExporter(undefined);
+          }}
+        />
+      )}
       {aSupprimer !== undefined && (
         <DeleteContactsDialog
           ids={aSupprimer.ids}
@@ -301,12 +312,15 @@ export function ContactsPage() {
                   setMessage(undefined);
                   setASupprimer({ ids: [...choisis] });
                 }}
+                onExport={() => {
+                  setAExporter([...choisis]);
+                }}
                 onClear={() => {
                   setSelection({ cle, ids: new Set() });
                 }}
               />
             )}
-            <div className="overflow-x-auto rounded-md border border-line bg-surface">
+            <div className="relative overflow-x-auto rounded-md border border-line bg-surface">
               <table className="w-full min-w-[60rem] text-sm">
                 <caption className="sr-only">
                   Contacts, tries par {COLONNES.find((c) => c.sort === filtres.sort)?.label}{' '}

@@ -23,11 +23,13 @@ export function ContactsBulkBar({
   ids,
   onDone,
   onDelete,
+  onExport,
   onClear,
 }: {
   ids: string[];
   onDone: (message: string) => void;
   onDelete: () => void;
+  onExport: () => void;
   onClear: () => void;
 }) {
   const [envoi, setEnvoi] = useState(false);
@@ -128,6 +130,9 @@ export function ContactsBulkBar({
           onClick={() => void appliquer({ action: 'verify' })}
         >
           Verifier les boites
+        </Button>
+        <Button disabled={envoi} onClick={onExport}>
+          Exporter
         </Button>
         <Button tone="danger" disabled={envoi} onClick={onDelete}>
           Supprimer

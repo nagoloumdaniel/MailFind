@@ -39,6 +39,33 @@ function readCsrfToken(): string | undefined {
   return entry?.slice(CSRF_COOKIE.length + 1);
 }
 
+/**
+ * Un appel dont la reponse n'est pas forcement du JSON (un fichier exporte).
+ * Meme session, meme jeton ; une erreur reste une `ApiError`.
+ */
+export async function apiRequest(path: string, init: RequestInit = {}): Promise<Response> {
+  const method = init.method ?? 'GET';
+  const headers = new Headers(init.headers);
+  if (init.body !== undefined) headers.set('content-type', 'application/json');
+  if (method !== 'GET' && method !== 'HEAD') {
+    const token = readCsrfToken();
+    if (token !== undefined) headers.set('x-csrf-token', token);
+  }
+  const response = await fetch(`${BASE_URL}${path}`, { ...init, headers, credentials: 'include' });
+  if (!response.ok) {
+    const payload: unknown = await response.json().catch(() => undefined);
+    if (isProblem(payload)) throw new ApiError(payload);
+    throw new ApiError({
+      type: 'about:blank',
+      title: 'Erreur inattendue',
+      status: response.status,
+      code: 'unexpected_error',
+      detail: "Le serveur n'a pas repondu comme prevu.",
+    });
+  }
+  return response;
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const method = init.method ?? 'GET';
   const headers = new Headers(init.headers);

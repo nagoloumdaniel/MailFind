@@ -403,7 +403,7 @@ export function CompanyPage() {
         {history.length === 0 ? (
           <p className="mt-2 text-sm text-text-soft">Aucun traitement pour l&apos;instant.</p>
         ) : (
-          <div className="mt-3 overflow-x-auto rounded-md border border-line bg-surface">
+          <div className="relative mt-3 overflow-x-auto rounded-md border border-line bg-surface">
             <table className="w-full min-w-[40rem] text-sm">
               <thead className="border-b border-line bg-raised text-xs text-text-faint">
                 <tr>

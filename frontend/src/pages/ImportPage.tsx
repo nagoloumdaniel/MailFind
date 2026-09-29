@@ -258,7 +258,7 @@ export function ImportPage() {
                 `${String(rejetees)} d'entre elles seront ecartees, leur motif est indique.`}
             </p>
 
-            <div className="mt-4 overflow-x-auto rounded-md border border-line bg-surface">
+            <div className="relative mt-4 overflow-x-auto rounded-md border border-line bg-surface">
               <table className="w-full text-sm">
                 <thead className="border-b border-line bg-raised text-xs text-text-faint">
                   <tr>

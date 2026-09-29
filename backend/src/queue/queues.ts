@@ -131,6 +131,24 @@ export async function scheduleMaintenance(): Promise<void> {
     { every: UNE_SEMAINE_MS },
     { name: 'disposable.refresh' },
   );
+  // F-1104 : les exports de plus de sept jours sont effaces, une fois par jour.
+  await getMaintenanceQueue().upsertJobScheduler(
+    'exports-purge',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: 'exports.purge' },
+  );
+}
+
+/**
+ * F-1104 : un export volumineux est produit par le processus de traitement.
+ * L'identifiant de la tache suit celui de l'export : il ne part qu'une fois.
+ */
+export async function enqueueExportBuild(exportId: string, userId: string): Promise<void> {
+  await getMaintenanceQueue().add(
+    'export.build',
+    { exportId, userId },
+    { jobId: `export-${exportId}` },
+  );
 }
 
 export async function closeImportQueue(): Promise<void> {

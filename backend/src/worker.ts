@@ -1,4 +1,6 @@
-import { Worker } from 'bullmq';
+import { UnrecoverableError, Worker } from 'bullmq';
+import { purgeExpiredExports, runExportJob } from './exports/service.js';
+import { createR2Storage } from './exports/storage.js';
 import { closePool, query } from './db/pool.js';
 import { listImportsToResume, markImportFailed, planImport } from './imports/plan.js';
 import { getLogger } from './observability/logger.js';
@@ -87,6 +89,16 @@ const collecte = new Worker<CompanyJob>(
 const entretien = new Worker(
   MAINTENANCE_QUEUE,
   async (job) => {
+    if (job.name === 'export.build' || job.name === 'exports.purge') {
+      const stockage = createR2Storage();
+      if (stockage === undefined) {
+        throw new UnrecoverableError('Stockage des exports non configure (R2).');
+      }
+      if (job.name === 'exports.purge') return { effaces: await purgeExpiredExports(stockage) };
+      const { exportId } = job.data as { exportId: string };
+      await runExportJob(stockage, exportId);
+      return { exportId };
+    }
     if (job.name !== 'disposable.refresh') return undefined;
     const issue = await refreshDisposableDomains({ url: getEnvironment().DISPOSABLE_DOMAINS_URL });
     logger.info({ issue }, 'liste des domaines jetables');
