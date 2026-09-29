@@ -6,6 +6,8 @@ import { requireAcceptedTerms } from '../http/middleware/require-terms.js';
 import { notFoundHandler } from '../http/middleware/error-handler.js';
 import { getLogger } from '../observability/logger.js';
 import { idempotency } from './idempotency.js';
+import { registerV1Routes } from './v1/index.js';
+import { importBodyParser } from './v1/imports.js';
 import { createRedisRateLimitStore, rateLimit, type RateLimitStore } from './rate-limit.js';
 
 export interface V1Options {
@@ -51,8 +53,15 @@ export function createV1Router(options: V1Options = {}): Router {
       },
     }),
   );
+  // Le corps d'un import depasse la limite generale, que le lecteur global
+  // lui epargne : il est lu ici, avant l'idempotence qui en tire l'empreinte.
+  router.use((req, res, next) => {
+    if (req.method === 'POST' && req.path === '/imports') importBodyParser(req, res, next);
+    else next();
+  });
   router.use(idempotency());
 
+  registerV1Routes(router);
   options.register?.(router);
 
   // Une route inconnue s'arrete ici, sans descendre vers la session.

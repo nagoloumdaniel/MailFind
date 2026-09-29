@@ -101,7 +101,7 @@ export function createApp(options: AppOptions = {}): Express {
   // refuserait un fichier de 5 000 lignes avant qu'elle ne le voie (F-201).
   const lecteurJson = express.json({ limit: '1mb' });
   app.use((req, res, next) => {
-    if (req.method === 'POST' && req.path === '/api/imports') {
+    if (req.method === 'POST' && (req.path === '/api/imports' || req.path === '/v1/imports')) {
       next();
       return;
     }

@@ -69,6 +69,25 @@ export function parsePageParams(query: unknown): PageParams {
   };
 }
 
+/**
+ * Le tri et la condition de reprise, en SQL, sur la date tronquee a la
+ * milliseconde : PostgreSQL garde la microseconde, JavaScript non. Comparee
+ * telle quelle, la derniere ligne d'une page (…,123456) resterait plus grande
+ * que son propre curseur (…,123) et reviendrait en tete de la suivante.
+ *
+ * `alias` est celui de la table ; `at` et `id` les numeros des parametres qui
+ * portent le curseur (nuls sur la premiere page).
+ */
+export function cursorOrder(alias: string): string {
+  return `date_trunc('milliseconds', ${alias}.created_at), ${alias}.id`;
+}
+
+export function cursorCondition(alias: string, at: number, id: number): string {
+  return `($${String(at)}::timestamptz is null
+          or (date_trunc('milliseconds', ${alias}.created_at), ${alias}.id)
+             > ($${String(at)}::timestamptz, $${String(id)}::uuid))`;
+}
+
 export interface Page<T> {
   readonly data: T[];
   readonly next_cursor: string | null;
