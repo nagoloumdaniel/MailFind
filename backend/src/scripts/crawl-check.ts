@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { createCrawlerClient } from '../crawler/client.js';
 import { crawlCompany, type CrawlReport } from '../crawler/engine.js';
 import { appearsIn } from '../crawler/verify.js';
@@ -66,7 +67,10 @@ async function main(): Promise<void> {
   const indice = options.indexOf('--profondeur');
   const profondeur = (indice === -1 ? 'standard' : options[indice + 1]) as CrawlDepth;
 
-  const domaines = (await readFile(fichier, 'utf8'))
+  // npm lance le script depuis backend/ : le chemin donne se lit depuis le
+  // dossier ou la commande a ete tapee, que npm garde dans INIT_CWD.
+  const chemin = resolve(process.env.INIT_CWD ?? process.cwd(), fichier);
+  const domaines = (await readFile(chemin, 'utf8'))
     .split(/\r?\n/)
     .map((ligne) => normalizeDomain(ligne.trim()))
     .filter((domaine): domaine is string => domaine !== undefined);
