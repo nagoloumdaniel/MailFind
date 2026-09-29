@@ -27,6 +27,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 - [x] Phase 5 : Vérification avancée et score
 - [x] Phase 6 : Bibliothèque, page Contacts et exports
 - [x] Phase 7 : API publique et intégration Campaign Mailer (intégration reportée, D-23)
+- [ ] Phase 7B : Vérification certifiée et annuaire partagé
 - [ ] Phase 8 : Sécurité, conformité, quotas et coûts
 - [ ] Phase 9 : Tests, observabilité et documentation
 - [ ] Phase 10 : Mise en production et bêta

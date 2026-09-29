@@ -3,8 +3,8 @@
 | | |
 | --- | --- |
 | **Produit** | MailFind, bibliothèque de contacts professionnels d'entreprises |
-| **Version du document** | 1.0 |
-| **Date** | 22 septembre 2026 |
+| **Version du document** | 1.1 |
+| **Date** | 30 septembre 2026 |
 | **Auteur et propriétaire** | Daniel Nagoloum Talla |
 | **Statut** | Référence pour le développement du MVP |
 | **Produit lié** | Campaign Mailer (envoi de campagnes depuis Gmail) |
@@ -14,6 +14,7 @@
 | Version | Date | Objet |
 | --- | --- | --- |
 | 1.0 | 22 septembre 2026 | Première version de référence |
+| 1.1 | 30 septembre 2026 | Ajout de la vérification certifiée (6.17) et de l'annuaire partagé (6.18), demandés par le propriétaire ; règles R-13 et R-14. Le PDF reste en version 1.0 jusqu'à sa prochaine génération. |
 
 ## Sommaire
 
@@ -496,6 +497,34 @@ Points d'accès :
 | F-1603 | Gestion de la liste globale de domaines exclus (sites ayant demandé à ne pas être explorés). | M |
 | F-1604 | Consultation du journal d'audit. | M |
 
+### 6.17 Vérification certifiée
+
+Demandée par le propriétaire le 30 septembre 2026. Une adresse n'est dite « certifiée » que si une vérification de boîte récente l'a confirmée. Les adresses non fonctionnelles sont écartées puis supprimées. La vérification de boîte reste faite par un fournisseur, jamais par une connexion SMTP depuis les serveurs de MailFind (D-09, D-24).
+
+| Id | Exigence | Priorité | Skills |
+| --- | --- | --- | --- |
+| F-1701 | Second vérificateur de boîte, Reacher (API hébergée, sous licence commerciale), derrière l'interface commune des vérificateurs et le chemin des appels payants : compté, mis en cache, plafonné. Ordre de repli configurable entre Hunter et Reacher. | M | `anthropic-skills:backend-patterns`, `test-driven-development`, `security-review` |
+| F-1702 | Correspondance des verdicts de Reacher : `safe` donne `valid` ; `risky` donne `accept_all` si le domaine accepte tout, `risky` sinon ; `invalid` donne `invalid` ; `unknown` donne `unknown`. Le détail (boîte pleine, désactivée, jetable) est gardé comme motif. | M | `test-driven-development` |
+| F-1703 | Badge « certifiée » : seulement une adresse `valid` confirmée par une vérification de boîte de moins de 30 jours. Affiché dans la page Contacts, la fiche entreprise et la liste d'un import, exporté (colonne `certified`) et rendu par l'API (champ `certified`). `accept_all`, `unknown`, `risky` et `unverified` ne le portent jamais. | M | `frontend-design`, `emil-design-eng`, `test-driven-development` |
+| F-1704 | Filtre « certifiées seulement » dans la page Contacts, les exports et l'envoi vers Campaign Mailer. | M | `composition-patterns`, `test-driven-development` |
+| F-1705 | Mise de côté des adresses non fonctionnelles : une adresse `invalid` ou `disposable` après vérification de boîte est exclue tout de suite, montrée dans un onglet « écartées » avec son motif, puis supprimée définitivement après 7 jours, sources et vérifications comprises, et journalisée. L'utilisateur peut la supprimer plus tôt ou la garder. `accept_all` et `unknown` ne sont ni certifiées ni supprimées. | M | `test-driven-development`, `migration`, `security-review` |
+| F-1706 | Vérification de boîte proposée pour toute la bibliothèque, dans la limite des crédits, avec estimation avant lancement. | S | `frontend-design`, `test-driven-development` |
+
+### 6.18 Annuaire partagé
+
+Demandé par le propriétaire le 30 septembre 2026. Un utilisateur qui n'a pas de fichier à importer peut chercher des entreprises et leurs adresses dans un annuaire commun, alimenté par ce que la collecte a trouvé pour tous les utilisateurs. Il ne reprend que des données publiques et vérifiables, jamais le contenu privé d'un compte (R-13).
+
+| Id | Exigence | Priorité | Skills |
+| --- | --- | --- | --- |
+| F-1801 | Annuaire commun, hors des comptes : entreprises (nom, domaine, SIREN, ville, pays, secteur, page carrières, formulaire de contact) et adresses avec leur source, leur statut et leur date de vérification. | M | `brainstorming`, `migration`, `security-review` |
+| F-1802 | Alimentation : seulement les adresses trouvées sur une page publique du site officiel (source `website`), avec l'URL de la page. Jamais une adresse fournie par un fournisseur d'enrichissement (R-09), déduite, saisie à la main ou lue dans un fichier importé ; jamais les notes, étiquettes, colonnes libres ni le nom du fichier d'un import. | M | `test-driven-development`, `security-review` |
+| F-1803 | Recherche dans l'annuaire par nom, domaine, ville, secteur et type d'adresse, triée par entreprise, avec pagination ; filtre « certifiées seulement ». | M | `frontend-design`, `composition-patterns`, `react-best-practices`, `test-driven-development` |
+| F-1804 | Ajout d'entreprises et d'adresses de l'annuaire à sa bibliothèque : copie avec la source d'origine, marquée « annuaire », puis vérification selon les réglages de l'utilisateur. | M | `test-driven-development`, `emil-design-eng` |
+| F-1805 | Adresses nominatives : exclues de l'annuaire par défaut ; incluses seulement si l'analyse d'impact le permet, avec la mention d'information de R-03. | M | `security-review`, `brainstorming` |
+| F-1806 | Opposition et effacement : une demande d'une personne ou d'un site retire l'adresse ou le domaine de l'annuaire pour tous et empêche sa réapparition (A9, R-07). La liste de suppression d'un utilisateur ne vaut que pour lui. | M | `test-driven-development`, `security-review` |
+| F-1807 | Plafond de consultation et d'ajout par compte et par mois, contre l'aspiration de l'annuaire. | M | `test-driven-development` |
+| F-1808 | Fraîcheur : une adresse de l'annuaire non revue depuis 12 mois en est retirée (R-06). | S | `test-driven-development`, `migration` |
+
 ---
 
 ## 7. Exigences non fonctionnelles
@@ -623,6 +652,7 @@ Une adresse de rôle d'une personne morale (`contact@`, `recrutement@`) n'identi
 
 - Pour les données des comptes utilisateurs, MailFind est responsable de traitement.
 - Pour les adresses collectées à la demande d'un utilisateur, l'utilisateur détermine la finalité (candidature, prospection) : il est responsable de traitement et MailFind agit en sous-traitant, selon des conditions d'utilisation qui le précisent (article 28 du RGPD).
+- Pour l'annuaire partagé (6.18), MailFind détermine la finalité : il est responsable de traitement de ces données (R-13).
 
 ### 11.3 Règles appliquées par le produit
 
@@ -640,6 +670,8 @@ Une adresse de rôle d'une personne morale (`contact@`, `recrutement@`) n'identi
 | R-10 | Prospection : rappel dans l'interface des règles de la CNIL sur la prospection électronique entre professionnels (message en rapport avec la fonction du destinataire, information et possibilité de s'opposer à chaque envoi). |
 | R-11 | Registre des traitements tenu à jour, liste des sous-traitants (hébergeurs, fournisseurs d'enrichissement) publiée dans la politique de confidentialité. |
 | R-12 | Analyse d'impact relative à la protection des données menée avant l'ouverture au public, compte tenu de la collecte à grande échelle de données publiques. |
+| R-13 | Annuaire partagé (6.18) : pour les données qu'il contient, MailFind est responsable de traitement, et non plus sous-traitant (11.2). Base légale, information des personnes et droit d'opposition sont établis par l'analyse d'impact de R-12 avant l'ouverture de l'annuaire, et les conditions d'utilisation disent que les résultats de collecte publics alimentent l'annuaire commun. Le contenu privé d'un compte (fichiers importés, notes, étiquettes, adresses saisies ou fournies par un fournisseur) n'y entre jamais. |
+| R-14 | Vérification de boîte (6.17) : toujours déléguée à un fournisseur ; aucune connexion SMTP ne part des serveurs de MailFind. Reacher n'est utilisé que sous licence commerciale (son code est sous AGPL-3.0). |
 
 ---
 

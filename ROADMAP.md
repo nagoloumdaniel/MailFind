@@ -3,8 +3,8 @@
 Plan d'exécution, du dépôt vide à la bêta publique.
 Référence : [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md), version 1.0 du 22 septembre 2026.
 
-- **Statut** : Phases 0 à 7 terminées, l'intégration Campaign Mailer de la Phase 7 étant reportée (D-23). Phase 8 à démarrer après la revue.
-- **Dernière mise à jour** : 29 septembre 2026
+- **Statut** : Phases 0 à 7 terminées, l'intégration Campaign Mailer de la Phase 7 étant reportée (D-23). Phase 7B (vérification certifiée, annuaire partagé) ajoutée le 30 septembre 2026, à démarrer après la revue.
+- **Dernière mise à jour** : 30 septembre 2026
 - **Cadence de révision** : fin de chaque phase
 
 ---
@@ -67,6 +67,7 @@ En cas de bug : `investigate-first`, puis `systematic-debugging`, puis `verify-a
 | 5 | Vérification avancée et score | 4 j | Statuts normalisés, vérification de boîte, score expliqué |
 | 6 | Bibliothèque, page Contacts et exports | 6 j | Vues complètes, CRUD des contacts, CSV, XLSX, JSON |
 | 7 | API publique et intégration Campaign Mailer | 7 j | API v1 documentée, webhooks, envoi vers Campaign Mailer |
+| 7B | Vérification certifiée et annuaire partagé | 6 j | Badge « certifiée », adresses non fonctionnelles écartées puis supprimées, annuaire commun consultable |
 | 8 | Sécurité, conformité, quotas et coûts | 5 j | Revue de sécurité, RGPD, plafonds de dépense |
 | 9 | Tests, observabilité et documentation | 3 j | Couverture, alertes, procédures |
 | 10 | Mise en production et bêta | 4 j | URL publique, 5 à 10 bêta-testeurs |
@@ -468,6 +469,59 @@ Close sur décision du propriétaire, sans l'intégration Campaign Mailer, comme
 **Choix faits en route.** Réponses en snake_case, comme l'annexe C. Pas de portée `emails:write` dans F-1303 : modifier ou supprimer une adresse passe par `companies:write`. `POST /v1/find` rend tout de suite, sans rien dépenser, une entreprise déjà explorée, et lance sinon un import d'une ligne. Les exports de l'API sont toujours produits en tâche et servis avec la clé, jamais par une URL signée. Les événements des webhooks sont minces : identifiant et statut, le reste se lit par l'API. La création d'un webhook est exclue de l'idempotence, qui garderait son secret en clair.
 
 **Reste à faire.** L'intégration Campaign Mailer (F-1201 à F-1209, A7). La limitation de débit n'est testée qu'avec un compteur en mémoire ; son script Redis, avec la file de politesse, attend `TEST_REDIS_URL`.
+
+---
+
+## Phase 7B : Vérification certifiée et annuaire partagé
+
+Ajoutée le 30 septembre 2026 à la demande du propriétaire (cahier des charges 6.17 et 6.18, décisions D-24 et D-25).
+
+**Objectif** : une adresse « certifiée » est une adresse dont la boîte a été confirmée ; les adresses mortes disparaissent ; un utilisateur sans fichier trouve des entreprises et leurs adresses publiques dans un annuaire commun.
+
+### Lots de travail
+
+Vérification certifiée :
+
+- Adaptateur Reacher (API hébergée, licence commerciale) derrière l'interface des vérificateurs de boîte et `paidCall` ; ordre de repli Hunter puis Reacher ; aucune connexion SMTP depuis nos serveurs (F-1701, R-14).
+  → skills : `brainstorming`, `anthropic-skills:backend-patterns`, `test-driven-development`, `security-review`
+- Correspondance des verdicts de Reacher vers les statuts de 6.7, motifs gardés (F-1702).
+  → skills : `test-driven-development`
+- Badge « certifiée » dans les vues, les exports et l'API ; filtre « certifiées seulement » (F-1703, F-1704).
+  → skills : `frontend-design`, `emil-design-eng`, `composition-patterns`, `test-driven-development`
+- Adresses non fonctionnelles écartées tout de suite, onglet « écartées », suppression définitive après 7 jours, journalisée (F-1705).
+  → skills : `test-driven-development`, `migration`, `security-review`
+- Vérification de boîte de toute la bibliothèque, dans la limite des crédits, avec estimation (F-1706).
+  → skills : `frontend-design`, `test-driven-development`
+
+Annuaire partagé :
+
+- Analyse d'impact et conditions d'utilisation mises à jour avant tout code : MailFind responsable de traitement de l'annuaire, base légale, information et opposition (R-12, R-13).
+  → skills : `security-review`, `anthropic-skills:technical-writer`, `copywriting`, `copy-editing`
+- Migrations de l'annuaire, hors des comptes (F-1801).
+  → skills : `brainstorming`, `migration`, `security-review`
+- Alimentation par les seules adresses trouvées sur une page publique, jamais le contenu privé d'un compte ni les résultats d'un fournisseur (F-1802, F-1805).
+  → skills : `test-driven-development`, `security-review`
+- Page « Annuaire » : recherche par nom, domaine, ville, secteur et type, triée par entreprise, filtre « certifiées » (F-1803).
+  → skills : `frontend-design`, `taste-skill`, `composition-patterns`, `react-best-practices`, `test-driven-development`
+- Ajout depuis l'annuaire à sa bibliothèque, avec la source d'origine (F-1804).
+  → skills : `test-driven-development`, `emil-design-eng`
+- Opposition et effacement pour tous ; plafond de consultation contre l'aspiration ; retrait après 12 mois sans revue (F-1806 à F-1808).
+  → skills : `test-driven-development`, `security-review`, `migration`
+
+### Definition of Done
+
+→ skills : `verification-before-completion`, `verify-and-stop`
+
+- Aucune adresse ne porte le badge « certifiée » sans vérification de boîte `valid` de moins de 30 jours.
+- Une adresse `invalid` ou `disposable` vérifiée est absente de la bibliothèque 7 jours plus tard, et ne figure dans aucun export entre-temps.
+- Aucune donnée privée d'un compte (fichier importé, note, étiquette, colonne libre, adresse saisie ou fournie par un fournisseur) n'apparaît dans l'annuaire : test d'intégration avec deux comptes.
+- Une demande d'effacement retire l'adresse de l'annuaire pour tous et l'empêche d'y revenir.
+
+### Risques
+
+- Licence : le code de Reacher est sous AGPL-3.0 ; un produit propriétaire ne l'utilise que sous licence commerciale ou par son API hébergée. Ne pas en copier le code.
+- Coût : la vérification de boîte est payante chez chaque fournisseur, et D-13 fixe le budget à 0 € ; le badge ne peut pas être promis à toute la bibliothèque sans budget.
+- Juridique : l'annuaire change le rôle de MailFind (responsable de traitement). Il n'ouvre pas avant l'analyse d'impact et la relecture juridique.
 
 ---
 

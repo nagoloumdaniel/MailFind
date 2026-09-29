@@ -317,6 +317,30 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 
 ---
 
+## D-24. La vérification certifiée passe par un fournisseur, Reacher compris
+
+**Décision.** Le badge « certifiée » repose sur une vérification de boîte faite par un fournisseur : Hunter aujourd'hui, Reacher par son API hébergée ensuite, derrière la même interface et le même chemin des appels payants. MailFind ne reproduit pas la vérification SMTP de `check-if-email-exists` dans son propre code.
+
+**Raison.** Cette vérification ouvre une connexion SMTP sur le port 25 vers le serveur de messagerie de chaque adresse. Railway bloque ce port sur les offres d'entrée, et sonder des serveurs depuis l'adresse de l'API la ferait inscrire sur des listes de blocage : c'est la règle « aucune connexion SMTP depuis nos serveurs » (D-09). Le code de Reacher est sous AGPL-3.0 : l'intégrer ou le recopier dans un produit propriétaire demanderait sa licence commerciale. L'appeler comme fournisseur garde les deux risques hors de MailFind.
+
+**Conséquences.** Le badge coûte une vérification par adresse ; il suit donc les crédits disponibles. Une adresse `invalid` ou `disposable` après vérification est écartée puis supprimée au bout de 7 jours (F-1705). `accept_all` et `unknown` ne sont ni certifiées ni supprimées.
+
+**Ce qui la rouvrirait.** Un hébergement dont le port 25 sortant est ouvert, avec une adresse dédiée à la réputation surveillée, et la licence commerciale de Reacher : l'auto-hébergement de son service deviendrait alors possible, toujours hors du processus de l'API.
+
+---
+
+## D-25. L'annuaire partagé ne contient que des données publiques
+
+**Décision.** L'annuaire commun (6.18) est alimenté seulement par les adresses trouvées sur une page publique du site officiel, avec leur URL. Il ne reprend jamais le contenu privé d'un compte : fichiers importés, notes, étiquettes, colonnes libres, adresses saisies à la main, adresses fournies par Hunter ou un autre fournisseur. Les adresses nominatives en sont exclues tant que l'analyse d'impact ne les admet pas. Il n'ouvre qu'après cette analyse et la mise à jour des conditions d'utilisation.
+
+**Raison.** Le propriétaire veut qu'un utilisateur sans fichier puisse puiser dans les contacts déjà connus. Partager tel quel ce que chaque utilisateur importe donnerait à un concurrent la liste de prospects d'un autre, ferait de MailFind le responsable d'une base qu'il ne maîtrise pas, et revendrait les résultats des fournisseurs contre leurs conditions (R-09). Les adresses publiées sur les sites, avec leur source, portent l'essentiel de la valeur sans ces risques.
+
+**Conséquences.** MailFind devient responsable de traitement de l'annuaire (R-13) : registre, information des personnes, opposition pour tous. Un plafond de consultation protège l'annuaire de l'aspiration.
+
+**Ce qui la rouvrirait.** Un avis juridique ou l'analyse d'impact qui admettrait d'autres données, avec le consentement explicite de l'utilisateur qui les apporte.
+
+---
+
 ## Journal des révisions
 
 | Date | Décision | Changement |
@@ -331,6 +355,7 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | 29 septembre 2026 | D-19 | Nouvelle décision : ce que porte un export, source et format Campaign Mailer compris. |
 | 29 septembre 2026 | D-20 | Nouvelle décision : exclure veut dire « hors des exports » ; F-503 tient au statut. |
 | 29 septembre 2026 | D-21 | Nouvelle décision : une page de 3 Mo au plus, au lieu des 2 Mo de F-405. |
+| 30 septembre 2026 | D-24, D-25 | Nouvelles décisions, à la demande du propriétaire : la vérification certifiée passe par un fournisseur (Reacher compris, jamais de SMTP depuis nos serveurs) ; l'annuaire partagé ne contient que des données publiques. |
 | 29 septembre 2026 | D-23 | Nouvelle décision : l'intégration Campaign Mailer attend l'API `v1` de Campaign Mailer ; la Phase 7 se clôt sans elle. |
 | 29 septembre 2026 | D-22 | Nouvelle décision : la vérification jointe par Hunter à sa recherche par domaine compte comme une vérification de boîte. |
 | 29 septembre 2026 | D-08, D-14 | Une recherche par domaine sans résultat ne compte plus dans les plafonds : Hunter ne la facture pas (documentation v2). Elle reste enregistrée et mise en cache, pour qu'un rejeu ne la refasse pas. Une réponse faite seulement de gabarits de format compte : Hunter l'a facturée. |
