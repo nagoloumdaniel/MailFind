@@ -7,6 +7,30 @@ export const notFoundHandler: RequestHandler = (_req, _res, next) => {
 };
 
 /**
+ * Les refus du lecteur de corps (body-parser) sont des fautes du client, pas
+ * des pannes : il les signale par un `type` stable.
+ */
+function erreurDeCorps(error: unknown): AppError | undefined {
+  const type = (error as { type?: unknown } | null)?.type;
+  if (type === 'entity.parse.failed') {
+    return AppError.badRequest(
+      'invalid_json',
+      'Corps illisible',
+      "Le corps n'est pas un JSON valide.",
+    );
+  }
+  if (type === 'entity.too.large') {
+    return new AppError({
+      status: 413,
+      code: 'payload_too_large',
+      title: 'Corps trop volumineux',
+      detail: 'Le corps de la requete depasse la taille admise pour cette route.',
+    });
+  }
+  return undefined;
+}
+
+/**
  * Dernier maillon de la chaine. Une erreur inattendue ne sort jamais telle
  * quelle : son message peut contenir une chaine de connexion, un jeton ou une
  * adresse (S-03). Elle est journalisee en entier, et rendue en « erreur
@@ -19,12 +43,13 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   const appError =
     error instanceof AppError
       ? error
-      : new AppError({
+      : (erreurDeCorps(error) ??
+        new AppError({
           status: 500,
           code: 'internal_error',
           title: 'Erreur interne',
           detail: "La requete n'a pas pu aboutir. L'incident a ete enregistre.",
-        });
+        }));
 
   if (appError.status >= 500) {
     req.log.error({ err: error }, 'requete en echec');

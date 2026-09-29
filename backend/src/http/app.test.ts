@@ -56,6 +56,27 @@ describe('en-tetes', () => {
   });
 });
 
+describe('corps de requete illisible', () => {
+  it('repond 400 a un JSON mal forme, pas 500', async () => {
+    const response = await request(app)
+      .post('/api/imports')
+      .set('content-type', 'application/json')
+      .send('{"nom": ');
+    expect(response.status).toBe(400);
+    expect(response.body.code).toBe('invalid_json');
+    expect(response.headers['content-type']).toContain('application/problem+json');
+  });
+
+  it('repond 413 a un corps trop volumineux', async () => {
+    const response = await request(app)
+      .post('/api/imports')
+      .set('content-type', 'application/json')
+      .send(JSON.stringify({ texte: 'a'.repeat(1_100_000) }));
+    expect(response.status).toBe(413);
+    expect(response.body.code).toBe('payload_too_large');
+  });
+});
+
 describe('route inconnue', () => {
   it('repond 404 au format problem+json', async () => {
     const response = await request(app).get('/route-qui-nexiste-pas');
