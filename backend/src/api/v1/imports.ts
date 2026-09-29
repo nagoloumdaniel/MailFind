@@ -17,6 +17,7 @@ import {
 import { submitImport } from '../../imports/submit.js';
 import { cursorCondition, cursorOrder, parsePageParams, toPage } from '../pagination.js';
 import { parseCsv } from './csv.js';
+import { pathId } from './params.js';
 import {
   COMPANY_COLUMNS,
   emailsOfCompanies,
@@ -40,6 +41,17 @@ const valeur = z.union([
   z.null(),
 ]);
 
+/** Les reglages d'un import tels que l'API les recoit, en snake_case. */
+export const apiSettingsSchema = z
+  .object({
+    depth: z.enum(CRAWL_DEPTHS).optional(),
+    email_types: z.array(z.enum(EMAIL_TYPES)).optional(),
+    providers: z.array(z.enum(PROVIDERS)).optional(),
+    mailbox_check: z.enum(MAILBOX_CHECKS).optional(),
+    tags: z.array(z.string()).optional(),
+  })
+  .strict();
+
 const creationSchema = z
   .object({
     name: z.string().trim().min(1).max(255).optional(),
@@ -49,20 +61,9 @@ const creationSchema = z
       .max(MAX_ROWS)
       .optional(),
     csv: z.string().max(MAX_CSV).optional(),
-    settings: z
-      .object({
-        depth: z.enum(CRAWL_DEPTHS).optional(),
-        email_types: z.array(z.enum(EMAIL_TYPES)).optional(),
-        providers: z.array(z.enum(PROVIDERS)).optional(),
-        mailbox_check: z.enum(MAILBOX_CHECKS).optional(),
-        tags: z.array(z.string()).optional(),
-      })
-      .strict()
-      .optional(),
+    settings: apiSettingsSchema.optional(),
   })
   .strict();
-
-type Creation = z.infer<typeof creationSchema>;
 
 interface Tableau {
   readonly headers: string[];
@@ -114,7 +115,8 @@ function depuisCsv(texte: string): Tableau {
   };
 }
 
-function reglages(brut: Creation['settings']) {
+/** Les reglages d'un import en snake_case, traduits vers ceux de l'interface. */
+export function reglages(brut: z.infer<typeof apiSettingsSchema> | undefined) {
   const r = brut ?? {};
   const lu = importSettingsSchema.safeParse({
     ...(r.depth === undefined ? {} : { depth: r.depth }),
@@ -133,13 +135,9 @@ function reglages(brut: Creation['settings']) {
   return lu.data;
 }
 
-/** Un parametre de chemin, ou rien s'il n'est pas une simple chaine. */
-function identifiant(valeur: unknown): string {
-  return typeof valeur === 'string' ? valeur : '';
-}
-
-async function importDuCompte(userId: string, id: string) {
-  const resume = z.uuid().safeParse(id).success ? await findImport(userId, id) : undefined;
+async function importDuCompte(userId: string, brut: unknown) {
+  const id = pathId(brut);
+  const resume = id === undefined ? undefined : await findImport(userId, id);
   // 404 et non 403 : un import d'un autre compte n'existe pas (S-04).
   if (resume === undefined) throw AppError.notFound("Cet import n'existe pas.");
   return resume;
@@ -185,7 +183,7 @@ export function registerImports(router: Router): void {
     '/imports/:id',
     requireScope('companies:read'),
     withUser(async (req, res, user) => {
-      const resume = await importDuCompte(user.id, identifiant(req.params.id));
+      const resume = await importDuCompte(user.id, req.params.id);
       res.json({
         import: serializeImport(resume),
         progress: serializeProgress(await importProgress(user.id, resume.id)),
@@ -198,7 +196,7 @@ export function registerImports(router: Router): void {
     '/imports/:id/results',
     requireScope('companies:read'),
     withUser(async (req, res, user) => {
-      const resume = await importDuCompte(user.id, identifiant(req.params.id));
+      const resume = await importDuCompte(user.id, req.params.id);
       const { limit, cursor } = parsePageParams(req.query);
       const entreprises = await query<ApiCompany>(
         `select ${COMPANY_COLUMNS}
@@ -227,7 +225,7 @@ export function registerImports(router: Router): void {
     '/imports/:id/cancel',
     requireScope('imports:write'),
     withUser(async (req, res, user) => {
-      const resume = await importDuCompte(user.id, identifiant(req.params.id));
+      const resume = await importDuCompte(user.id, req.params.id);
       if (!(await cancelImport(user.id, resume.id))) {
         throw new AppError({
           status: 409,

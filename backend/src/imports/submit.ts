@@ -21,7 +21,16 @@ export interface ImportSubmission {
   readonly settings: ImportSettings;
 }
 
-export async function submitImport(submission: ImportSubmission): Promise<ImportSummary> {
+export async function submitImport(
+  submission: ImportSubmission,
+  options: {
+    /**
+     * Faux quand l'appelant planifie lui-meme l'import avant de le mettre en
+     * file : la tache ne fera plus que lancer le pipeline.
+     */
+    readonly enqueue?: boolean;
+  } = {},
+): Promise<ImportSummary> {
   const { userId, filename, headers, mapping, rows, settings } = submission;
 
   if (mapping.length !== headers.length) {
@@ -64,7 +73,7 @@ export async function submitImport(submission: ImportSubmission): Promise<Import
     rows: preparees,
   });
 
-  await enqueueImportPlan({ importId: resume.id, userId });
+  if (options.enqueue !== false) await enqueueImportPlan({ importId: resume.id, userId });
 
   await recordAuditEvent({
     userId,

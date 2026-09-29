@@ -110,7 +110,13 @@ export function createApp(options: AppOptions = {}): Express {
 
   // L'API publique avant la session et le jeton CSRF : un programme qui
   // l'appelle n'a ni cookie ni formulaire, seulement sa cle.
-  app.use('/v1', createV1Router(options.v1));
+  app.use(
+    '/v1',
+    createV1Router({
+      ...options.v1,
+      ...(options.enqueue === undefined ? {} : { enqueue: options.enqueue }),
+    }),
+  );
 
   // Avant toute route : `/health` n'a pas besoin de session, mais la poser ici
   // garde un seul ordre de middlewares a comprendre.

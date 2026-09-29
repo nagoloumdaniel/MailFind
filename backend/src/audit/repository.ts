@@ -21,6 +21,9 @@ export type AuditAction =
   | 'company.updated'
   | 'company.domain_corrected'
   | 'company.merged'
+  | 'company.created'
+  | 'company.deleted'
+  | 'company.recrawl_requested'
   | 'export.created'
   | 'api_key.created'
   | 'api_key.revoked';

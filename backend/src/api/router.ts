@@ -5,6 +5,8 @@ import { getEnvironment } from '../config/env.js';
 import { requireAcceptedTerms } from '../http/middleware/require-terms.js';
 import { notFoundHandler } from '../http/middleware/error-handler.js';
 import { getLogger } from '../observability/logger.js';
+import type { Enqueue } from '../pipeline/start.js';
+import { enqueueCompanyStep } from '../queue/queues.js';
 import { idempotency } from './idempotency.js';
 import { registerV1Routes } from './v1/index.js';
 import { importBodyParser } from './v1/imports.js';
@@ -13,6 +15,8 @@ import { createRedisRateLimitStore, rateLimit, type RateLimitStore } from './rat
 export interface V1Options {
   /** Le compteur de debit ; Redis par defaut, la memoire dans les tests. */
   readonly rateLimitStore?: RateLimitStore;
+  /** La file des etapes par entreprise ; celle de BullMQ par defaut. */
+  readonly enqueue?: Enqueue;
   /** Pour les tests : des routes montees apres les conventions communes. */
   readonly register?: (router: Router) => void;
 }
@@ -61,7 +65,7 @@ export function createV1Router(options: V1Options = {}): Router {
   });
   router.use(idempotency());
 
-  registerV1Routes(router);
+  registerV1Routes(router, { enqueue: options.enqueue ?? enqueueCompanyStep });
   options.register?.(router);
 
   // Une route inconnue s'arrete ici, sans descendre vers la session.
