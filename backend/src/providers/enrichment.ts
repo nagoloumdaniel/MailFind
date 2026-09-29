@@ -35,6 +35,11 @@ export interface DomainSearchResult {
    */
   readonly pattern?: string;
   readonly emails: readonly ProviderEmail[];
+  /**
+   * Le fournisseur a-t-il facture la recherche ? Hunter ne compte que celles
+   * qui rendent au moins un resultat. Absent, elle est reputee facturee.
+   */
+  readonly charged?: boolean;
 }
 
 export interface EnrichmentProvider {

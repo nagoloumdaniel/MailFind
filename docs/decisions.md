@@ -320,4 +320,5 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | 29 septembre 2026 | D-20 | Nouvelle décision : exclure veut dire « hors des exports » ; F-503 tient au statut. |
 | 29 septembre 2026 | D-21 | Nouvelle décision : une page de 3 Mo au plus, au lieu des 2 Mo de F-405. |
 | 29 septembre 2026 | D-22 | Nouvelle décision : la vérification jointe par Hunter à sa recherche par domaine compte comme une vérification de boîte. |
+| 29 septembre 2026 | D-08, D-14 | Une recherche par domaine sans résultat ne compte plus dans les plafonds : Hunter ne la facture pas (documentation v2). Elle reste enregistrée et mise en cache, pour qu'un rejeu ne la refasse pas. Une réponse faite seulement de gabarits de format compte : Hunter l'a facturée. |
 | 28 septembre 2026 | D-14 | Les vérifications de boîte se comptent en crédits : quatre par compte et par mois valent deux crédits (`QUOTA_MAILBOX_VERIFICATIONS_PER_USER_PER_MONTH`), sur les vingt réservés à la vérification (`HUNTER_MONTHLY_VERIFICATION_CREDITS`). Un appel en échec n'est pas facturé et ne compte pas. |

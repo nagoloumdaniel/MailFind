@@ -51,6 +51,15 @@ const REPONSES: Record<string, { status: number; corps?: unknown }> = {
     },
   },
   'vide.fr': { status: 200, corps: { data: { domain: 'vide.fr', pattern: null, emails: [] } } },
+  'gabarits.fr': {
+    status: 200,
+    corps: {
+      data: {
+        domain: 'gabarits.fr',
+        emails: [{ value: 'flast@gabarits.fr', type: 'personal', sources: [] }],
+      },
+    },
+  },
   'refuse.fr': { status: 451, corps: { errors: [{ id: 'unavailable_for_legal_reasons' }] } },
   'quota.fr': { status: 429, corps: { errors: [{ id: 'too_many_requests' }] } },
   'debit.fr': { status: 403, corps: { errors: [{ id: 'restricted_account' }] } },
@@ -110,6 +119,7 @@ describe('createHunter (F-602)', () => {
     expect(resultat).toEqual({
       domain: 'acme.fr',
       pattern: '{first}.{last}',
+      charged: true,
       emails: [
         {
           address: 'jean.dupont@acme.fr',
@@ -141,6 +151,11 @@ describe('createHunter (F-602)', () => {
     ]);
   });
 
+  it('dit facturee une recherche qui ne rend que des gabarits, que Hunter compte quand meme', async () => {
+    const resultat = await hunter().domainSearch('gabarits.fr');
+    expect(resultat).toMatchObject({ emails: [], charged: true });
+  });
+
   it('passe la cle dans un en-tete, jamais dans l URL (S-03)', async () => {
     await hunter().domainSearch('acme.fr');
     const derniere = recues.at(-1);
@@ -150,7 +165,12 @@ describe('createHunter (F-602)', () => {
   });
 
   it('rend une liste vide pour un domaine sans adresse connue', async () => {
-    expect(await hunter().domainSearch('vide.fr')).toEqual({ domain: 'vide.fr', emails: [] });
+    // Hunter ne facture qu'une recherche qui rend au moins un resultat.
+    expect(await hunter().domainSearch('vide.fr')).toEqual({
+      domain: 'vide.fr',
+      charged: false,
+      emails: [],
+    });
   });
 
   it('classe chaque refus pour que le pipeline sache quoi en faire (F-606)', async () => {

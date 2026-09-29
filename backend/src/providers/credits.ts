@@ -121,14 +121,18 @@ export async function settleCall(
   id: string,
   issue: 'confirmed' | 'cached' | 'failed',
   error?: string,
+  options: { readonly free?: boolean } = {},
 ): Promise<void> {
-  // Un appel repondu par le cache ou refuse ne consomme rien.
+  // Un appel repondu par le cache ou refuse ne consomme rien, ni un appel
+  // fait que le fournisseur n'a pas facture : il reste « confirme », pour
+  // qu'un rejeu ne le refasse pas.
   await query(
     `update provider_calls
         set status = $2::provider_call_status, settled_at = now(), error = $3,
-            credits = case when $2::provider_call_status = 'confirmed' then credits else 0 end
+            credits = case when $2::provider_call_status = 'confirmed' and not $4
+                           then credits else 0 end
       where id = $1 and status = 'reserved'`,
-    [id, issue, error ?? null],
+    [id, issue, error ?? null, options.free === true],
   );
 }
 
@@ -218,6 +222,8 @@ export async function paidCall<T>(options: {
   /** Present, la reponse est chiffree au cache (F-604). */
   readonly cipher?: Cipher;
   readonly call: () => Promise<T>;
+  /** Vrai quand le fournisseur n'a pas facture cette reponse : reglee a zero. */
+  readonly isFree?: (value: T) => boolean;
 }): Promise<PaidCallOutcome<T>> {
   const { scope, cipher } = options;
   const lire = () =>
@@ -260,8 +266,9 @@ export async function paidCall<T>(options: {
         options.ttlDays,
       );
     }
-    await settleCall(reservation.id, 'confirmed');
-    return { kind: 'ok', value, paid: true };
+    const gratuit = options.isFree?.(value) === true;
+    await settleCall(reservation.id, 'confirmed', undefined, { free: gratuit });
+    return { kind: 'ok', value, paid: !gratuit };
   } catch (error) {
     await settleCall(
       reservation.id,

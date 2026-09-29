@@ -151,6 +151,42 @@ describe('paidCall, la regle des appels payants de bout en bout', () => {
     expect(lignes.rows).toEqual([{ status: 'confirmed', credits: '1.00' }]);
   });
 
+  it('ne compte pas un appel que le fournisseur ne facture pas, sans le refaire au rejeu', async () => {
+    const limites = { perUserMonthly: 1, globalMonthly: 30 };
+    let appels = 0;
+    const vide = () => {
+      appels += 1;
+      return Promise.resolve({ emails: [] as string[], charged: false });
+    };
+    const options = {
+      limits: limites,
+      cacheKey: 'vide.fr',
+      ttlDays: 30,
+      cipher: chiffreur,
+      call: vide,
+      isFree: (reponse: { charged: boolean }) => !reponse.charged,
+    };
+
+    expect(await paidCall({ scope: hunter('import-1:vide'), ...options })).toMatchObject({
+      kind: 'ok',
+      paid: false,
+    });
+    const lignes = await query<{ status: string; credits: string }>(
+      'select status::text as status, credits::text as credits from provider_calls',
+    );
+    expect(lignes.rows).toEqual([{ status: 'confirmed', credits: '0.00' }]);
+
+    // Le plafond d'un credit reste entier pour une recherche facturee.
+    expect((await reserveCall(hunter('import-1:acme'), limites)).kind).toBe('reserved');
+    // Rejouee, la recherche vide est relue du cache, pas refaite.
+    await query('truncate provider_cache');
+    expect(await paidCall({ scope: hunter('import-1:vide'), ...options })).toEqual({
+      kind: 'skipped',
+      reason: 'already_settled',
+    });
+    expect(appels).toBe(1);
+  });
+
   it('un import rejoue apres une coupure ne paie pas deux fois (A5, DoD Phase 4)', async () => {
     // Premiere execution : credit reserve, puis le processus meurt avant
     // d'avoir regle l'appel.

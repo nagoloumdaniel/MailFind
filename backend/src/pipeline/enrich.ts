@@ -274,6 +274,9 @@ export async function enrichStep(deps: EnrichDeps, job: CompanyJob): Promise<voi
       ttlDays: CACHE_JOURS,
       cipher: deps.cipher,
       call: () => fournisseur.domainSearch(domaine),
+      // Hunter ne facture pas une recherche sans resultat : elle ne doit pas
+      // manger le plafond du compte.
+      isFree: (reponse) => reponse.charged === false,
     });
 
     if (issue.kind === 'skipped') {

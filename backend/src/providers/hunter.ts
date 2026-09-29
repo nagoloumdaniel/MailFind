@@ -141,6 +141,9 @@ export function createHunter(options: {
       return {
         domain: data.domain ?? domain,
         ...(data.pattern ? { pattern: data.pattern } : {}),
+        // Sur la reponse brute : des gabarits ecartes ici sont des resultats
+        // pour Hunter, qui a facture.
+        charged: data.emails.length > 0,
         emails: data.emails
           .map(versAdresse)
           .filter((email): email is ProviderEmail => email !== undefined),
