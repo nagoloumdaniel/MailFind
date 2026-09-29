@@ -61,7 +61,9 @@ export function MultiFilter<T extends string>({
           ▾
         </span>
       </summary>
-      <fieldset className="absolute left-0 z-20 mt-1 w-60 rounded-md border border-line bg-surface p-2 shadow-lg">
+      {/* Sur un telephone, le menu occupe la largeur de l'ecran : ancre sous un
+          filtre place a droite, il en sortirait. */}
+      <fieldset className="fixed inset-x-4 z-20 mt-1 rounded-md border border-line bg-surface p-2 shadow-lg sm:absolute sm:inset-x-auto sm:left-0 sm:w-60">
         <legend className="sr-only">{label}</legend>
         {options.map((option) => (
           <label

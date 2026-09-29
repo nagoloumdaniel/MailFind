@@ -68,7 +68,9 @@
 
   --text: #111c30;
   --text-soft: #40506b;
-  --text-faint: #6c7a92;
+  /* Assombri de #6c7a92 : 3,76:1 sur le fond de page, sous le seuil AA de
+     4,5:1 pour du texte courant (F-1009). */
+  --text-faint: #5b6882;
   --text-inverse: #ffffff;
 
   /* Vert profond et non vif : il doit tenir un texte blanc a 4,5 pour 1. */

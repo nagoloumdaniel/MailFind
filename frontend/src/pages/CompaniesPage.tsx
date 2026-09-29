@@ -394,7 +394,7 @@ export function CompaniesPage() {
                 </Button>
                 <button
                   type="button"
-                  className="ml-1 text-accent underline"
+                  className="ml-1 text-accent-strong underline"
                   onClick={() => {
                     setSelection({ cle, ids: new Set() });
                   }}

@@ -432,7 +432,7 @@ export function ContactsPage() {
                         <td className="px-4 py-2 text-right">
                           <button
                             type="button"
-                            className="text-sm text-accent underline"
+                            className="inline-flex min-h-6 items-center text-sm text-accent underline"
                             aria-label={`Modifier ${contact.address}`}
                             onClick={() => {
                               setMessage(undefined);
@@ -443,7 +443,7 @@ export function ContactsPage() {
                           </button>
                           <button
                             type="button"
-                            className="ml-3 text-sm text-negative underline"
+                            className="ml-3 inline-flex min-h-6 items-center text-sm text-negative underline"
                             aria-label={`Supprimer ${contact.address}`}
                             onClick={() => {
                               setMessage(undefined);

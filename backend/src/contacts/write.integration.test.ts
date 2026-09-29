@@ -390,3 +390,45 @@ describe('POST /api/contacts/bulk (F-1005)', () => {
     expect((await post('/api/contacts/bulk', { action: 'verify', ids: trop })).status).toBe(400);
   });
 });
+
+describe('page Contacts sur mille adresses (DoD Phase 6)', () => {
+  it('cree, modifie, trie, cherche, pagine et supprime', async () => {
+    const { post, patch } = await agentAvecJeton();
+    const entreprise = await query<{ id: string }>(
+      `insert into companies (user_id, name, normalized_name, domain) values ($1, 'Acme', 'acme', 'acme.fr') returning id`,
+      [userId],
+    );
+    await query(
+      `with e as (
+         insert into emails (company_id, user_id, address, normalized_address, local_part, type, origin, score)
+         select $1, $2, 'a' || n || '@acme.fr', 'a' || n || '@acme.fr', 'a' || n, 'generic', 'found', n % 100
+           from generate_series(1, 1000) n returning id)
+       insert into email_sources (email_id, kind) select id, 'deduction' from e`,
+      [entreprise.rows[0]?.id, userId],
+    );
+    const total = async () => (await request(app).get('/api/contacts')).body.total as number;
+    expect(await total()).toBe(1000);
+
+    const cree = await post('/api/contacts', {
+      address: 'recrutement@acme.fr',
+      companyId: entreprise.rows[0]?.id,
+      contactName: 'Service recrutement',
+    });
+    expect(cree.status).toBe(201);
+    expect(await total()).toBe(1001);
+
+    const id = cree.body.contact.id as string;
+    await patch(`/api/contacts/${id}`, { contactName: 'Zoe Zimmer' });
+    const parNom = await request(app).get('/api/contacts?sort=name&dir=desc&pageSize=25');
+    expect(parNom.body.contacts[0]).toMatchObject({ id, contactName: 'Zoe Zimmer' });
+
+    const trouve = await request(app).get('/api/contacts?q=zimmer');
+    expect(trouve.body.total).toBe(1);
+    const derniere = await request(app).get('/api/contacts?pageSize=100&page=11');
+    expect(derniere.body.contacts).toHaveLength(1);
+
+    await post('/api/contacts/delete', { ids: [id] });
+    expect(await total()).toBe(1000);
+    expect((await request(app).get('/api/contacts?q=zimmer')).body.total).toBe(0);
+  });
+});

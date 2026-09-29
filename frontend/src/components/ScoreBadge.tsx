@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { formatPoints, readBreakdown, SCORE_CRITERION_LABELS, scoreTone } from '../lib/score';
 
 const TONS = {
-  high: 'border-accent bg-accent/10 text-accent',
+  high: 'border-accent bg-accent/10 text-accent-strong',
   medium: 'border-caution/60 text-caution',
   low: 'border-line-strong text-text-soft',
 } as const;

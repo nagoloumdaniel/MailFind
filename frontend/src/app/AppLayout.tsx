@@ -33,6 +33,13 @@ export function AppLayout() {
   const [menu, setMenu] = useState(false);
   return (
     <div className="flex min-h-screen flex-col">
+      {/* WCAG 2.4.1 : au clavier, sept onglets a traverser avant chaque page. */}
+      <a
+        href="#contenu"
+        className="sr-only z-30 rounded-sm bg-surface px-3 py-2 text-sm text-text focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+      >
+        Aller au contenu
+      </a>
       <header className="relative border-b border-line bg-surface">
         {/* Sur un telephone, les onglets passent dans un menu : cinq ne
             tiennent pas sur 360 pixels, et une barre qui defile de cote cache
@@ -93,7 +100,11 @@ export function AppLayout() {
         )}
       </header>
 
-      <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-8">
+      <main
+        id="contenu"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-8 focus:outline-none"
+      >
         <Outlet />
       </main>
 

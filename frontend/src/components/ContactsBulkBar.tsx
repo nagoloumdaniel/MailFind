@@ -137,7 +137,7 @@ export function ContactsBulkBar({
         <Button tone="danger" disabled={envoi} onClick={onDelete}>
           Supprimer
         </Button>
-        <button type="button" className="ml-1 text-accent underline" onClick={onClear}>
+        <button type="button" className="ml-1 text-accent-strong underline" onClick={onClear}>
           Deselectionner
         </button>
       </div>

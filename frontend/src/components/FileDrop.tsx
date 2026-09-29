@@ -59,6 +59,7 @@ export function FileDrop({
         type="file"
         accept={accept}
         className="sr-only"
+        aria-label="Fichier CSV a importer"
         onChange={(event) => {
           const fichier = event.target.files?.[0];
           if (fichier) onFile(fichier);

@@ -107,6 +107,7 @@ export function VerifyPage() {
           type="file"
           accept=".csv,.tsv,.txt,text/csv,text/plain"
           className="sr-only"
+          aria-label="Fichier CSV d'adresses"
           onChange={(event) => {
             const choisi = event.target.files?.[0];
             if (choisi) void lireFichier(choisi);
