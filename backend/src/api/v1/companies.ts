@@ -18,7 +18,7 @@ import { apiSettingsSchema, reglages } from './imports.js';
 import { pathId } from './params.js';
 import { COMPANY_COLUMNS, emailsOfCompanies, type ApiCompany } from './serialize.js';
 
-const filtresSchema = z.object({
+export const companyFiltersSchema = z.object({
   q: z.string().trim().max(200).optional(),
   domain: z.string().trim().toLowerCase().max(253).optional(),
   city: z.string().trim().max(200).optional(),
@@ -30,7 +30,7 @@ const filtresSchema = z.object({
 
 /** Les champs d'une entreprise creee par l'API : ceux d'une ligne d'import (6.2). */
 const champ = z.string().trim().max(2000).optional();
-const creationSchema = z
+export const companyCreationSchema = z
   .object({
     company_name: champ,
     domain: champ,
@@ -72,7 +72,7 @@ export function registerCompanies(router: Router, enqueue: Enqueue): void {
     requireScope('companies:read'),
     withUser(async (req, res, user) => {
       const { limit, cursor } = parsePageParams(req.query);
-      const lu = filtresSchema.safeParse(req.query);
+      const lu = companyFiltersSchema.safeParse(req.query);
       if (!lu.success) {
         throw AppError.badRequest('invalid_filter', 'Filtre refuse', lu.error.issues[0]?.message);
       }
@@ -122,7 +122,7 @@ export function registerCompanies(router: Router, enqueue: Enqueue): void {
     '/companies',
     requireScope('companies:write'),
     withUser(async (req, res, user) => {
-      const lu = creationSchema.safeParse(req.body);
+      const lu = companyCreationSchema.safeParse(req.body);
       if (!lu.success) {
         throw AppError.badRequest(
           'invalid_company',

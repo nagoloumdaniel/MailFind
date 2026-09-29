@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { Link } from 'react-router';
 import { ApiError } from '../lib/api';
 import {
   API_SCOPES,
@@ -86,7 +87,11 @@ export function ApiKeys() {
       <p className="mt-2 text-sm text-text-soft">
         Une cle permet a une autre application d&apos;utiliser MailFind en votre nom, dans les
         limites des portees choisies. Donnez-lui seulement ce dont elle a besoin, et revoquez-la des
-        qu&apos;elle ne sert plus.
+        qu&apos;elle ne sert plus.{' '}
+        <Link to="/documentation-api" className="text-accent underline">
+          Lire la documentation de l&apos;API
+        </Link>
+        .
       </p>
 
       {secret !== undefined && (

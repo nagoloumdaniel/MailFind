@@ -2,6 +2,7 @@
 import { AppLayout } from './AppLayout';
 import { RequireSession } from './RequireSession';
 import { AccountPage } from '../pages/AccountPage';
+import { ApiDocsPage } from '../pages/ApiDocsPage';
 import { CompaniesPage } from '../pages/CompaniesPage';
 import { CompanyPage } from '../pages/CompanyPage';
 import { ExportsPage } from '../pages/ExportsPage';
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
           { path: '/verifier', element: <VerifyPage /> },
           { path: '/conditions', element: <TermsPage /> },
           { path: '/compte', element: <AccountPage /> },
+          { path: '/documentation-api', element: <ApiDocsPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

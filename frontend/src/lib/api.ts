@@ -7,6 +7,11 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 const CSRF_COOKIE = 'mailfind.csrf';
 
+/** L'adresse complete d'un chemin de l'API, pour un lien que le navigateur suit lui-meme. */
+export function apiUrl(path: string): string {
+  return `${BASE_URL}${path}`;
+}
+
 export interface Problem {
   type: string;
   title: string;

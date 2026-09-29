@@ -11,7 +11,7 @@ import { enqueueImportPlan } from '../../queue/queues.js';
 import { apiSettingsSchema, reglages } from './imports.js';
 import { COMPANY_COLUMNS, emailsOfCompanies, type ApiCompany } from './serialize.js';
 
-const rechercheSchema = z
+export const findSchema = z
   .object({
     name: z.string().trim().min(1).max(300).optional(),
     domain: z.string().trim().min(1).max(300).optional(),
@@ -66,7 +66,7 @@ export function registerFind(router: Router): void {
     '/find',
     requireScope('imports:write'),
     withUser(async (req, res, user) => {
-      const lu = rechercheSchema.safeParse(req.body);
+      const lu = findSchema.safeParse(req.body);
       if (!lu.success) {
         throw AppError.badRequest(
           'invalid_find',

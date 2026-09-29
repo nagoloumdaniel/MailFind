@@ -52,7 +52,7 @@ export const apiSettingsSchema = z
   })
   .strict();
 
-const creationSchema = z
+export const importCreationSchema = z
   .object({
     name: z.string().trim().min(1).max(255).optional(),
     companies: z
@@ -148,7 +148,7 @@ export function registerImports(router: Router): void {
     '/imports',
     requireScope('imports:write'),
     withUser(async (req, res, user) => {
-      const lu = creationSchema.safeParse(req.body);
+      const lu = importCreationSchema.safeParse(req.body);
       if (!lu.success || (lu.data.companies === undefined) === (lu.data.csv === undefined)) {
         throw AppError.badRequest(
           'invalid_import',

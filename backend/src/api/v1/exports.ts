@@ -16,7 +16,7 @@ import { pathId } from './params.js';
 
 const ids = z.array(z.uuid()).min(1).max(10_000);
 
-const creationSchema = z
+export const exportCreationSchema = z
   .object({
     format: z.enum(EXPORT_FORMATS),
     scope: z
@@ -34,7 +34,7 @@ const creationSchema = z
   })
   .strict();
 
-function versDemande(corps: z.infer<typeof creationSchema>): ExportRequest {
+function versDemande(corps: z.infer<typeof exportCreationSchema>): ExportRequest {
   const s = corps.scope;
   const scope: ExportRequest['scope'] =
     s.kind === 'import'
@@ -84,7 +84,7 @@ export function registerExports(
     '/exports',
     requireScope('exports:write'),
     withUser(async (req, res, user) => {
-      const lu = creationSchema.safeParse(req.body);
+      const lu = exportCreationSchema.safeParse(req.body);
       if (!lu.success) {
         throw AppError.badRequest(
           'invalid_export',

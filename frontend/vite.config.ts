@@ -13,6 +13,11 @@ export default defineConfig({
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
+      // L'API publique, dont la page de documentation lit le document OpenAPI.
+      '/v1': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
     },
   },
   build: {

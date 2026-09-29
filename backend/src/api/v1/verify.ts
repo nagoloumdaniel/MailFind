@@ -17,7 +17,7 @@ import {
 } from '../../verification/runs.js';
 import { pathId } from './params.js';
 
-const listeSchema = z
+export const verifyListSchema = z
   .object({ addresses: z.array(z.string().max(320)).min(1).max(RUN_MAX) })
   .strict();
 
@@ -50,7 +50,7 @@ export function registerVerify(router: Router, options: { dns?: MailDns } = {}):
     '/verify',
     requireScope('verify'),
     withUser(async (req, res, user) => {
-      const lu = listeSchema.safeParse(req.body);
+      const lu = verifyListSchema.safeParse(req.body);
       if (!lu.success) {
         throw AppError.badRequest(
           'invalid_address_list',

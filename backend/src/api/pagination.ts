@@ -29,7 +29,7 @@ const curseurSchema = z.object({
   id: z.uuid(),
 });
 
-const parametresSchema = z.object({
+export const pageParamsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
   cursor: z.string().max(500).optional(),
 });
@@ -55,7 +55,7 @@ function decodeCursor(brut: string): Cursor {
 }
 
 export function parsePageParams(query: unknown): PageParams {
-  const lu = parametresSchema.safeParse(query);
+  const lu = pageParamsSchema.safeParse(query);
   if (!lu.success) {
     throw AppError.badRequest(
       'invalid_limit',

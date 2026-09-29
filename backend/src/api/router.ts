@@ -12,6 +12,7 @@ import { enqueueCompanyStep, enqueueExportBuild } from '../queue/queues.js';
 import { createR2Storage, type ExportStorage } from '../exports/storage.js';
 import type { MailDns } from '../verification/local.js';
 import { idempotency } from './idempotency.js';
+import { buildOpenApiDocument } from './openapi/document.js';
 import { registerV1Routes } from './v1/index.js';
 import { importBodyParser } from './v1/imports.js';
 import { createRedisRateLimitStore, rateLimit, type RateLimitStore } from './rate-limit.js';
@@ -57,6 +58,15 @@ function compteurParDefaut(): RateLimitStore {
 export function createV1Router(options: V1Options = {}): Router {
   const router = Router();
   const environment = getEnvironment();
+
+  // Le document se lit sans cle : on doit pouvoir decouvrir l'API avant d'y
+  // avoir un compte. Construit une fois, au premier appel.
+  let document: object | undefined;
+  router.get('/openapi.json', (_req, res) => {
+    document ??= buildOpenApiDocument(environment.API_URL);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.json(document);
+  });
 
   router.use(requireApiKey(), requireAcceptedTerms);
   router.use(
