@@ -64,7 +64,9 @@ describe('GET /api/dashboard (F-1001)', () => {
       `insert into provider_calls (user_id, provider, operation, idempotency_key, status, credits)
        values ($1, 'hunter', 'verification', 'k1', 'confirmed', 0.5),
               ($1, 'hunter', 'verification', 'k2', 'failed', 0),
-              ($1, 'brave', 'web_search', 'k3', 'confirmed', 1)`,
+              ($1, 'brave', 'web_search', 'k3', 'confirmed', 1),
+              -- Recherche vide, que Hunter ne facture pas : reglee a zero.
+              ($1, 'hunter', 'domain_search', 'k4', 'confirmed', 0)`,
       [userId],
     );
     const autre = await createUser();
@@ -84,6 +86,7 @@ describe('GET /api/dashboard (F-1001)', () => {
     });
     expect(reponse.body.credits).toEqual([
       { provider: 'brave', operation: 'web_search', used: 1, limit: 80 },
+      // La recherche reglee a zero ne compte pas : reserveCall ne la compte pas.
       { provider: 'hunter', operation: 'domain_search', used: 0, limit: 3 },
       // L'appel en echec n'a rien coute et ne compte pas.
       { provider: 'hunter', operation: 'verification', used: 1, limit: 4 },
