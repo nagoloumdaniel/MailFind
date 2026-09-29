@@ -21,7 +21,9 @@ export type AuditAction =
   | 'company.updated'
   | 'company.domain_corrected'
   | 'company.merged'
-  | 'export.created';
+  | 'export.created'
+  | 'api_key.created'
+  | 'api_key.revoked';
 
 export interface AuditEvent {
   readonly userId: string | null;

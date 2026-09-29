@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { recordAuditEvent } from '../audit/repository.js';
+import { listApiKeys } from '../api-keys/repository.js';
 import { query } from '../db/pool.js';
 import { requireAuth, unauthenticated } from '../http/middleware/require-auth.js';
 import { AppError } from '../http/problem.js';
@@ -89,6 +90,9 @@ export function createAccountRouter(): Router {
           [user.id],
         );
 
+        // Ce que la page Compte montre d'une cle, jamais son empreinte.
+        const apiKeys = await listApiKeys(user.id);
+
         const lignesParImport = new Map<string, object[]>();
         for (const ligne of lignes.rows) {
           const liste = lignesParImport.get(ligne.import_id) ?? [];
@@ -137,6 +141,7 @@ export function createAccountRouter(): Router {
             rows: lignesParImport.get(importe.id) ?? [],
           })),
           companies: companies.rows,
+          apiKeys,
           // Les adresses et leurs sources arrivent avec les phases qui les
           // creent. Les declarer vides ici plutot que de les taire evite un
           // export qui aurait l'air complet sans l'etre.

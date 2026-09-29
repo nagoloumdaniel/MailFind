@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react';
 import { useNavigate } from 'react-router';
+import { ApiKeys } from '../components/ApiKeys';
 import { Button } from '../components/Button';
 import { SuppressionList } from '../components/SuppressionList';
 import { ApiError, apiFetch } from '../lib/api';
@@ -85,6 +86,8 @@ export function AccountPage() {
           </a>
         </div>
       </section>
+
+      <ApiKeys />
 
       <SuppressionList />
 
