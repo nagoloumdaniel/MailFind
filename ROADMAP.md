@@ -3,7 +3,7 @@
 Plan d'exécution, du dépôt vide à la bêta publique.
 Référence : [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md), version 1.0 du 22 septembre 2026.
 
-- **Statut** : Phases 0 à 6 terminées. Phase 7 à démarrer après la revue.
+- **Statut** : Phases 0 à 7 terminées, l'intégration Campaign Mailer de la Phase 7 étant reportée (D-23). Phase 8 à démarrer après la revue.
 - **Dernière mise à jour** : 29 septembre 2026
 - **Cadence de révision** : fin de chaque phase
 
@@ -444,6 +444,30 @@ Démarrée en parallèle de la recette de la Phase 3, à la demande du propriét
 ### Risques
 
 - Campaign Mailer n'a pas encore son API `v1` : la Phase 7 de MailFind attend ce lot, ou livre d'abord l'export fichier seul.
+
+### Bilan (29 septembre 2026)
+
+Close sur décision du propriétaire, sans l'intégration Campaign Mailer, comme le prévoit le registre des risques (D-23).
+
+**Preuves de la Definition of Done.**
+
+- *L'API répond conformément à son document OpenAPI (A8)* : prouvé sur PostgreSQL 18. Un test compare les opérations du document aux routes réellement montées, dans les deux sens ; les tests de contrat appellent chaque opération et valident chaque réponse par le schéma de sa ligne dans le document, et échouent si une opération n'est jamais appelée. Un essai de mutation (un champ renommé) a fait échouer les tests, après qu'il eut montré qu'une liste vide ne validait rien : chaque liste testée doit désormais porter au moins un élément.
+- *Un envoi vers Campaign Mailer relancé deux fois ne crée aucun doublon (A7)* : **reporté**. Campaign Mailer n'a pas encore son API `v1` ni ses jetons d'intégration (vérifié sur son dépôt au commit `427749e`, prévus dans sa Phase 9). En attendant, l'export au format Campaign Mailer, validé en Phase 6, s'importe sans retouche. Suite prévue : construire l'API `v1` dans Campaign Mailer, puis le côté MailFind contre elle.
+
+**Livré.** Clés d'API hachées, portées, dernière utilisation, révocation (F-1302, F-1303). Routeur `/v1` hors session et hors jeton CSRF ; limitation de débit par clé dans Redis avec en-têtes `RateLimit-*` (F-1304) ; `Idempotency-Key` gardée 24 heures (F-1305) ; erreurs RFC 9457 (F-1306) ; pagination par curseur (F-1307). Points d'accès `imports`, `find`, `companies`, `emails`, `verify` (100 adresses en direct, 10 000 en tâche), `exports`, `usage` (F-1309) et `webhooks`. Document OpenAPI 3.1 servi sans clé sur `/v1/openapi.json`, page `/documentation-api` (F-1301). Webhooks signés HMAC-SHA256 horodatés, secret chiffré, quatre tentatives, journal des livraisons, envoi par la garde des adresses sans suivre de redirection (F-1308).
+
+**Défauts trouvés en cours de phase, et corrigés.**
+
+- Un import de plus d'un mégaoctet était refusé (413) avant d'atteindre sa route : le lecteur JSON global passait avant le sien. Hérité de la Phase 2.
+- Un JSON mal formé ou trop gros recevait une « erreur interne » 500 au lieu de 400 ou 413.
+- L'export du compte (F-104) ne portait aucune adresse, un reste de la Phase 2.
+- Le tableau de bord comptait comme consommées les recherches Hunter vides, non facturées.
+- La dernière ligne d'une page revenait en tête de la suivante : PostgreSQL garde la microseconde, JavaScript la milliseconde.
+- Le filtre `type=support` des adresses était refusé.
+
+**Choix faits en route.** Réponses en snake_case, comme l'annexe C. Pas de portée `emails:write` dans F-1303 : modifier ou supprimer une adresse passe par `companies:write`. `POST /v1/find` rend tout de suite, sans rien dépenser, une entreprise déjà explorée, et lance sinon un import d'une ligne. Les exports de l'API sont toujours produits en tâche et servis avec la clé, jamais par une URL signée. Les événements des webhooks sont minces : identifiant et statut, le reste se lit par l'API. La création d'un webhook est exclue de l'idempotence, qui garderait son secret en clair.
+
+**Reste à faire.** L'intégration Campaign Mailer (F-1201 à F-1209, A7). La limitation de débit n'est testée qu'avec un compteur en mémoire ; son script Redis, avec la file de politesse, attend `TEST_REDIS_URL`.
 
 ---
 

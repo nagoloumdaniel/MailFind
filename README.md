@@ -6,7 +6,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 
 ## Statut
 
-**Phases 0 à 6 terminées (29 septembre 2026), Phase 7 à venir.** La bibliothèque se consulte par entreprise et par contact : recherche, filtres combinables, tri et pagination ; création, modification, suppression, actions en masse et fusion de doublons ; fiche entreprise avec toutes les sources et l'historique. Les résultats s'exportent en CSV, XLSX, JSON et au format d'import de Campaign Mailer, qui s'importe sans retouche. Quand le site d'une entreprise ne donne pas un type d'adresse recherché, les fournisseurs prennent le relais dans l'ordre configuré (Hunter pour commencer), puis les adresses de rôle probables sur un domaine qui reçoit du courrier. Chaque adresse passe ensuite les contrôles locaux (syntaxe, domaine, serveur de messagerie, domaines jetables, messageries grand public, liste de suppression), et la vérification de boîte chez le fournisseur quand l'import la demande. Elle porte un statut, un motif, une date et un score dont le détail s'affiche critère par critère. Chaque appel payant est compté, mis en cache chiffré trente jours et plafonné ; un import rejoué ne paie jamais deux fois. La collecte sur les sites est recettée sur cinquante entreprises réelles : les 90 adresses relevées figurent toutes sur la page citée comme source.
+**Phases 0 à 7 terminées (29 septembre 2026), Phase 8 à venir.** Une API publique `/v1` documentée en OpenAPI 3.1 (`/v1/openapi.json`, page `/documentation-api`) permet à une autre application d'importer, rechercher, lister, vérifier et exporter, avec des clés à portées, une limite de débit, l'idempotence des créations et des webhooks signés. L'envoi direct vers Campaign Mailer attend son API ; l'export à son format le remplace. La bibliothèque se consulte par entreprise et par contact : recherche, filtres combinables, tri et pagination ; création, modification, suppression, actions en masse et fusion de doublons ; fiche entreprise avec toutes les sources et l'historique. Les résultats s'exportent en CSV, XLSX, JSON et au format d'import de Campaign Mailer, qui s'importe sans retouche. Quand le site d'une entreprise ne donne pas un type d'adresse recherché, les fournisseurs prennent le relais dans l'ordre configuré (Hunter pour commencer), puis les adresses de rôle probables sur un domaine qui reçoit du courrier. Chaque adresse passe ensuite les contrôles locaux (syntaxe, domaine, serveur de messagerie, domaines jetables, messageries grand public, liste de suppression), et la vérification de boîte chez le fournisseur quand l'import la demande. Elle porte un statut, un motif, une date et un score dont le détail s'affiche critère par critère. Chaque appel payant est compté, mis en cache chiffré trente jours et plafonné ; un import rejoué ne paie jamais deux fois. La collecte sur les sites est recettée sur cinquante entreprises réelles : les 90 adresses relevées figurent toutes sur la page citée comme source.
 
 ## Documents
 
@@ -26,7 +26,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 - [x] Phase 4 : Fournisseurs et adresses candidates
 - [x] Phase 5 : Vérification avancée et score
 - [x] Phase 6 : Bibliothèque, page Contacts et exports
-- [ ] Phase 7 : API publique et intégration Campaign Mailer
+- [x] Phase 7 : API publique et intégration Campaign Mailer (intégration reportée, D-23)
 - [ ] Phase 8 : Sécurité, conformité, quotas et coûts
 - [ ] Phase 9 : Tests, observabilité et documentation
 - [ ] Phase 10 : Mise en production et bêta
