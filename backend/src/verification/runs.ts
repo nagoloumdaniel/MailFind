@@ -1,5 +1,6 @@
 import { query } from '../db/pool.js';
 import { getLogger } from '../observability/logger.js';
+import { emitWebhookEvent } from '../webhooks/service.js';
 import { isSuppressed, loadSuppressedHashes } from '../suppressions/repository.js';
 import { createDisposableCache, isDisposableIn } from './disposable.js';
 import { createMailDns, type MailDns } from './local.js';
@@ -106,6 +107,11 @@ export async function runVerification(id: string, dns?: MailDns): Promise<void> 
         where id = $1`,
       [id, JSON.stringify(results)],
     );
+    await emitWebhookEvent(run.user_id, 'verification.completed', {
+      verification_id: id,
+      status: 'done',
+      total: run.addresses.length,
+    });
   } catch (error) {
     getLogger().error({ err: error, verificationRunId: id }, 'verification en tache en echec');
     await query(
@@ -113,6 +119,12 @@ export async function runVerification(id: string, dns?: MailDns): Promise<void> 
         where id = $1`,
       [id, 'La verification a echoue. Relancez-la.'],
     );
+    // Terminee aussi, en echec : un client qui attend doit le savoir.
+    await emitWebhookEvent(run.user_id, 'verification.completed', {
+      verification_id: id,
+      status: 'failed',
+      total: run.addresses.length,
+    });
   }
 }
 

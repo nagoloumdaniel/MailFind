@@ -35,13 +35,26 @@ function rejouer(res: Response, ligne: Ligne & { status_code: number }): void {
   res.json(ligne.response_body);
 }
 
-export function idempotency(): RequestHandler {
+export function idempotency(
+  options: {
+    /**
+     * Chemins dont la reponse porte un secret montre une seule fois : la
+     * garder 24 heures le stockerait en clair (S-01). L'en-tete y est ignore.
+     */
+    readonly except?: readonly string[];
+  } = {},
+): RequestHandler {
   return (req, res, next) => {
     void (async () => {
       try {
         const cle = req.get('idempotency-key');
         const user = req.currentUser;
-        if (req.method !== 'POST' || cle === undefined || user === undefined) {
+        if (
+          req.method !== 'POST' ||
+          cle === undefined ||
+          user === undefined ||
+          options.except?.includes(req.path) === true
+        ) {
           next();
           return;
         }

@@ -7,7 +7,8 @@ import { notFoundHandler } from '../http/middleware/error-handler.js';
 import { getLogger } from '../observability/logger.js';
 import type { Enqueue } from '../pipeline/start.js';
 import type { VerifyDeps } from '../pipeline/verify.js';
-import { createVerifyDeps } from '../pipeline/verify-deps.js';
+import { createConfiguredCipher, createVerifyDeps } from '../pipeline/verify-deps.js';
+import type { Cipher } from '../security/crypto.js';
 import { enqueueCompanyStep, enqueueExportBuild } from '../queue/queues.js';
 import { createR2Storage, type ExportStorage } from '../exports/storage.js';
 import type { MailDns } from '../verification/local.js';
@@ -29,6 +30,8 @@ export interface V1Options {
   readonly enqueueExport?: (exportId: string, userId: string) => Promise<void>;
   /** Le DNS de la verification d'une liste ; simule dans les tests. */
   readonly dns?: MailDns;
+  /** Le chiffrement des secrets de webhook ; celui de ENCRYPTION_KEY par defaut. */
+  readonly cipher?: Cipher;
   /** Pour les tests : des routes montees apres les conventions communes. */
   readonly register?: (router: Router) => void;
 }
@@ -84,7 +87,7 @@ export function createV1Router(options: V1Options = {}): Router {
     if (req.method === 'POST' && req.path === '/imports') importBodyParser(req, res, next);
     else next();
   });
-  router.use(idempotency());
+  router.use(idempotency({ except: ['/webhooks'] }));
 
   // Construite au premier besoin : lire la configuration des fournisseurs n'a
   // pas a bloquer le demarrage de l'API.
@@ -97,6 +100,7 @@ export function createV1Router(options: V1Options = {}): Router {
       options.exportStorage ?? (() => (stockage ??= { valeur: createR2Storage() }).valeur),
     enqueueExport: options.enqueueExport ?? enqueueExportBuild,
     ...(options.dns === undefined ? {} : { dns: options.dns }),
+    cipher: () => options.cipher ?? createConfiguredCipher(),
   });
   options.register?.(router);
 

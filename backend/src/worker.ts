@@ -2,6 +2,9 @@ import { UnrecoverableError, Worker } from 'bullmq';
 import { purgeExpiredExports, runExportJob } from './exports/service.js';
 import { purgeExpiredIdempotencyKeys } from './api/idempotency.js';
 import { purgeExpiredVerificationRuns, runVerification } from './verification/runs.js';
+import { deliverWebhook } from './webhooks/service.js';
+import { createFetcher, type Fetcher } from './net/safe-fetch.js';
+import { createConfiguredCipher } from './pipeline/verify-deps.js';
 import { createR2Storage } from './exports/storage.js';
 import { closePool, query } from './db/pool.js';
 import { listImportsToResume, markImportFailed, planImport } from './imports/plan.js';
@@ -88,6 +91,9 @@ const collecte = new Worker<CompanyJob>(
   },
 );
 
+/** Le client des webhooks : la garde des adresses, a part de celui de la collecte. */
+let fetcherWebhooks: Fetcher | undefined;
+
 const entretien = new Worker(
   MAINTENANCE_QUEUE,
   async (job) => {
@@ -106,6 +112,16 @@ const entretien = new Worker(
     }
     if (job.name === 'verification-runs.purge') {
       return { effacees: await purgeExpiredVerificationRuns() };
+    }
+    if (job.name === 'webhook.deliver') {
+      const { deliveryId } = job.data as { deliveryId: string };
+      await deliverWebhook(deliveryId, {
+        fetcher: (fetcherWebhooks ??= createFetcher()),
+        cipher: createConfiguredCipher(),
+        // La derniere tentative laisse la livraison en echec au lieu de relancer.
+        finalAttempt: job.attemptsMade + 1 >= (job.opts.attempts ?? 1),
+      });
+      return { deliveryId };
     }
     if (job.name === 'verification.run') {
       const { runId } = job.data as { runId: string };

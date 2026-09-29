@@ -1,4 +1,5 @@
 import { query } from '../db/pool.js';
+import { emitWebhookEvent } from '../webhooks/service.js';
 import type { CompanyJob, CompanyStep } from '../queue/queues.js';
 
 /**
@@ -61,16 +62,26 @@ export async function isImportCancelled(importId: string): Promise<boolean> {
  * encore.
  */
 export async function completeImportIfDone(importId: string): Promise<boolean> {
-  const result = await query(
+  const result = await query<{ user_id: string; filename: string }>(
     `update imports set status = 'completed', completed_at = now()
       where id = $1 and status = 'running'
         and not exists (
           select 1 from pipeline_jobs
            where import_id = $1 and status in ('pending', 'running')
-        )`,
+        )
+      returning user_id, filename`,
     [importId],
   );
-  return (result.rowCount ?? 0) > 0;
+  const termine = result.rows[0];
+  // F-1308 : une seule fois, par la mise a jour qui a vraiment conclu.
+  if (termine !== undefined) {
+    await emitWebhookEvent(termine.user_id, 'import.completed', {
+      import_id: importId,
+      name: termine.filename,
+      status: 'completed',
+    });
+  }
+  return termine !== undefined;
 }
 
 /**

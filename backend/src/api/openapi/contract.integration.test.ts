@@ -12,6 +12,9 @@ import { createUser, resetData } from '../../test/integration/db.js';
 import { createTestSession } from '../../test/session.js';
 import type { MailDns } from '../../verification/local.js';
 import { runVerification } from '../../verification/runs.js';
+import { emitWebhookEvent } from '../../webhooks/service.js';
+import { createCipher } from '../../security/crypto.js';
+import { randomBytes } from 'node:crypto';
 import { createMemoryRateLimitStore } from '../rate-limit.js';
 import { OPERATIONS, type Operation } from './document.js';
 import { problemSchema } from './responses.js';
@@ -27,6 +30,7 @@ vi.mock('../../queue/queues.js', () => ({
   enqueueCompanyStep: vi.fn(() => Promise.resolve()),
   enqueueExportBuild: vi.fn(() => Promise.resolve()),
   enqueueVerificationRun: vi.fn(() => Promise.resolve()),
+  enqueueWebhookDelivery: vi.fn(() => Promise.resolve()),
 }));
 
 const DNS: MailDns = {
@@ -51,7 +55,11 @@ beforeAll(async () => {
     exportStorage: stockage,
     enqueue: () => Promise.resolve(),
     enqueueExport: () => Promise.resolve(),
-    v1: { rateLimitStore: createMemoryRateLimitStore(), dns: DNS },
+    v1: {
+      rateLimitStore: createMemoryRateLimitStore(),
+      dns: DNS,
+      cipher: createCipher(randomBytes(32).toString('hex')),
+    },
   });
   await resetData();
   await query('truncate idempotency_keys, verification_runs, exports, provider_calls');
@@ -210,6 +218,18 @@ describe('l API repond conformement a son document (A8)', () => {
     await runExportJob(stockage, id);
     await appeler('get', '/exports/{id}', { id });
     expect((await appeler('get', '/exports/{id}/download', { id })).status).toBe(200);
+  });
+
+  it('webhooks', async () => {
+    const cree = await appeler('post', '/webhooks', {
+      body: { url: 'https://hooks.exemple.test/recu', events: ['export.ready'] },
+    });
+    const id = cree.body.webhook.id as string;
+    await appeler('get', '/webhooks');
+    await emitWebhookEvent(userId, 'export.ready', { export_id: 'x' });
+    const journal = await appeler('get', '/webhooks/{id}/deliveries', { id });
+    expect(journal.body.data.length).toBeGreaterThan(0);
+    await appeler('delete', '/webhooks/{id}', { id });
   });
 
   it('consommation, suppression et erreurs', async () => {

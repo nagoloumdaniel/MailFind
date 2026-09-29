@@ -198,6 +198,50 @@ export const usageSchema = z
   })
   .meta({ id: 'Usage' });
 
+export const WEBHOOK_EVENT_VALUES = [
+  'import.completed',
+  'import.failed',
+  'verification.completed',
+  'export.ready',
+] as const;
+
+export const webhookSchema = z
+  .strictObject({
+    id: z.uuid(),
+    url: z.string(),
+    events: z.array(z.enum(WEBHOOK_EVENT_VALUES)),
+    description: texteOuNul,
+    secret_prefix: z.string().describe('Le debut du secret, pour le reconnaitre.'),
+    created_at: date,
+  })
+  .meta({ id: 'Webhook' });
+
+export const deliverySchema = z
+  .strictObject({
+    id: z.uuid(),
+    event_id: z.uuid(),
+    event_type: z.string(),
+    status: z.enum(['pending', 'succeeded', 'failed']),
+    attempts: z.number().int(),
+    last_status_code: z.number().int().nullable(),
+    last_error: texteOuNul,
+    created_at: date,
+    last_attempt_at: date.nullable(),
+    delivered_at: date.nullable(),
+  })
+  .meta({ id: 'WebhookDelivery' });
+
+export const webhookEventSchema = z
+  .strictObject({
+    id: z.uuid().describe("Identifiant de l'evenement : a garder pour ignorer un doublon."),
+    type: z.enum(WEBHOOK_EVENT_VALUES),
+    created_at: date,
+    data: z
+      .record(z.string(), z.unknown())
+      .describe("L'identifiant et le statut de la ressource ; le reste se lit par l'API."),
+  })
+  .meta({ id: 'WebhookEvent' });
+
 export const page = <T extends z.ZodType>(item: T) =>
   z.strictObject({
     data: z.array(item),

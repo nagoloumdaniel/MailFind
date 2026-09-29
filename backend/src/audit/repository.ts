@@ -26,7 +26,9 @@ export type AuditAction =
   | 'company.recrawl_requested'
   | 'export.created'
   | 'api_key.created'
-  | 'api_key.revoked';
+  | 'api_key.revoked'
+  | 'webhook.created'
+  | 'webhook.deleted';
 
 export interface AuditEvent {
   readonly userId: string | null;

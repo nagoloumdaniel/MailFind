@@ -2,6 +2,7 @@ import { UnrecoverableError } from 'bullmq';
 import { findOrCreateCompany } from '../companies/repository.js';
 import { getPool, query } from '../db/pool.js';
 import { getLogger } from '../observability/logger.js';
+import { emitWebhookEvent } from '../webhooks/service.js';
 import { isKnownField, type KnownField } from './fields.js';
 import { readSettingsTags } from './settings.js';
 import { validateRow } from './validate.js';
@@ -227,12 +228,22 @@ export const PLAN_FAILED_MESSAGE =
  * touche.
  */
 export async function markImportFailed(importId: string): Promise<boolean> {
-  const result = await getPool().query(
+  const result = await getPool().query<{ user_id: string; filename: string }>(
     `update imports set status = 'failed', error = $2, completed_at = now()
-      where id = $1 and status in ('pending', 'planning', 'running')`,
+      where id = $1 and status in ('pending', 'planning', 'running')
+      returning user_id, filename`,
     [importId, PLAN_FAILED_MESSAGE],
   );
-  return (result.rowCount ?? 0) > 0;
+  const echoue = result.rows[0];
+  if (echoue !== undefined) {
+    await emitWebhookEvent(echoue.user_id, 'import.failed', {
+      import_id: importId,
+      name: echoue.filename,
+      status: 'failed',
+      error: PLAN_FAILED_MESSAGE,
+    });
+  }
+  return echoue !== undefined;
 }
 
 /**

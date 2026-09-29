@@ -1,4 +1,5 @@
 import { query } from '../db/pool.js';
+import { emitWebhookEvent } from '../webhooks/service.js';
 import { AppError } from '../http/problem.js';
 import { countExportRows, countRows, loadExportData } from './data.js';
 import { campaignMailerCsv, csvCompanies, csvEmails, jsonExport, xlsxExport } from './formats.js';
@@ -208,6 +209,12 @@ export async function runExportJob(storage: ExportStorage, exportId: string): Pr
         where id = $1`,
       [exportId, file.rows, file.filename, cle, EXPORT_RETENTION_DAYS],
     );
+    await emitWebhookEvent(ligne.user_id, 'export.ready', {
+      export_id: exportId,
+      status: 'done',
+      row_count: file.rows,
+      download_url: `/v1/exports/${exportId}/download`,
+    });
   } catch (error) {
     await query(
       `update exports set status = 'failed', error = $2, completed_at = now() where id = $1`,

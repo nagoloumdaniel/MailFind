@@ -94,6 +94,12 @@ export interface FetchOptions {
 
 export interface Fetcher {
   fetchPage(url: string, options?: FetchOptions): Promise<FetchedPage>;
+  postJson(
+    url: string,
+    body: string,
+    headers: Readonly<Record<string, string>>,
+    options?: { readonly timeoutMs?: number },
+  ): Promise<{ status: number }>;
   close(): Promise<void>;
 }
 
@@ -317,6 +323,43 @@ export function createFetcher(options: FetcherOptions = {}): Fetcher {
       }, delai);
       try {
         return await lire(rawUrl, fetchOptions, controleur.signal);
+      } catch (error) {
+        if (controleur.signal.aborted) throw new FetchTimeoutError(delai);
+        throw error;
+      } finally {
+        clearTimeout(minuteur);
+      }
+    },
+    /**
+     * Un POST JSON par le meme agent, donc la meme resolution gardee : c'est
+     * le chemin des webhooks (S-05). Aucune redirection n'est suivie : un 3xx
+     * est rendu tel quel, et le webhook le compte comme un echec. Suivre une
+     * redirection enverrait le corps signe la ou le client n'a rien declare.
+     */
+    async postJson(rawUrl, body, headers, postOptions = {}) {
+      const url = new URL(rawUrl);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        throw new BlockedAddressError(`protocole ${url.protocol} refuse`);
+      }
+      if (!estHoteDeTest(url.hostname) && isForbiddenHostname(url.hostname)) {
+        throw new BlockedAddressError(url.hostname);
+      }
+      const delai = postOptions.timeoutMs ?? environment.CRAWLER_REQUEST_TIMEOUT_MS;
+      const controleur = new AbortController();
+      const minuteur = setTimeout(() => {
+        controleur.abort();
+      }, delai);
+      try {
+        const reponse = await request(cible(url), {
+          method: 'POST',
+          dispatcher: agent,
+          signal: controleur.signal,
+          headers: { ...headers, 'content-type': 'application/json' },
+          body,
+        });
+        // Le corps de la reponse ne sert a rien : seul le statut compte.
+        abandonner(reponse.body);
+        return { status: reponse.statusCode };
       } catch (error) {
         if (controleur.signal.aborted) throw new FetchTimeoutError(delai);
         throw error;

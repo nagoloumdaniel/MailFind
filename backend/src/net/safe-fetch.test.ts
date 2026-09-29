@@ -21,6 +21,37 @@ afterAll(async () => {
   await sites.close();
 });
 
+describe('postJson, le chemin des webhooks (S-05)', () => {
+  it('poste sur une adresse publique et rend le statut', async () => {
+    const reponse = await client.postJson('https://acme.test/__erreur?code=202', '{}', {
+      'mailfind-signature': 't=1,v1=ab',
+    });
+    expect(reponse.status).toBe(202);
+    expect(sites.requests.at(-1)?.path).toBe('/__erreur?code=202');
+  });
+
+  it('refuse la machine locale et les adresses de metadonnees', async () => {
+    for (const url of [
+      'http://127.0.0.1/hook',
+      'http://localhost/hook',
+      'http://169.254.169.254/latest',
+    ]) {
+      await expect(client.postJson(url, '{}', {}), url).rejects.toBeInstanceOf(BlockedAddressError);
+    }
+  });
+
+  it('ne suit pas une redirection : le 3xx est rendu tel quel', async () => {
+    const avant = sites.requests.length;
+    const reponse = await client.postJson(
+      'https://acme.test/__redirection?vers=http://169.254.169.254/',
+      '{}',
+      {},
+    );
+    expect(reponse.status).toBe(302);
+    expect(sites.requests.length).toBe(avant + 1);
+  });
+});
+
 describe('createFetcher', () => {
   it('lit une page et rend l URL telle que le site la connait', async () => {
     const page = await client.fetchPage('https://acme.test/');

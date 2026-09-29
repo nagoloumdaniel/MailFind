@@ -8,6 +8,7 @@ import { exportCreationSchema } from '../v1/exports.js';
 import { findSchema } from '../v1/find.js';
 import { importCreationSchema } from '../v1/imports.js';
 import { verifyListSchema } from '../v1/verify.js';
+import { webhookCreationSchema } from '../v1/webhooks.js';
 import {
   companyListItemSchema,
   companyWithEmailsSchema,
@@ -22,6 +23,10 @@ import {
   usageSchema,
   verificationRunSchema,
   verifyResultSchema,
+  deliverySchema,
+  WEBHOOK_EVENT_VALUES,
+  webhookEventSchema,
+  webhookSchema,
 } from './responses.js';
 
 /**
@@ -320,6 +325,55 @@ export const OPERATIONS: readonly Operation[] = [
   },
   {
     method: 'get',
+    path: '/webhooks',
+    tag: 'Webhooks',
+    summary: 'Lister les abonnements',
+    scope: 'integrations:write',
+    responses: {
+      200: {
+        description: 'Les abonnements',
+        schema: z.strictObject({ webhooks: z.array(webhookSchema) }),
+      },
+    },
+  },
+  {
+    method: 'post',
+    path: '/webhooks',
+    tag: 'Webhooks',
+    summary: "S'abonner a des evenements",
+    description:
+      "Le secret de signature n'est rendu qu'ici, une fois. Idempotency-Key est ignore sur cette route : garder la reponse garderait le secret en clair. Chaque envoi porte `MailFind-Signature: t=...,v1=...`, le HMAC-SHA256 de `t.corps` avec ce secret ; refusez un `t` de plus de cinq minutes. Trois nouvelles tentatives apres un echec (30 s, 1 min, 2 min) ; aucune redirection n'est suivie.",
+    scope: 'integrations:write',
+    body: webhookCreationSchema,
+    responses: {
+      201: {
+        description: 'Abonnement cree',
+        schema: z.strictObject({ webhook: webhookSchema, secret: z.string() }),
+      },
+    },
+  },
+  {
+    method: 'delete',
+    path: '/webhooks/{id}',
+    tag: 'Webhooks',
+    summary: 'Supprimer un abonnement',
+    description: 'Son journal de livraisons reste lisible.',
+    scope: 'integrations:write',
+    responses: {
+      200: { description: 'Supprime', schema: z.strictObject({ deleted: z.literal(true) }) },
+    },
+  },
+  {
+    method: 'get',
+    path: '/webhooks/{id}/deliveries',
+    tag: 'Webhooks',
+    summary: "Journal des livraisons d'un abonnement",
+    scope: 'integrations:write',
+    query: pageParamsSchema,
+    responses: { 200: { description: 'Une page', schema: page(deliverySchema) } },
+  },
+  {
+    method: 'get',
     path: '/usage',
     tag: 'Compte',
     summary: 'Credits et consommation du mois',
@@ -437,6 +491,30 @@ export function buildOpenApiDocument(serverUrl: string): Json {
   }
   composants.Problem = convertir(problemSchema, 'output', {});
 
+  // OpenAPI 3.1 : ce que MailFind envoie a l'application abonnee.
+  const evenement = convertir(webhookEventSchema, 'output', composants);
+  const webhooks = Object.fromEntries(
+    WEBHOOK_EVENT_VALUES.map((type) => [
+      type,
+      {
+        post: {
+          summary: `Evenement ${type}`,
+          parameters: [
+            {
+              name: 'MailFind-Signature',
+              in: 'header',
+              required: true,
+              description: 't=horodatage,v1=HMAC-SHA256 hexadecimal de "t.corps" avec le secret.',
+              schema: { type: 'string' },
+            },
+          ],
+          requestBody: { required: true, content: { 'application/json': { schema: evenement } } },
+          responses: { '200': { description: 'Tout 2xx vaut accuse de reception.' } },
+        },
+      },
+    ]),
+  );
+
   return {
     openapi: '3.1.0',
     info: {
@@ -449,6 +527,7 @@ export function buildOpenApiDocument(serverUrl: string): Json {
     security: [{ cleApi: [] }],
     tags: [...new Set(OPERATIONS.map((o) => o.tag))].map((name) => ({ name })),
     paths,
+    webhooks,
     components: {
       schemas: composants,
       securitySchemes: {

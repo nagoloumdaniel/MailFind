@@ -25,6 +25,10 @@ export interface SiteRequest {
   readonly path: string;
   readonly userAgent: string;
   readonly at: number;
+  readonly method: string;
+  readonly headers: Readonly<Record<string, string | string[] | undefined>>;
+  /** Le corps d'un POST, pour qu'un test de webhook verifie ce qui a ete signe. */
+  readonly body: string;
 }
 
 export interface TestSites {
@@ -134,15 +138,22 @@ async function servir(req: IncomingMessage, res: ServerResponse): Promise<void> 
 export async function startTestSites(hosts: readonly string[]): Promise<TestSites> {
   const requests: SiteRequest[] = [];
   const serveur = createServer((req, res) => {
-    requests.push({
-      host: hoteDe(req),
-      path: req.url ?? '/',
-      userAgent: req.headers['user-agent'] ?? '',
-      at: Date.now(),
-    });
-    servir(req, res).catch(() => {
-      res.writeHead(500);
-      res.end();
+    const morceaux: Buffer[] = [];
+    req.on('data', (morceau: Buffer) => morceaux.push(morceau));
+    req.on('end', () => {
+      requests.push({
+        host: hoteDe(req),
+        path: req.url ?? '/',
+        userAgent: req.headers['user-agent'] ?? '',
+        at: Date.now(),
+        method: req.method ?? 'GET',
+        headers: req.headers,
+        body: Buffer.concat(morceaux).toString('utf8'),
+      });
+      servir(req, res).catch(() => {
+        res.writeHead(500);
+        res.end();
+      });
     });
   });
 

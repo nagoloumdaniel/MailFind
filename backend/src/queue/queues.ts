@@ -151,6 +151,22 @@ export async function scheduleMaintenance(): Promise<void> {
   );
 }
 
+/**
+ * Une livraison de webhook (F-1308) : quatre tentatives, la premiere puis
+ * trois nouvelles, a 30 secondes, 1 minute puis 2 minutes.
+ */
+export async function enqueueWebhookDelivery(deliveryId: string): Promise<void> {
+  await getMaintenanceQueue().add(
+    'webhook.deliver',
+    { deliveryId },
+    {
+      jobId: `webhook-${deliveryId}`,
+      attempts: 4,
+      backoff: { type: 'exponential', delay: 30_000 },
+    },
+  );
+}
+
 /** Une verification en tache de l'API ; l'identifiant suit le sien : elle ne part qu'une fois. */
 export async function enqueueVerificationRun(runId: string): Promise<void> {
   await getMaintenanceQueue().add(
