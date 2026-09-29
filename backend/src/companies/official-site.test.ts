@@ -43,6 +43,22 @@ describe('chooseOfficialSite (F-305)', () => {
     ).toBeUndefined();
   });
 
+  it('remonte au domaine de l entreprise quand un sous-domaine sort en tete', () => {
+    const choix = chooseOfficialSite(
+      [resultat('https://guide.michelin.com/fr/fr', 'Guide MICHELIN')],
+      'Michelin',
+    );
+    expect(choix?.domain).toBe('michelin.com');
+  });
+
+  it('garde le sous-domaine d un hebergeur, qui seul designe l entreprise', () => {
+    const choix = chooseOfficialSite(
+      [resultat('https://boulangeriemartin.wixsite.com/', 'Boulangerie Martin')],
+      'Boulangerie Martin',
+    );
+    expect(choix?.domain).toBe('boulangeriemartin.wixsite.com');
+  });
+
   it('prefere le resultat le plus ressemblant a celui qui arrive premier', () => {
     const choix = chooseOfficialSite(
       [

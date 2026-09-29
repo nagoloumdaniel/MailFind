@@ -98,8 +98,13 @@ export function chooseOfficialSite(
   let meilleur: OfficialSite | undefined;
   resultats.forEach((resultat, rang) => {
     const score = scoreResult(resultat, rang, nom);
-    const domaine = normalizeDomain(resultat.url);
-    if (domaine === undefined || score < SCORE_MINIMUM) return;
+    const hote = normalizeDomain(resultat.url);
+    if (hote === undefined || score < SCORE_MINIMUM) return;
+    // guide.michelin.com sort avant michelin.com : quand le domaine
+    // enregistrable porte le nom, c'est lui le site de l'entreprise. Sinon le
+    // sous-domaine est garde, seul a la designer chez un hebergeur.
+    const racine = registrableDomain(hote);
+    const domaine = etiquette(racine) === compact(nom) ? racine : hote;
     if (meilleur === undefined || score > meilleur.confidence) {
       meilleur = { domain: domaine, confidence: score };
     }
