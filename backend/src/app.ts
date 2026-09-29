@@ -12,6 +12,7 @@ import { getEnvironment } from './config/env.js';
 import { createImportsRouter } from './imports/routes.js';
 import { createCompaniesRouter } from './companies/routes.js';
 import { createContactsRouter } from './contacts/routes.js';
+import { createDashboardRouter } from './dashboard/routes.js';
 import { createExportsRouter } from './exports/routes.js';
 import { createR2Storage, type ExportStorage } from './exports/storage.js';
 import { enqueueExportBuild } from './queue/queues.js';
@@ -114,6 +115,7 @@ export function createApp(options: AppOptions = {}): Express {
     '/api/contacts',
     createContactsRouter(options.verify === undefined ? {} : { verify: options.verify }),
   );
+  app.use('/api/dashboard', createDashboardRouter());
   app.use('/api/suppressions', createSuppressionsRouter());
   // Le client R2 est construit au premier export volumineux : lire sa
   // configuration n'a pas a bloquer le demarrage.
