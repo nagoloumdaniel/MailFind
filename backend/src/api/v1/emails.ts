@@ -24,7 +24,7 @@ const STATUTS = [
   'suppressed',
   'unverified',
 ] as const;
-const TYPES = [...EMAIL_TYPES, 'personal', 'unknown'] as const;
+const TYPES = [...EMAIL_TYPES, 'support', 'personal', 'unknown'] as const;
 const ORIGINES = ['found', 'provider', 'deduced', 'imported', 'manual'] as const;
 
 /** Une liste separee par des virgules : `status=valid,accept_all`. */
@@ -35,7 +35,7 @@ const liste = <T extends string>(valeurs: readonly [T, ...T[]]) =>
     .pipe(z.array(z.enum(valeurs)).min(1))
     .optional();
 
-const filtresSchema = z.object({
+export const emailFiltersSchema = z.object({
   company_id: z.uuid().optional(),
   status: liste(STATUTS),
   type: liste(TYPES),
@@ -49,7 +49,7 @@ const filtresSchema = z.object({
  * F-1303 ne prevoit pas de portee `emails:write` : modifier ou supprimer une
  * adresse est une ecriture dans la bibliotheque, sous `companies:write`.
  */
-const modificationSchema = z
+export const emailUpdateSchema = z
   .object({
     type: z.enum(EMAIL_TYPES).optional(),
     tags: z.array(z.string().max(50)).max(20).optional(),
@@ -84,7 +84,7 @@ export function registerEmails(router: Router, verifyDeps: () => VerifyDeps): vo
     requireScope('emails:read'),
     withUser(async (req, res, user) => {
       const { limit, cursor } = parsePageParams(req.query);
-      const lu = filtresSchema.safeParse(req.query);
+      const lu = emailFiltersSchema.safeParse(req.query);
       if (!lu.success) {
         throw AppError.badRequest(
           'invalid_filter',
@@ -129,7 +129,7 @@ export function registerEmails(router: Router, verifyDeps: () => VerifyDeps): vo
     requireScope('companies:write'),
     withUser(async (req, res, user) => {
       const adresse = await adresseDuCompte(user.id, req.params.id);
-      const lu = modificationSchema.safeParse(req.body);
+      const lu = emailUpdateSchema.safeParse(req.body);
       if (!lu.success) {
         throw AppError.badRequest(
           'invalid_email_update',
