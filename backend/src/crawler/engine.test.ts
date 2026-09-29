@@ -17,6 +17,10 @@ beforeAll(async () => {
     'ferme.test',
     'absent.test',
     'panne.test',
+    // Seul www.ecole.test repond : ecole.test n'est pas aiguille, sa connexion echoue.
+    'www.ecole.test',
+    // Aiguille pour qu'une visite, si elle avait lieu, soit notee.
+    'www.ferme.test',
   ]);
   fetcher = createFetcher({ testRouting: sites });
 });
@@ -139,6 +143,17 @@ describe('crawlCompany, sites difficiles', () => {
     const rapport = await crawlCompany(client, { domain: 'absent.test', depth: 'standard' });
     expect(rapport.notes).toEqual(['unreachable']);
     expect(rapport.pages.every((p) => p.outcome === 'failed')).toBe(true);
+  });
+
+  it('essaie www quand le domaine nu ne repond pas', async () => {
+    const rapport = await crawlCompany(client, { domain: 'ecole.test', depth: 'quick' });
+    expect(rapport.notes).not.toContain('unreachable');
+    expect(rapport.addresses.map((a) => a.pageUrl)).toEqual(['https://www.ecole.test/']);
+  });
+
+  it('n essaie pas www quand le domaine nu a repondu, meme pour refuser', async () => {
+    await crawlCompany(client, { domain: 'ferme.test', depth: 'quick' });
+    expect(sites.requests.some((r) => r.host === 'www.ferme.test')).toBe(false);
   });
 
   it('part du site donne par l import quand il est sur le domaine', async () => {

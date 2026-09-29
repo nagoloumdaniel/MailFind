@@ -54,7 +54,11 @@ export interface CrawlReport {
 
 /** Le point de depart : le site donne par l'import s'il est bien sur le domaine. */
 function depart(input: CrawlInput): URL[] {
-  const racine = [new URL(`https://${input.domain}/`), new URL(`http://${input.domain}/`)];
+  // Certains domaines nus ne repondent pas du tout (croix-rouge.fr coupe la
+  // connexion) alors que www repond : il n'est essaye qu'apres un echec de
+  // connexion, jamais apres un refus.
+  const www = input.domain.startsWith('www.') ? [] : [new URL(`https://www.${input.domain}/`)];
+  const racine = [new URL(`https://${input.domain}/`), ...www, new URL(`http://${input.domain}/`)];
   if (input.websiteUrl === undefined) return racine;
   try {
     const site = new URL(input.websiteUrl);
@@ -102,8 +106,8 @@ export async function crawlCompany(client: CrawlerClient, input: CrawlInput): Pr
     return lue;
   };
 
-  // L'accueil, en https puis en http : beaucoup de petits sites n'ont encore
-  // que l'un des deux.
+  // L'accueil, en https, puis sur www, puis en http : beaucoup de petits sites
+  // n'ont encore que l'un des trois.
   let accueil: ParsedPage | undefined;
   const essayees = new Set<string>();
   for (const url of depart(input)) {
