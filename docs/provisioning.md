@@ -61,7 +61,7 @@ Le bucket existe déjà. Il manque les clés.
 3. Copier **Access Key ID** et **Secret Access Key** dans `R2_ACCESS_KEY_ID` et `R2_SECRET_ACCESS_KEY`. Le secret ne s'affiche qu'une fois.
 4. `R2_ACCOUNT_ID` est l'identifiant de compte affiché sur la page R2, et `R2_ENDPOINT` vaut `https://<account_id>.r2.cloudflarestorage.com`.
 
-Le bucket reste privé. Les exports sont servis par URL signée de courte durée, jamais par un domaine public.
+Le bucket reste privé. Un export de plus de 2 000 adresses y est déposé par le processus de traitement, sous `exports/<compte>/<export>`, et effacé au bout de sept jours ; il est servi par l'API après vérification du compte, jamais par un domaine public ni une URL signée. Sans ces variables, seuls les exports produits tout de suite restent possibles.
 
 ## 4. Google Cloud, la connexion
 

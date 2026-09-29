@@ -257,6 +257,30 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 
 ---
 
+## D-19. Ce que porte un export
+
+**Décision.** Une adresse exportée a toujours au moins une source, dans les colonnes `source_kind`, `source_url` et `provider`, la plus vérifiable en tête : une page du site, puis un fournisseur, puis la règle de déduction ou la saisie de l'utilisateur, avec sa date. Le fichier Campaign Mailer reprend la règle d'adresse de Campaign Mailer (`normaliseEmail`), n'écrit chaque adresse qu'une fois, laisse de côté celles que Campaign Mailer refuserait ou qui commencent comme une formule, et le dit ; une adresse sans nom de contact y reçoit la civilité « Madame, Monsieur » de l'exemple de 6.12.
+
+**Raison.** Le critère A4 demande « au moins une source avec URL ou fournisseur ». Lu à la lettre, il interdirait d'exporter une adresse saisie par l'utilisateur (F-1013) ou une déduction confirmée par la vérification de boîte, alors que la règle du dépôt (« URL, méthode, date ou fournisseur ») leur donne bien une source. Pour Campaign Mailer, la Definition of Done demande un import sans retouche : une ligne refusée de l'autre côté en serait une.
+
+**Conséquences.** `source_kind` dit toujours d'où vient l'adresse, `deduction` et `manual` compris. Le nombre d'adresses laissées de côté par le format Campaign Mailer s'affiche à l'export.
+
+**Ce qui la rouvrirait.** Une évolution de la règle d'import de Campaign Mailer, à recopier ; ou le propriétaire, s'il préfère la lecture littérale de A4.
+
+---
+
+## D-20. Exclure n'est pas faire disparaître
+
+**Décision.** Le drapeau `excluded` d'une adresse veut dire « hors des exports et des envois », rien d'autre. Une adresse invalide, jetable ou supprimée l'est d'office ; l'utilisateur peut exclure les autres, et seule son exclusion à lui se lève. La règle F-503 (une candidate refusée n'est ni comptée ni montrée) tient au statut : une adresse déduite `invalid` ou `disposable`.
+
+**Raison.** Jusqu'à la Phase 5, F-503 reposait sur ce même drapeau. Une adresse déduite que l'utilisateur aurait exclue aurait disparu de sa bibliothèque sans retour possible, et une vérification suivante aurait défait son choix.
+
+**Conséquences.** Toutes les requêtes qui montrent ou comptent des adresses partagent la même condition (`SHOWN_EMAIL`). La vérification garde une exclusion décidée par l'utilisateur.
+
+**Ce qui la rouvrirait.** Rien de prévu.
+
+---
+
 ## Journal des révisions
 
 | Date | Décision | Changement |
@@ -268,4 +292,6 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | 28 septembre 2026 | D-08, D-14 | Les plafonds se comptent par fournisseur et par opération : les 50 crédits mensuels de Hunter sont partagés en 30 pour la recherche par domaine (`HUNTER_MONTHLY_SEARCH_CREDITS`) et 20 pour la vérification, pour que l'une ne mange pas l'autre. Sans `ENCRYPTION_KEY`, aucun fournisseur d'enrichissement n'est appelé : leurs réponses contiennent des adresses nominatives et ne sont gardées que chiffrées (F-604). |
 | 28 septembre 2026 | D-17 | Nouvelle décision : une adresse de rôle garde son statut au lieu de passer `risky`. |
 | 28 septembre 2026 | D-18 | Nouvelle décision : le tableau de 6.9 fait foi pour le score, et son détail est enregistré ligne par ligne. |
+| 29 septembre 2026 | D-19 | Nouvelle décision : ce que porte un export, source et format Campaign Mailer compris. |
+| 29 septembre 2026 | D-20 | Nouvelle décision : exclure veut dire « hors des exports » ; F-503 tient au statut. |
 | 28 septembre 2026 | D-14 | Les vérifications de boîte se comptent en crédits : quatre par compte et par mois valent deux crédits (`QUOTA_MAILBOX_VERIFICATIONS_PER_USER_PER_MONTH`), sur les vingt réservés à la vérification (`HUNTER_MONTHLY_VERIFICATION_CREDITS`). Un appel en échec n'est pas facturé et ne compte pas. |
