@@ -115,6 +115,7 @@ export function createApp(options: AppOptions = {}): Express {
     createV1Router({
       ...options.v1,
       ...(options.enqueue === undefined ? {} : { enqueue: options.enqueue }),
+      ...(options.verify === undefined ? {} : { verify: options.verify }),
     }),
   );
 

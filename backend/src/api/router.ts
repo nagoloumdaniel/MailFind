@@ -6,6 +6,8 @@ import { requireAcceptedTerms } from '../http/middleware/require-terms.js';
 import { notFoundHandler } from '../http/middleware/error-handler.js';
 import { getLogger } from '../observability/logger.js';
 import type { Enqueue } from '../pipeline/start.js';
+import type { VerifyDeps } from '../pipeline/verify.js';
+import { createVerifyDeps } from '../pipeline/verify-deps.js';
 import { enqueueCompanyStep } from '../queue/queues.js';
 import { idempotency } from './idempotency.js';
 import { registerV1Routes } from './v1/index.js';
@@ -17,6 +19,8 @@ export interface V1Options {
   readonly rateLimitStore?: RateLimitStore;
   /** La file des etapes par entreprise ; celle de BullMQ par defaut. */
   readonly enqueue?: Enqueue;
+  /** La verification des adresses ; les tests y mettent un DNS simule. */
+  readonly verify?: VerifyDeps;
   /** Pour les tests : des routes montees apres les conventions communes. */
   readonly register?: (router: Router) => void;
 }
@@ -65,7 +69,13 @@ export function createV1Router(options: V1Options = {}): Router {
   });
   router.use(idempotency());
 
-  registerV1Routes(router, { enqueue: options.enqueue ?? enqueueCompanyStep });
+  // Construite au premier besoin : lire la configuration des fournisseurs n'a
+  // pas a bloquer le demarrage de l'API.
+  let verification = options.verify;
+  registerV1Routes(router, {
+    enqueue: options.enqueue ?? enqueueCompanyStep,
+    verifyDeps: () => (verification ??= createVerifyDeps()),
+  });
   options.register?.(router);
 
   // Une route inconnue s'arrete ici, sans descendre vers la session.
