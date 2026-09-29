@@ -90,6 +90,47 @@ export function createAccountRouter(): Router {
           [user.id],
         );
 
+        const emails = await query(
+          `select id, company_id, address, normalized_address, type::text as type,
+                  origin::text as origin, status::text as status, score, score_breakdown,
+                  excluded, excluded_reason, contact_name, salutation, tags,
+                  last_verified_at, created_at, updated_at
+             from emails
+            where user_id = $1
+            order by created_at, id`,
+          [user.id],
+        );
+        const emailSources = await query(
+          `select s.id, s.email_id, s.kind::text as kind, s.url, s.provider,
+                  s.extraction_method::text as extraction_method, s.context_excerpt,
+                  s.discovered_at
+             from email_sources s
+             join emails e on e.id = s.email_id
+            where e.user_id = $1
+            order by s.discovered_at, s.id`,
+          [user.id],
+        );
+        const verifications = await query(
+          `select v.id, v.email_id, v.address, v.level, v.status::text as status, v.sub_status,
+                  v.reason, v.provider, v.verified_at
+             from verifications v
+             join emails e on e.id = v.email_id
+            where e.user_id = $1
+            order by v.verified_at, v.id`,
+          [user.id],
+        );
+        const exportsJournal = await query(
+          `select id, format, filters, status::text as status, row_count, filename,
+                  created_at, completed_at, expires_at
+             from exports
+            where user_id = $1
+            order by created_at`,
+          [user.id],
+        );
+        const suppressions = await query<{ n: number }>(
+          'select count(*)::int as n from suppressions where user_id = $1',
+          [user.id],
+        );
         // Ce que la page Compte montre d'une cle, jamais son empreinte.
         const apiKeys = await listApiKeys(user.id);
 
@@ -141,12 +182,14 @@ export function createAccountRouter(): Router {
             rows: lignesParImport.get(importe.id) ?? [],
           })),
           companies: companies.rows,
+          emails: emails.rows,
+          emailSources: emailSources.rows,
+          verifications: verifications.rows,
+          exports: exportsJournal.rows,
           apiKeys,
-          // Les adresses et leurs sources arrivent avec les phases qui les
-          // creent. Les declarer vides ici plutot que de les taire evite un
-          // export qui aurait l'air complet sans l'etre.
-          emails: [],
-          emailSources: [],
+          // La liste de suppression n'est gardee qu'en empreintes, illisibles
+          // par construction (R-04) : son nombre est tout ce qu'on en sait.
+          suppressions: { count: suppressions.rows[0]?.n ?? 0 },
         });
       } catch (error) {
         next(error);

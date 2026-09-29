@@ -94,14 +94,73 @@ describe('GET /api/account/export (F-104)', () => {
     ]);
   });
 
+  /** Une adresse d'Alan, sa source et une verification, comme les laisse le pipeline. */
+  async function adresseAlan(proprietaire: string): Promise<void> {
+    const entreprise = await query<{ id: string }>('select id from companies where user_id = $1', [
+      proprietaire,
+    ]);
+    // L'adresse et sa source dans la meme instruction : la base refuse une
+    // adresse sans source a la fin de la transaction.
+    const email = await query<{ id: string }>(
+      `with e as (
+         insert into emails (company_id, user_id, address, normalized_address, local_part, type, origin)
+         values ($1, $2, 'Contact@alan.com', 'contact@alan.com', 'contact', 'generic', 'found')
+         returning id
+       ), s as (
+         insert into email_sources (email_id, kind, url, extraction_method, context_excerpt)
+         select id, 'website', 'https://alan.com/contact', 'mailto', 'Ecrivez-nous' from e
+       )
+       select id from e`,
+      [entreprise.rows[0]?.id, proprietaire],
+    );
+    const emailId = email.rows[0]?.id;
+    await query(
+      `insert into verifications (email_id, level, status, reason, address)
+       values ($1, 5, 'unverified', 'Controles locaux passes.', 'contact@alan.com')`,
+      [emailId],
+    );
+  }
+
+  it('rend les adresses, leurs sources et leurs verifications (F-104)', async () => {
+    await importerAlan(userId);
+    await adresseAlan(userId);
+
+    const reponse = await request(app).get('/api/account/export');
+
+    expect(reponse.body.emails).toEqual([
+      expect.objectContaining({
+        address: 'Contact@alan.com',
+        type: 'generic',
+        origin: 'found',
+        status: 'unverified',
+      }),
+    ]);
+    const emailId = reponse.body.emails[0].id as string;
+    expect(reponse.body.emailSources).toEqual([
+      expect.objectContaining({
+        email_id: emailId,
+        kind: 'website',
+        url: 'https://alan.com/contact',
+        extraction_method: 'mailto',
+      }),
+    ]);
+    expect(reponse.body.verifications).toEqual([
+      expect.objectContaining({ email_id: emailId, level: 5, status: 'unverified' }),
+    ]);
+  });
+
   it('ne rend rien des autres comptes', async () => {
     const autre = await createUser();
     await importerAlan(autre);
+    await adresseAlan(autre);
 
     const reponse = await request(app).get('/api/account/export');
 
     expect(reponse.body.imports).toEqual([]);
     expect(reponse.body.companies).toEqual([]);
+    expect(reponse.body.emails).toEqual([]);
+    expect(reponse.body.emailSources).toEqual([]);
+    expect(reponse.body.verifications).toEqual([]);
   });
 });
 
