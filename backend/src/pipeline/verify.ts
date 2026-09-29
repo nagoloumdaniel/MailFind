@@ -16,6 +16,7 @@ import type { Cipher } from '../security/crypto.js';
 import { hashAddress, isSuppressed, loadSuppressedHashes } from '../suppressions/repository.js';
 import { isDisposableIn } from '../verification/disposable.js';
 import { checkLocally, type LocalVerdict, type MailDns } from '../verification/local.js';
+import { USER_EXCLUSION_REASON } from '../emails/visibility.js';
 import { completeImportIfDone, finishStep, isImportCancelled, startStep } from './steps.js';
 
 /**
@@ -178,6 +179,8 @@ export interface VerifyRun {
   readonly mailboxCheck: 'never' | 'found' | 'all';
   /** Seulement ces adresses ; toutes celles de l'entreprise sinon. */
   readonly emailIds?: readonly string[];
+  /** Revoir les controles locaux meme si l'adresse a ete verifiee il y a moins de 30 jours. */
+  readonly force?: boolean;
 }
 
 export interface VerifyOutcome {
@@ -265,6 +268,7 @@ export async function verifyEmails(deps: VerifyDeps, run: VerifyRun): Promise<Ve
     // revue : c'est gratuit, la liste passe avant le DNS, et l'utilisateur a
     // pu l'en retirer.
     const aJour =
+      run.force !== true &&
       email.status !== 'suppressed' &&
       recent(email.last_check) &&
       (!boiteDemandee || recent(email.last_mailbox));
@@ -371,10 +375,14 @@ async function enregistrer(
               score = $3,
               score_breakdown = $4::jsonb,
               last_verified_at = case when $5 then now() else last_verified_at end,
-              -- Seul le statut ecarte une adresse a ce stade : une adresse
-              -- retiree de la liste de suppression revient.
-              excluded = $6,
-              excluded_reason = case when $6 then $7 end,
+              -- Le statut ecarte ou rend une adresse, sauf quand c'est
+              -- l'utilisateur qui l'a exclue : la verification ne defait pas
+              -- son choix. Une adresse retiree de la liste de suppression
+              -- revient.
+              excluded = $6 or (excluded and excluded_reason = $8),
+              excluded_reason = case
+                when excluded and excluded_reason = $8 then excluded_reason
+                when $6 then $7 end,
               updated_at = now()
         where id = $1`,
       [
@@ -385,6 +393,7 @@ async function enregistrer(
         nouvelles.length > 0,
         ecartee,
         ecartee ? motifExclusion(email.origin, statut) : null,
+        USER_EXCLUSION_REASON,
       ],
     );
     await client.query('commit');

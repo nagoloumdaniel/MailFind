@@ -11,6 +11,9 @@ import { recordAuditEvent } from '../audit/repository.js';
 import type { Enqueue } from '../pipeline/start.js';
 import { enqueueCompanyStep } from '../queue/queues.js';
 import { correctDomain, getCompanyDetail, updateCompany, updateCompanySchema } from './detail.js';
+import { bulkCompanies, bulkCompaniesSchema, mergeCompanies, mergeSchema } from './fusion.js';
+import type { VerifyDeps } from '../pipeline/verify.js';
+import { createVerifyDeps } from '../pipeline/verify-deps.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const domaineSchema = z.object({ domain: z.string().trim().min(1).max(253) }).strict();
@@ -25,8 +28,12 @@ import { companyQuerySchema } from './query.js';
 
 const rechercheSchema = z.object({ q: z.string().trim().max(200).optional().default('') });
 
-export function createCompaniesRouter(options: { enqueue?: Enqueue } = {}): Router {
+export function createCompaniesRouter(
+  options: { enqueue?: Enqueue; verify?: VerifyDeps } = {},
+): Router {
   const enqueue = options.enqueue ?? enqueueCompanyStep;
+  let verification = options.verify;
+  const deps = () => (verification ??= createVerifyDeps());
   const router = Router();
   router.use(requireAuth, requireAcceptedTerms);
 
@@ -66,6 +73,54 @@ export function createCompaniesRouter(options: { enqueue?: Enqueue } = {}): Rout
         [user.id, q, likePattern(q.toLowerCase())],
       );
       res.json({ companies: lues.rows });
+    }),
+  );
+
+  router.post(
+    '/merge',
+    withUser(async (req, res, user) => {
+      const lu = mergeSchema.safeParse(req.body);
+      if (!lu.success) {
+        throw AppError.badRequest(
+          'invalid_merge',
+          'Fusion refusee',
+          lu.error.issues[0]?.code === 'custom'
+            ? lu.error.issues[0].message
+            : 'Choisissez deux entreprises.',
+        );
+      }
+      await mergeCompanies(deps(), user.id, lu.data.targetId, lu.data.sourceId);
+      await recordAuditEvent({
+        userId: user.id,
+        action: 'company.merged',
+        entity: 'company',
+        entityId: lu.data.targetId,
+        metadata: { mergedFrom: lu.data.sourceId },
+      });
+      res.json(await getCompanyDetail(user.id, lu.data.targetId));
+    }),
+  );
+
+  router.post(
+    '/bulk',
+    withUser(async (req, res, user) => {
+      const lu = bulkCompaniesSchema.safeParse(req.body);
+      if (!lu.success) {
+        throw AppError.badRequest(
+          'invalid_bulk_action',
+          'Action refusee',
+          'Action inconnue, ou selection de plus de 1 000 entreprises.',
+        );
+      }
+      const resultat = await bulkCompanies(user.id, lu.data);
+      await recordAuditEvent({
+        userId: user.id,
+        action: 'company.updated',
+        entity: 'company',
+        entityId: null,
+        metadata: { bulk: lu.data.action, requested: lu.data.ids.length, ...resultat },
+      });
+      res.json(resultat);
     }),
   );
 

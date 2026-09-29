@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Button } from '../components/Button';
+import { DeleteCompaniesDialog, MergeDialog } from '../components/CompanyDialogs';
 import { MultiFilter } from '../components/MultiFilter';
 import { Pagination } from '../components/Pagination';
 import { TableSkeleton } from '../components/Skeleton';
 import { ApiError } from '../lib/api';
 import {
+  bulkCompanies,
   companyFiltersFromSearch,
   companyFiltersToSearch,
   CRAWL_STATUS_LABELS,
@@ -18,6 +21,7 @@ import {
   type CompanySummary,
 } from '../lib/companies';
 import { TYPE_FILTERS } from '../lib/contacts';
+import { parseTags } from '../lib/import-settings';
 import { ALL_EMAIL_TYPE_LABELS } from '../lib/imports';
 
 const FRAPPE_MS = 300;
@@ -76,6 +80,15 @@ export function CompaniesPage() {
   const [etat, setEtat] = useState<
     { total: number; companies: CompanySummary[] } | { erreur: string } | undefined
   >(undefined);
+  const navigate = useNavigate();
+  const [version, setVersion] = useState(0);
+  const [message, setMessage] = useState<string | undefined>(undefined);
+  const [selection, setSelection] = useState<{ cle: string; ids: Set<string> }>({
+    cle: '',
+    ids: new Set(),
+  });
+  const [dialogue, setDialogue] = useState<'fusion' | 'suppression' | undefined>(undefined);
+  const [etiquette, setEtiquette] = useState('');
 
   function appliquer(suivants: CompanyFilters) {
     setParams(companyFiltersToSearch(suivants));
@@ -120,7 +133,36 @@ export function CompaniesPage() {
     return () => {
       actif = false;
     };
-  }, [cle]);
+  }, [cle, version]);
+
+  const choisis = selection.cle === cle ? selection.ids : new Set<string>();
+  const basculer = (ids: string[], coche: boolean) => {
+    const suivants = new Set(choisis);
+    for (const id of ids) {
+      if (coche) suivants.add(id);
+      else suivants.delete(id);
+    }
+    setSelection({ cle, ids: suivants });
+  };
+  const choisies =
+    etat !== undefined && 'companies' in etat
+      ? etat.companies.filter((entreprise) => choisis.has(entreprise.id))
+      : [];
+
+  const [premiere, seconde] = choisies.length === 2 ? choisies : [];
+
+  async function etiqueter(action: 'tag' | 'untag') {
+    try {
+      const { updated } = await bulkCompanies([...choisis], { action, tags: parseTags(etiquette) });
+      setMessage(
+        `Etiquette ${action === 'tag' ? 'ajoutee a' : 'retiree de'} ${updated.toLocaleString('fr-FR')} entreprise${updated > 1 ? 's' : ''}.`,
+      );
+      setEtiquette('');
+      setVersion((v) => v + 1);
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : "L'action n'a pas abouti.");
+    }
+  }
 
   const filtresActifs =
     filtres.q !== '' ||
@@ -140,6 +182,41 @@ export function CompaniesPage() {
           </p>
         )}
       </div>
+
+      <p role="status" className="mt-3 text-sm text-accent empty:hidden">
+        {message}
+      </p>
+      {dialogue === 'fusion' && premiere !== undefined && seconde !== undefined && (
+        <MergeDialog
+          entreprises={[premiere, seconde]}
+          onClose={() => {
+            setDialogue(undefined);
+          }}
+          onMerged={(targetId) => {
+            void navigate(`/entreprises/${targetId}`);
+          }}
+        />
+      )}
+      {dialogue === 'suppression' && (
+        <DeleteCompaniesDialog
+          ids={[...choisis]}
+          onClose={() => {
+            setDialogue(undefined);
+          }}
+          onDeleted={({ updated, suppressed }) => {
+            setMessage(
+              `${updated.toLocaleString('fr-FR')} entreprise${updated > 1 ? 's' : ''} supprimee${updated > 1 ? 's' : ''}${
+                suppressed > 0
+                  ? `, ${suppressed.toLocaleString('fr-FR')} adresse${suppressed > 1 ? 's' : ''} ajoutee${suppressed > 1 ? 's' : ''} a la liste de suppression`
+                  : ''
+              }.`,
+            );
+            setDialogue(undefined);
+            setSelection({ cle, ids: new Set() });
+            setVersion((v) => v + 1);
+          }}
+        />
+      )}
 
       <search className="mt-6 flex flex-wrap items-center gap-2">
         <label className="min-w-0 flex-1 basis-64">
@@ -245,10 +322,88 @@ export function CompaniesPage() {
           </p>
         ) : (
           <>
+            {choisis.size > 0 && (
+              <div
+                role="toolbar"
+                aria-label="Actions sur la selection"
+                className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-sm"
+              >
+                <span className="mr-2 font-medium" data-numeric>
+                  {choisis.size.toLocaleString('fr-FR')} selectionnee{choisis.size > 1 ? 's' : ''}
+                </span>
+                <label>
+                  <span className="sr-only">Etiquette</span>
+                  <input
+                    value={etiquette}
+                    placeholder="Etiquette"
+                    onChange={(event) => {
+                      setEtiquette(event.target.value);
+                    }}
+                    className="w-32 rounded-sm border border-line-strong bg-surface px-2 py-1.5 text-text"
+                  />
+                </label>
+                <Button
+                  disabled={parseTags(etiquette).length === 0}
+                  onClick={() => void etiqueter('tag')}
+                >
+                  Etiqueter
+                </Button>
+                <Button
+                  disabled={parseTags(etiquette).length === 0}
+                  onClick={() => void etiqueter('untag')}
+                >
+                  Retirer
+                </Button>
+                <Button
+                  disabled={choisies.length !== 2}
+                  title="Selectionnez exactement deux entreprises."
+                  onClick={() => {
+                    setMessage(undefined);
+                    setDialogue('fusion');
+                  }}
+                >
+                  Fusionner
+                </Button>
+                <Button
+                  tone="danger"
+                  onClick={() => {
+                    setMessage(undefined);
+                    setDialogue('suppression');
+                  }}
+                >
+                  Supprimer
+                </Button>
+                <button
+                  type="button"
+                  className="ml-1 text-accent underline"
+                  onClick={() => {
+                    setSelection({ cle, ids: new Set() });
+                  }}
+                >
+                  Deselectionner
+                </button>
+              </div>
+            )}
             <div className="overflow-x-auto rounded-md border border-line bg-surface">
               <table className="w-full min-w-[56rem] text-sm">
                 <thead className="border-b border-line bg-raised text-xs text-text-faint">
                   <tr>
+                    <th scope="col" className="w-10 px-4 py-2">
+                      <input
+                        type="checkbox"
+                        aria-label="Tout selectionner sur cette page"
+                        checked={
+                          etat.companies.length > 0 &&
+                          etat.companies.every((entreprise) => choisis.has(entreprise.id))
+                        }
+                        onChange={(event) => {
+                          basculer(
+                            etat.companies.map((entreprise) => entreprise.id),
+                            event.target.checked,
+                          );
+                        }}
+                      />
+                    </th>
                     {COLONNES.map((colonne) => {
                       const actif = colonne.sort !== undefined && filtres.sort === colonne.sort;
                       return (
@@ -293,7 +448,7 @@ export function CompaniesPage() {
                   {etat.companies.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={COLONNES.length}
+                        colSpan={COLONNES.length + 1}
                         className="px-4 py-8 text-center text-text-soft"
                       >
                         Aucune entreprise ne correspond a cette recherche.
@@ -305,6 +460,16 @@ export function CompaniesPage() {
                         key={entreprise.id}
                         className="border-b border-line align-top last:border-b-0"
                       >
+                        <td className="px-4 py-2">
+                          <input
+                            type="checkbox"
+                            aria-label={`Selectionner ${entreprise.name}`}
+                            checked={choisis.has(entreprise.id)}
+                            onChange={(event) => {
+                              basculer([entreprise.id], event.target.checked);
+                            }}
+                          />
+                        </td>
                         <td className="px-4 py-2">
                           <Link
                             to={`/entreprises/${entreprise.id}`}

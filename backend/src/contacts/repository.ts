@@ -1,5 +1,6 @@
 import { query } from '../db/pool.js';
 import { likePattern, SORT_EXPRESSIONS, type ContactQuery } from './query.js';
+import { SHOWN_EMAIL } from '../emails/visibility.js';
 
 /**
  * La page Contacts : toutes les adresses de la bibliotheque, quelle que soit
@@ -18,6 +19,9 @@ export interface Contact {
   readonly status: string;
   readonly score: number | null;
   readonly scoreBreakdown: unknown;
+  /** Hors des exports et des envois, par son statut ou par l'utilisateur. */
+  readonly excluded: boolean;
+  readonly excludedReason: string | null;
   readonly verificationReason: string | null;
   readonly verifiedAt: Date | null;
   readonly createdAt: Date;
@@ -42,6 +46,8 @@ interface ContactRow {
   status: string;
   score: number | null;
   score_breakdown: unknown;
+  excluded: boolean;
+  excluded_reason: string | null;
   reason: string | null;
   verified_at: Date | null;
   created_at: Date;
@@ -54,7 +60,7 @@ const SELECT_CONTACT = `
   select e.id, e.address, e.contact_name, e.salutation, e.tags,
          c.id as company_id, c.name as company_name, c.domain as company_domain,
          e.type::text as type, e.origin::text as origin, e.status::text as status,
-         e.score, e.score_breakdown, v.reason, e.last_verified_at as verified_at,
+         e.score, e.score_breakdown, e.excluded, e.excluded_reason, v.reason, e.last_verified_at as verified_at,
          e.created_at, s.kind::text as source_kind, s.url as source_url,
          s.provider as source_provider
     from emails e
@@ -81,6 +87,8 @@ function versContact(ligne: ContactRow): Contact {
     status: ligne.status,
     score: ligne.score,
     scoreBreakdown: ligne.score_breakdown,
+    excluded: ligne.excluded,
+    excludedReason: ligne.excluded_reason,
     verificationReason: ligne.reason,
     verifiedAt: ligne.verified_at,
     createdAt: ligne.created_at,
@@ -97,7 +105,7 @@ function conditions(userId: string, filtre: ContactQuery): { where: string; para
   const parties = [
     'e.user_id = $1',
     // F-503 : une candidate que la verification a refusee n'est pas montree.
-    "not (e.origin = 'deduced' and e.excluded)",
+    SHOWN_EMAIL,
   ];
   const ajouter = (sql: (n: string) => string, valeur: unknown) => {
     params.push(valeur);

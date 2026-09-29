@@ -98,7 +98,10 @@ export function createApp(options: AppOptions = {}): Express {
   app.use('/api/imports', createImportsRouter());
   app.use(
     '/api/companies',
-    createCompaniesRouter(options.enqueue === undefined ? {} : { enqueue: options.enqueue }),
+    createCompaniesRouter({
+      ...(options.enqueue === undefined ? {} : { enqueue: options.enqueue }),
+      ...(options.verify === undefined ? {} : { verify: options.verify }),
+    }),
   );
   app.use(
     '/api/contacts',

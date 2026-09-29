@@ -236,3 +236,20 @@ export const STEP_STATUS_LABELS: Record<string, string> = {
   failed: 'en echec',
   skipped: 'sans objet',
 };
+
+export async function bulkCompanies(
+  ids: string[],
+  action: { action: 'tag' | 'untag'; tags: string[] } | { action: 'delete'; suppress: boolean },
+): Promise<{ updated: number; suppressed: number }> {
+  return apiFetch('/api/companies/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ ids, ...action }),
+  });
+}
+
+export async function mergeCompanies(targetId: string, sourceId: string): Promise<CompanyDetail> {
+  return apiFetch('/api/companies/merge', {
+    method: 'POST',
+    body: JSON.stringify({ targetId, sourceId }),
+  });
+}

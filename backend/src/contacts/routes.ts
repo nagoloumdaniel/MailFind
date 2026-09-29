@@ -9,6 +9,8 @@ import { findContact, listContacts } from './repository.js';
 import type { VerifyDeps } from '../pipeline/verify.js';
 import { createVerifyDeps } from '../pipeline/verify-deps.js';
 import {
+  bulkContacts,
+  bulkContactsSchema,
   createContact,
   createContactSchema,
   deleteContacts,
@@ -90,6 +92,33 @@ export function createContactsRouter(options: { verify?: VerifyDeps } = {}): Rou
         entityId: id,
       });
       res.status(201).json({ contact: await findContact(user.id, id) });
+    }),
+  );
+
+  router.post(
+    '/bulk',
+    withUser(async (req, res, user) => {
+      const lu = bulkContactsSchema.safeParse(req.body);
+      if (!lu.success) {
+        throw AppError.badRequest(
+          'invalid_bulk_action',
+          'Action refusee',
+          'Action inconnue, ou selection trop grande : 1 000 contacts au plus, 200 pour une verification.',
+        );
+      }
+      const resultat = await bulkContacts(deps(), user.id, lu.data);
+      await recordAuditEvent({
+        userId: user.id,
+        action: 'contact.updated',
+        entity: 'email',
+        entityId: null,
+        metadata: {
+          bulk: lu.data.action,
+          requested: lu.data.ids.length,
+          updated: resultat.updated,
+        },
+      });
+      res.json(resultat);
     }),
   );
 

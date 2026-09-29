@@ -131,7 +131,7 @@ describe('GET /api/contacts', () => {
     expect((await request(app).get(`/api/contacts/${unAutre.rows[0]?.id ?? ''}`)).status).toBe(404);
 
     await semer();
-    await query(`update emails set excluded = true where user_id = $1 and origin = 'deduced'`, [
+    await query(`update emails set status = 'invalid' where user_id = $1 and origin = 'deduced'`, [
       userId,
     ]);
     const reponse = await request(app).get('/api/contacts?origin=deduced');

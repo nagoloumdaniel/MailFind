@@ -6,10 +6,11 @@ import { getPool, query } from '../db/pool.js';
 import { classifyLocalPart } from '../emails/roles.js';
 import { AppError } from '../http/problem.js';
 import { importSettingsSchema, readStoredSettings } from '../imports/settings.js';
-import { verifyEmails, type VerifyDeps } from '../pipeline/verify.js';
+import { skipNotes, verifyEmails, type VerifyDeps } from '../pipeline/verify.js';
 import { addSuppressions, isSuppressed, loadSuppressedHashes } from '../suppressions/repository.js';
 import { normalizeAddress } from '../verification/local.js';
 import { EMAIL_TYPES } from './query.js';
+import { USER_EXCLUSION_REASON } from '../emails/visibility.js';
 
 /**
  * Creation et modification d'un contact a la main (F-1013, F-1014). Une
@@ -183,29 +184,69 @@ export async function verifyContactNow(
   userId: string,
   emailId: string,
 ): Promise<void> {
-  const lu = await query<{ company_id: string; domain: string | null; settings: unknown }>(
-    `select e.company_id, c.domain,
+  await verifyContacts(deps, userId, [emailId], { mailboxCheck: 'never' });
+}
+
+/**
+ * Verifie des adresses choisies, entreprise par entreprise : le score de
+ * chacune depend du domaine officiel de la sienne et des types que son
+ * dernier import recherchait (ou ceux par defaut).
+ */
+export async function verifyContacts(
+  deps: VerifyDeps,
+  userId: string,
+  ids: readonly string[],
+  options: { mailboxCheck: 'never' | 'all'; force?: boolean },
+): Promise<string[]> {
+  const lues = await query<{
+    id: string;
+    company_id: string;
+    domain: string | null;
+    settings: unknown;
+  }>(
+    `select e.id, e.company_id, c.domain,
             (select i.settings from import_rows r join imports i on i.id = r.import_id
               where r.company_id = c.id order by i.created_at desc limit 1) as settings
        from emails e join companies c on c.id = e.company_id
-      where e.id = $1 and e.user_id = $2`,
-    [emailId, userId],
+      where e.id = any($1::uuid[]) and e.user_id = $2`,
+    [ids, userId],
   );
-  const ligne = lu.rows[0];
-  if (ligne === undefined) return;
-  // Les types recherches par le dernier import de l'entreprise, ou ceux par
-  // defaut : c'est eux que le critere « role pertinent » du score regarde.
-  const reglages =
-    ligne.settings === null ? importSettingsSchema.parse({}) : readStoredSettings(ligne.settings);
-  await verifyEmails(deps, {
-    userId,
-    companyId: ligne.company_id,
-    runKey: randomUUID(),
-    officialDomain: ligne.domain,
-    wantedTypes: reglages.emailTypes,
-    mailboxCheck: 'never',
-    emailIds: [emailId],
-  });
+  const parEntreprise = new Map<
+    string,
+    { domain: string | null; settings: unknown; ids: string[] }
+  >();
+  for (const ligne of lues.rows) {
+    const groupe = parEntreprise.get(ligne.company_id) ?? {
+      domain: ligne.domain,
+      settings: ligne.settings,
+      ids: [],
+    };
+    groupe.ids.push(ligne.id);
+    parEntreprise.set(ligne.company_id, groupe);
+  }
+
+  // Une cle par demande : deux demandes distinctes sont deux verifications,
+  // mais une meme demande rejouee ne paie pas deux fois.
+  const runKey = randomUUID();
+  const sauts = new Map<string, number>();
+  for (const [companyId, groupe] of parEntreprise) {
+    const reglages =
+      groupe.settings === null
+        ? importSettingsSchema.parse({})
+        : readStoredSettings(groupe.settings);
+    const bilan = await verifyEmails(deps, {
+      userId,
+      companyId,
+      runKey,
+      officialDomain: groupe.domain,
+      wantedTypes: reglages.emailTypes,
+      mailboxCheck: options.mailboxCheck,
+      emailIds: groupe.ids,
+      ...(options.force === undefined ? {} : { force: options.force }),
+    });
+    for (const [cle, n] of bilan.skips) sauts.set(cle, (sauts.get(cle) ?? 0) + n);
+  }
+  return skipNotes(sauts);
 }
 
 export async function createContact(
@@ -389,4 +430,115 @@ export async function deleteContacts(
     ids,
   ]);
   return { deleted: effaces.rowCount ?? 0, suppressed };
+}
+
+/** Au-dela, une verification en masse attendrait trop longtemps sa reponse. */
+export const BULK_VERIFY_MAX = 200;
+
+export const bulkContactsSchema = z.discriminatedUnion('action', [
+  z
+    .object({
+      action: z.literal('type'),
+      ids: z.array(z.uuid()).min(1).max(1000),
+      type: z.enum(EMAIL_TYPES),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('tag'),
+      ids: z.array(z.uuid()).min(1).max(1000),
+      tags: z.array(z.string().max(50)).min(1).max(20),
+    })
+    .strict(),
+  z
+    .object({
+      action: z.literal('untag'),
+      ids: z.array(z.uuid()).min(1).max(1000),
+      tags: z.array(z.string().max(50)).min(1).max(20),
+    })
+    .strict(),
+  z.object({ action: z.literal('exclude'), ids: z.array(z.uuid()).min(1).max(1000) }).strict(),
+  z.object({ action: z.literal('include'), ids: z.array(z.uuid()).min(1).max(1000) }).strict(),
+  z
+    .object({ action: z.literal('verify'), ids: z.array(z.uuid()).min(1).max(BULK_VERIFY_MAX) })
+    .strict(),
+  z
+    .object({ action: z.literal('reverify'), ids: z.array(z.uuid()).min(1).max(BULK_VERIFY_MAX) })
+    .strict(),
+]);
+
+export type BulkContactsInput = z.infer<typeof bulkContactsSchema>;
+
+/**
+ * Actions en masse sur des contacts (F-1005). Supprimer a sa propre route ;
+ * exporter et envoyer vers Campaign Mailer partent de la selection ailleurs.
+ */
+export async function bulkContacts(
+  deps: VerifyDeps,
+  userId: string,
+  input: BulkContactsInput,
+): Promise<{ updated: number; notes: string[] }> {
+  const ids = input.ids;
+  const modifier = async (sql: string, params: unknown[]) =>
+    (await query(`${sql} where user_id = $1 and id = any($2::uuid[])`, [userId, ids, ...params]))
+      .rowCount ?? 0;
+
+  switch (input.action) {
+    case 'type': {
+      const updated = await modifier(
+        'update emails set type = $3::email_type, updated_at = now()',
+        [input.type],
+      );
+      // Le type change le critere « role pertinent » du score : il est recalcule.
+      await verifyContacts(deps, userId, ids, { mailboxCheck: 'never' });
+      return { updated, notes: [] };
+    }
+    case 'tag':
+      return {
+        updated: await modifier(
+          `update emails set tags = (select array(select distinct unnest(tags || $3::text[]) order by 1)),
+                  updated_at = now()`,
+          [normalizeTags(input.tags.join(','))],
+        ),
+        notes: [],
+      };
+    case 'untag':
+      return {
+        updated: await modifier(
+          `update emails set tags = (select coalesce(array_agg(t order by t), '{}')
+                                       from unnest(tags) t where not (t = any($3::text[]))),
+                  updated_at = now()`,
+          [normalizeTags(input.tags.join(','))],
+        ),
+        notes: [],
+      };
+    case 'exclude':
+      // Une adresse deja ecartee par son statut garde son motif.
+      return {
+        updated: await modifier(
+          `update emails set excluded = true,
+                  excluded_reason = coalesce(excluded_reason, $3), updated_at = now()`,
+          [USER_EXCLUSION_REASON],
+        ),
+        notes: [],
+      };
+    case 'include': {
+      // Seule une exclusion de l'utilisateur se leve ici : une adresse
+      // invalide, jetable ou supprimee reste hors des exports.
+      const levees = await query(
+        `update emails set excluded = false, excluded_reason = null, updated_at = now()
+          where user_id = $1 and id = any($2::uuid[]) and excluded and excluded_reason = $3`,
+        [userId, ids, USER_EXCLUSION_REASON],
+      );
+      return { updated: levees.rowCount ?? 0, notes: [] };
+    }
+    case 'verify':
+    case 'reverify': {
+      const notes = await verifyContacts(deps, userId, ids, {
+        mailboxCheck: input.action === 'verify' ? 'all' : 'never',
+        force: input.action === 'reverify',
+      });
+      return { updated: ids.length, notes };
+    }
+  }
 }

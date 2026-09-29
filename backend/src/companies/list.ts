@@ -1,6 +1,7 @@
 import { query } from '../db/pool.js';
 import { likePattern } from '../contacts/query.js';
 import { COMPANY_SORT_EXPRESSIONS, type CompanyQuery } from './query.js';
+import { SHOWN_EMAIL } from '../emails/visibility.js';
 
 export interface CompanySummary {
   readonly id: string;
@@ -31,7 +32,7 @@ const ADRESSES = `
            array_agg(distinct e.type::text) as types,
            max(e.score) as best_score
       from emails e
-     where e.company_id = c.id and not (e.origin = 'deduced' and e.excluded)
+     where e.company_id = c.id and ${SHOWN_EMAIL}
   ) a on true`;
 
 function conditions(userId: string, filtre: CompanyQuery): { where: string; params: unknown[] } {
@@ -61,7 +62,7 @@ function conditions(userId: string, filtre: CompanyQuery): { where: string; para
     ajouter(
       (n) =>
         `exists (select 1 from emails e where e.company_id = c.id and e.type::text = ${n}
-                   and not (e.origin = 'deduced' and e.excluded))`,
+                   and ${SHOWN_EMAIL})`,
       type,
     );
   }

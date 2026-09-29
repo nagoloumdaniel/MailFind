@@ -5,6 +5,7 @@ import { importSettingsSchema, readStoredSettings } from '../imports/settings.js
 import type { Enqueue } from '../pipeline/start.js';
 import { planStep } from '../pipeline/steps.js';
 import { normalizeDomain, normalizeTags } from './normalize.js';
+import { SHOWN_EMAIL } from '../emails/visibility.js';
 
 /**
  * Fiche entreprise (F-1004) : identite, adresses par type avec toutes leurs
@@ -114,7 +115,7 @@ export async function getCompanyDetail(
           where email_id = e.id order by verified_at desc, level desc limit 1
        ) v on true
       where e.company_id = $1 and e.user_id = $2
-        and not (e.origin = 'deduced' and e.excluded)
+        and ${SHOWN_EMAIL}
       order by array_position(array['recruitment', 'hr', 'generic', 'sales', 'press',
                                     'support', 'personal', 'unknown'], e.type::text),
                e.score desc nulls last, e.normalized_address`,

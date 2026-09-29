@@ -77,6 +77,8 @@ export interface Contact {
   status: EmailStatus;
   score: number | null;
   scoreBreakdown: unknown;
+  excluded: boolean;
+  excludedReason: string | null;
   verificationReason: string | null;
   verifiedAt: string | null;
   createdAt: string;
@@ -229,5 +231,23 @@ export async function deleteContacts(
   return apiFetch('/api/contacts/delete', {
     method: 'POST',
     body: JSON.stringify({ ids, suppress }),
+  });
+}
+
+export type BulkAction =
+  | { action: 'type'; type: string }
+  | { action: 'tag' | 'untag'; tags: string[] }
+  | { action: 'exclude' | 'include' | 'verify' | 'reverify' };
+
+/** Au-dela, le serveur refuse une verification en masse (`BULK_VERIFY_MAX`). */
+export const BULK_VERIFY_MAX = 200;
+
+export async function bulkContacts(
+  ids: string[],
+  action: BulkAction,
+): Promise<{ updated: number; notes: string[] }> {
+  return apiFetch('/api/contacts/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ ids, ...action }),
   });
 }

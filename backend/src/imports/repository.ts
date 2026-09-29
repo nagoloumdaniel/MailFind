@@ -1,4 +1,5 @@
 import { getPool, query } from '../db/pool.js';
+import { SHOWN_EMAIL } from '../emails/visibility.js';
 
 export interface PreparedRow {
   readonly line: number;
@@ -278,7 +279,7 @@ export async function importProgress(userId: string, importId: string): Promise<
      , adresses as (
        -- F-503 : une candidate que la verification a refusee n'est pas montree.
        select e.origin from emails e join entreprises x on x.company_id = e.company_id
-        where not (e.origin = 'deduced' and e.excluded)
+        where ${SHOWN_EMAIL}
      )
      select (select count(*)::int from entreprises) as companies,
             (select count(*)::int from adresses) as emails,
@@ -291,7 +292,7 @@ export async function importProgress(userId: string, importId: string): Promise<
   const statuts = await query<{ status: string; n: number }>(
     `select e.status::text as status, count(*)::int as n
        from emails e
-      where e.user_id = $1 and not (e.origin = 'deduced' and e.excluded)
+      where e.user_id = $1 and ${SHOWN_EMAIL}
         and e.company_id in (
           select r.company_id from import_rows r where r.import_id = $2 and r.company_id is not null)
       group by e.status`,
@@ -420,7 +421,7 @@ export async function listImportEmails(
           where email_id = e.id order by discovered_at, id limit 1
        ) s on true
       where e.user_id = $1
-        and not (e.origin = 'deduced' and e.excluded)
+        and ${SHOWN_EMAIL}
         and e.company_id in (
           select r.company_id from import_rows r
             join imports i on i.id = r.import_id

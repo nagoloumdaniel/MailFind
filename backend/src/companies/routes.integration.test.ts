@@ -26,6 +26,14 @@ beforeAll(async () => {
   app = createApp({
     logger: pino({ level: 'silent' }),
     session: connecte,
+    verify: {
+      mailDns: {
+        mx: (domaine) => Promise.resolve([{ exchange: `mx.${domaine}`, priority: 10 }]),
+        hasAddress: () => Promise.resolve(false),
+      },
+      disposableDomains: () => Promise.resolve(new Set<string>()),
+      verificationLimits: { perUserMonthly: 0, globalMonthly: 0 },
+    },
     enqueue: (step, job) => {
       file.push({ step, companyId: job.companyId, importId: job.importId });
       return Promise.resolve();
@@ -255,5 +263,94 @@ describe('fiche entreprise (F-1004, F-307)', () => {
     expect((await patch(`/api/companies/${id}`, { notes: 'x' })).status).toBe(404);
     expect((await post(`/api/companies/${id}/domain`, { domain: 'x.fr' })).status).toBe(404);
     expect((await get('/api/companies/pas-un-uuid')).status).toBe(404);
+  });
+});
+
+describe('fusion et actions en masse (F-1006, F-1005)', () => {
+  it('fusionne deux doublons sans perdre une adresse, une source ni une ligne d import', async () => {
+    const gardee = await entreprise('Acme', { city: 'Lyon', tags: ['salon'] }, [
+      ['rh@acme.fr', 'hr', 'unverified'],
+    ]);
+    const doublon = await entreprise(
+      'ACME SAS',
+      { domain: 'acme.fr', industry: 'Industrie', tags: ['lyon'] },
+      [
+        ['rh@acme.fr', 'hr', 'unverified'],
+        ['jobs@acme.fr', 'recruitment', 'unverified'],
+      ],
+    );
+    await query(
+      `insert into email_sources (email_id, kind, url, extraction_method)
+       select id, 'website', 'https://acme.fr/contact', 'mailto' from emails
+        where company_id = $1 and address = 'rh@acme.fr'`,
+      [doublon],
+    );
+    const importe = await query<{ id: string }>(
+      `insert into imports (user_id, filename) values ($1, 'salon.csv') returning id`,
+      [userId],
+    );
+    await query(
+      `insert into import_rows (import_id, line, raw, company_id, status) values ($1, 1, '{}', $2, 'accepted')`,
+      [importe.rows[0]?.id, doublon],
+    );
+
+    const { post } = await agentAvecJeton();
+    const reponse = await post('/api/companies/merge', { targetId: gardee, sourceId: doublon });
+    expect(reponse.status).toBe(200);
+    expect(reponse.body.company).toMatchObject({
+      name: 'Acme',
+      domain: 'acme.fr',
+      city: 'Lyon',
+      industry: 'Industrie',
+      tags: ['salon', 'lyon'],
+    });
+    const adresses = reponse.body.emails as { address: string; sources: { kind: string }[] }[];
+    expect(adresses.map((e) => e.address).sort()).toEqual(['jobs@acme.fr', 'rh@acme.fr']);
+    expect(
+      adresses
+        .find((e) => e.address === 'rh@acme.fr')
+        ?.sources.map((s) => s.kind)
+        .sort(),
+    ).toEqual(['deduction', 'website']);
+    // Sur le site officiel desormais connu, avec sa page contact : le score suit.
+    const rh = await query<{ score: number }>(
+      `select score from emails where company_id = $1 and address = 'rh@acme.fr'`,
+      [gardee],
+    );
+    expect(rh.rows[0]?.score).toBe(55);
+    const ligne = await query<{ company_id: string }>('select company_id from import_rows');
+    expect(ligne.rows[0]?.company_id).toBe(gardee);
+    expect((await query('select 1 from companies where id = $1', [doublon])).rowCount).toBe(0);
+  });
+
+  it('refuse de fusionner une entreprise avec elle-meme ou avec celle d un autre compte', async () => {
+    const id = await entreprise('Acme', {});
+    const autre = await createUser();
+    const etrangere = await entreprise('Autre', {}, [], autre);
+    const { post } = await agentAvecJeton();
+    expect((await post('/api/companies/merge', { targetId: id, sourceId: id })).status).toBe(400);
+    expect((await post('/api/companies/merge', { targetId: id, sourceId: etrangere })).status).toBe(
+      404,
+    );
+  });
+
+  it('etiquette et supprime en masse, avec la liste de suppression sur demande', async () => {
+    const a = await entreprise('Acme', {}, [['rh@acme.fr', 'hr', 'unverified']]);
+    const b = await entreprise('Beta', {}, []);
+    const { post } = await agentAvecJeton();
+    expect(
+      (await post('/api/companies/bulk', { action: 'tag', ids: [a, b], tags: ['Relance'] })).body,
+    ).toEqual({
+      updated: 2,
+      suppressed: 0,
+    });
+    const suppression = await post('/api/companies/bulk', {
+      action: 'delete',
+      ids: [a],
+      suppress: true,
+    });
+    expect(suppression.body).toEqual({ updated: 1, suppressed: 1 });
+    expect((await query('select 1 from emails')).rowCount).toBe(0);
+    expect((await query('select 1 from suppressions')).rowCount).toBe(1);
   });
 });

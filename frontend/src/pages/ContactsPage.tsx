@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { Button } from '../components/Button';
 import { ContactDialog } from '../components/ContactDialog';
+import { ContactsBulkBar } from '../components/ContactsBulkBar';
 import { DeleteContactsDialog } from '../components/DeleteContactsDialog';
 import { MultiFilter } from '../components/MultiFilter';
 import { Pagination } from '../components/Pagination';
@@ -290,33 +291,20 @@ export function ContactsPage() {
         ) : (
           <>
             {choisis.size > 0 && (
-              <div
-                role="toolbar"
-                aria-label="Actions sur la selection"
-                className="mb-2 flex flex-wrap items-center gap-3 rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-sm"
-              >
-                <span data-numeric>
-                  {choisis.size.toLocaleString('fr-FR')} selectionne{choisis.size > 1 ? 's' : ''}
-                </span>
-                <Button
-                  tone="danger"
-                  onClick={() => {
-                    setMessage(undefined);
-                    setASupprimer({ ids: [...choisis] });
-                  }}
-                >
-                  Supprimer
-                </Button>
-                <button
-                  type="button"
-                  className="text-accent underline"
-                  onClick={() => {
-                    setSelection({ cle, ids: new Set() });
-                  }}
-                >
-                  Deselectionner
-                </button>
-              </div>
+              <ContactsBulkBar
+                ids={[...choisis]}
+                onDone={(texte) => {
+                  setMessage(texte);
+                  setVersion((v) => v + 1);
+                }}
+                onDelete={() => {
+                  setMessage(undefined);
+                  setASupprimer({ ids: [...choisis] });
+                }}
+                onClear={() => {
+                  setSelection({ cle, ids: new Set() });
+                }}
+              />
             )}
             <div className="overflow-x-auto rounded-md border border-line bg-surface">
               <table className="w-full min-w-[60rem] text-sm">
@@ -411,6 +399,9 @@ export function ContactsPage() {
                           <span className={STATUS_TONES[contact.status]}>
                             {EMAIL_STATUS_LABELS[contact.status]}
                           </span>
+                          {contact.excluded && (
+                            <span className="block text-xs text-text-faint">Hors des exports</span>
+                          )}
                         </td>
                         <td className="px-4 py-2 text-right">
                           <ScoreBadge score={contact.score} breakdown={contact.scoreBreakdown} />

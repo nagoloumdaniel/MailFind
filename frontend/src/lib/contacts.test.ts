@@ -59,6 +59,8 @@ describe('contactPatch', () => {
     status: 'unverified' as const,
     score: 55,
     scoreBreakdown: null,
+    excluded: false,
+    excludedReason: null,
     verificationReason: null,
     verifiedAt: null,
     createdAt: '2026-09-28T00:00:00Z',

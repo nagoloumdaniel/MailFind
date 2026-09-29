@@ -296,3 +296,97 @@ describe('POST /api/contacts/delete (F-1015, R-05)', () => {
     );
   });
 });
+
+describe('POST /api/contacts/bulk (F-1005)', () => {
+  async function trois() {
+    const { post } = await agentAvecJeton();
+    const nouvelle = { newCompany: { name: 'Acme', domain: 'acme.fr' } };
+    const ids: string[] = [];
+    for (const adresse of ['rh@acme.fr', 'jobs@acme.fr', 'contact@acme.fr']) {
+      ids.push(
+        (await post('/api/contacts', { address: adresse, ...nouvelle })).body.contact.id as string,
+      );
+    }
+    return ids;
+  }
+
+  it('etiquette, retire une etiquette et change le type, avec le score recalcule', async () => {
+    const [a, b] = await trois();
+    const { post } = await agentAvecJeton();
+    expect(
+      (await post('/api/contacts/bulk', { action: 'tag', ids: [a, b], tags: ['Salon', 'lyon'] }))
+        .body,
+    ).toEqual({ updated: 2, notes: [] });
+    await post('/api/contacts/bulk', { action: 'untag', ids: [a], tags: ['lyon'] });
+    await post('/api/contacts/bulk', { action: 'type', ids: [b], type: 'press' });
+    const lues = await query<{ address: string; tags: string[]; type: string; score: number }>(
+      `select address, tags, type::text as type, score from emails order by address`,
+    );
+    expect(lues.rows).toEqual([
+      { address: 'contact@acme.fr', tags: [], type: 'generic', score: 5 },
+      { address: 'jobs@acme.fr', tags: ['lyon', 'salon'], type: 'press', score: 0 },
+      { address: 'rh@acme.fr', tags: ['salon'], type: 'hr', score: 5 },
+    ]);
+  });
+
+  it('exclut sur demande, et la verification suivante ne defait pas ce choix', async () => {
+    const [a] = await trois();
+    const { post } = await agentAvecJeton();
+    await post('/api/contacts/bulk', { action: 'exclude', ids: [a] });
+    await post('/api/contacts/bulk', { action: 'reverify', ids: [a] });
+    const exclue = await query<{ excluded: boolean; excluded_reason: string }>(
+      'select excluded, excluded_reason from emails where id = $1',
+      [a],
+    );
+    expect(exclue.rows[0]).toEqual({
+      excluded: true,
+      excluded_reason: "Exclue par l'utilisateur.",
+    });
+    // Toujours dans la liste : exclure ne fait pas disparaitre.
+    expect((await request(app).get('/api/contacts')).body.total).toBe(3);
+
+    await post('/api/contacts/bulk', { action: 'include', ids: [a] });
+    const rendue = await query<{ excluded: boolean }>('select excluded from emails where id = $1', [
+      a,
+    ]);
+    expect(rendue.rows[0]?.excluded).toBe(false);
+  });
+
+  it('ne leve pas l exclusion d une adresse ecartee par son statut', async () => {
+    const { post } = await agentAvecJeton();
+    const jetable = await post('/api/contacts', {
+      address: 'x@yopmail.com',
+      newCompany: { name: 'Acme', domain: 'acme.fr' },
+    });
+    const id = jetable.body.contact.id as string;
+    expect((await post('/api/contacts/bulk', { action: 'include', ids: [id] })).body.updated).toBe(
+      0,
+    );
+    const lue = await query<{ excluded: boolean }>('select excluded from emails where id = $1', [
+      id,
+    ]);
+    expect(lue.rows[0]?.excluded).toBe(true);
+  });
+
+  it('revérifie malgre les 30 jours, et dit quand la verification de boite est impossible', async () => {
+    const [a] = await trois();
+    const { post } = await agentAvecJeton();
+    await post('/api/contacts/bulk', { action: 'reverify', ids: [a] });
+    const historique = await query<{ n: number }>(
+      'select count(*)::int as n from verifications where email_id = $1',
+      [a],
+    );
+    expect(historique.rows[0]?.n).toBe(2);
+    const boite = await post('/api/contacts/bulk', { action: 'verify', ids: [a] });
+    expect(boite.body.notes).toEqual([
+      'Verification de boite non faite pour 1 adresse(s) : fournisseur non configure.',
+    ]);
+  });
+
+  it('refuse une action inconnue ou une verification de plus de 200 adresses', async () => {
+    const { post } = await agentAvecJeton();
+    expect((await post('/api/contacts/bulk', { action: 'send', ids: [] })).status).toBe(400);
+    const trop = Array.from({ length: 201 }, () => '018f0000-0000-7000-8000-000000000000');
+    expect((await post('/api/contacts/bulk', { action: 'verify', ids: trop })).status).toBe(400);
+  });
+});
