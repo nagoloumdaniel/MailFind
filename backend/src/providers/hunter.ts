@@ -39,11 +39,20 @@ const reponseSchema = z.object({
 
 /** Le code de reponse dit ce qu'on peut en conclure, et donc ce que le pipeline fait. */
 function erreurPour(status: number): ProviderError {
-  if (status === 401 || status === 403) {
+  if (status === 401) {
     return new ProviderError('Cle Hunter refusee', 'auth', status);
   }
+  // La documentation v2 : 403 est la limite de debit (15 par seconde, 500 par
+  // minute), passagere ; 429 est le quota du mois, epuise.
+  if (status === 403) {
+    return new ProviderError(
+      'Hunter : limite de debit atteinte, a retenter',
+      'unavailable',
+      status,
+    );
+  }
   if (status === 429) {
-    return new ProviderError('Hunter : quota ou debit depasse', 'quota', status);
+    return new ProviderError('Hunter : quota du mois epuise', 'quota', status);
   }
   if (status === 451) {
     return new ProviderError('Hunter ne traite pas ce domaine', 'refused', status);
@@ -54,10 +63,18 @@ function erreurPour(status: number): ProviderError {
   return new ProviderError(`Hunter a repondu ${String(status)}`, 'unavailable', status);
 }
 
+/**
+ * Hunter rend parfois, parmi les adresses, les gabarits de son format :
+ * « firstl@ », « flast@ », « first@ » sur decathlon.fr. Ce ne sont pas des
+ * boites, et les garder ferait une adresse sans existence avec une source.
+ */
+const GABARIT = /^(first|last|f|l)([._-]?(first|last|f|l))*$/;
+
 function versAdresse(brut: unknown): ProviderEmail | undefined {
   const lu = emailSchema.safeParse(brut);
   if (!lu.success) return undefined;
   const email = lu.data;
+  if (GABARIT.test(email.value.split('@')[0]?.toLowerCase() ?? '')) return undefined;
   return {
     address: email.value,
     kind: email.type,

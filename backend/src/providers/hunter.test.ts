@@ -27,6 +27,11 @@ const REPONSES: Record<string, { status: number; corps?: unknown }> = {
           },
           { value: 'contact@acme.fr', type: 'generic', confidence: 88, sources: [] },
           { value: 42 },
+          // Gabarits de format que Hunter rend parmi les adresses (vu sur decathlon.fr).
+          { value: 'firstl@acme.fr', type: 'personal', confidence: 80, sources: [] },
+          { value: 'flast@acme.fr', type: 'personal', confidence: 80, sources: [] },
+          { value: 'first@acme.fr', type: 'personal', confidence: 80, sources: [] },
+          { value: 'first.last@acme.fr', type: 'personal', confidence: 80, sources: [] },
         ],
       },
       meta: { results: 2 },
@@ -35,6 +40,7 @@ const REPONSES: Record<string, { status: number; corps?: unknown }> = {
   'vide.fr': { status: 200, corps: { data: { domain: 'vide.fr', pattern: null, emails: [] } } },
   'refuse.fr': { status: 451, corps: { errors: [{ id: 'unavailable_for_legal_reasons' }] } },
   'quota.fr': { status: 429, corps: { errors: [{ id: 'too_many_requests' }] } },
+  'debit.fr': { status: 403, corps: { errors: [{ id: 'restricted_account' }] } },
   'casse.fr': { status: 200, corps: { rien: true } },
 };
 
@@ -106,6 +112,14 @@ describe('createHunter (F-602)', () => {
     });
   });
 
+  it('ecarte les gabarits de format que Hunter rend parmi les adresses', async () => {
+    const { emails } = await hunter().domainSearch('acme.fr');
+    expect(emails.map((email) => email.address)).toEqual([
+      'jean.dupont@acme.fr',
+      'contact@acme.fr',
+    ]);
+  });
+
   it('passe la cle dans un en-tete, jamais dans l URL (S-03)', async () => {
     await hunter().domainSearch('acme.fr');
     const derniere = recues.at(-1);
@@ -123,6 +137,11 @@ describe('createHunter (F-602)', () => {
       kind: 'auth',
     });
     await expect(hunter().domainSearch('quota.fr')).rejects.toMatchObject({ kind: 'quota' });
+    // 403 chez Hunter, c'est la limite de debit, pas une cle refusee.
+    await expect(hunter().domainSearch('debit.fr')).rejects.toMatchObject({
+      kind: 'unavailable',
+      message: 'Hunter : limite de debit atteinte, a retenter',
+    });
     await expect(hunter().domainSearch('refuse.fr')).rejects.toMatchObject({ kind: 'refused' });
     await expect(hunter().domainSearch('inconnu.fr')).rejects.toMatchObject({
       kind: 'unavailable',
