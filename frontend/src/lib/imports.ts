@@ -68,13 +68,52 @@ export interface CompanyIssue {
   error: string | null;
 }
 
+/** Section 6.7 : un statut, jamais une promesse. */
+export type EmailStatus =
+  | 'valid'
+  | 'accept_all'
+  | 'risky'
+  | 'unknown'
+  | 'invalid'
+  | 'disposable'
+  | 'suppressed'
+  | 'unverified';
+
+export const EMAIL_STATUS_LABELS: Record<EmailStatus, string> = {
+  valid: 'Valide',
+  accept_all: 'Domaine accepte tout',
+  risky: 'Risquee',
+  unknown: 'Inconnue',
+  invalid: 'Invalide',
+  disposable: 'Jetable',
+  suppressed: 'Supprimee',
+  unverified: 'Non verifiee',
+};
+
+/**
+ * Seul `valid` porte la couleur de l'accent : un autre statut n'est jamais
+ * presente comme verifie (regle du depot).
+ */
+export const STATUS_TONES: Record<EmailStatus, string> = {
+  valid: 'text-accent',
+  accept_all: 'text-caution',
+  risky: 'text-caution',
+  unknown: 'text-text-soft',
+  invalid: 'text-negative',
+  disposable: 'text-negative',
+  suppressed: 'text-negative',
+  unverified: 'text-text-soft',
+};
+
 export interface ImportProgress {
   companies: number;
   identify: StepCounts;
   crawl: StepCounts;
   enrich: StepCounts;
+  verify: StepCounts;
   emails: number;
   emailsByOrigin: { found: number; provider: number; deduced: number };
+  emailsByStatus: Partial<Record<EmailStatus, number>>;
   issues: CompanyIssue[];
 }
 
@@ -133,4 +172,47 @@ export const STATUS_LABELS: Record<ImportStatus, string> = {
   cancelled: 'Annule',
   completed: 'Termine',
   failed: 'En echec',
+};
+
+export interface ImportEmail {
+  id: string;
+  companyId: string;
+  companyName: string;
+  address: string;
+  type: string;
+  origin: EmailOrigin;
+  status: EmailStatus;
+  score: number | null;
+  scoreBreakdown: unknown;
+  verificationReason: string | null;
+  verifiedAt: string | null;
+  source: { kind: string; url: string | null; provider: string | null } | null;
+}
+
+export async function fetchImportEmails(
+  id: string,
+): Promise<{ emails: ImportEmail[]; truncated: boolean }> {
+  return apiFetch(`/api/imports/${encodeURIComponent(id)}/emails`);
+}
+
+/** Les huit types de 6.8, au-dela des cinq qu'on peut rechercher. */
+export const ALL_EMAIL_TYPE_LABELS: Record<string, string> = {
+  recruitment: 'Recrutement',
+  hr: 'Ressources humaines',
+  generic: 'Generique',
+  sales: 'Commercial',
+  press: 'Presse',
+  support: 'Support',
+  personal: 'Nominative',
+  unknown: 'Autre',
+};
+
+export type EmailOrigin = 'found' | 'provider' | 'deduced' | 'imported' | 'manual';
+
+export const ORIGIN_LABELS: Record<EmailOrigin, string> = {
+  found: 'Sur le site',
+  provider: 'Fournisseur',
+  deduced: 'Deduite',
+  imported: 'Importee',
+  manual: 'Saisie',
 };

@@ -60,12 +60,12 @@ export function isFinalFailure(
 
 /**
  * La file des etapes par entreprise (section 8.4) : `company.identify`, puis
- * `company.crawl`, puis `company.enrich`. Separee de celle des imports pour qu'un import de cinq
+ * `company.crawl`, `company.enrich` et `company.verify`. Separee de celle des imports pour qu'un import de cinq
  * mille lignes planifie sans attendre la collecte d'un autre.
  */
 export const COMPANY_QUEUE = 'company';
 
-export type CompanyStep = 'identify' | 'crawl' | 'enrich';
+export type CompanyStep = 'identify' | 'crawl' | 'enrich' | 'verify';
 
 export interface CompanyJob {
   readonly importId: string;
@@ -98,11 +98,66 @@ export async function enqueueCompanyStep(step: CompanyStep, job: CompanyJob): Pr
   await getCompanyQueue().add(`company.${step}`, job, { jobId: companyJobId(step, job) });
 }
 
+/**
+ * Taches d'entretien, sans rapport avec un import : le rechargement hebdomadaire
+ * de la liste des domaines jetables (niveau 4 de 6.7).
+ */
+export const MAINTENANCE_QUEUE = 'maintenance';
+const UNE_SEMAINE_MS = 7 * 24 * 60 * 60 * 1000;
+
+let fileEntretien: Queue | undefined;
+
+export function getMaintenanceQueue(): Queue {
+  fileEntretien ??= new Queue(MAINTENANCE_QUEUE, {
+    connection: getQueueConnection(),
+    prefix: queuePrefix(),
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 60_000 },
+      removeOnComplete: { count: 10 },
+      removeOnFail: { count: 10 },
+    },
+  });
+  return fileEntretien;
+}
+
+/**
+ * Le planificateur est idempotent : chaque processus de traitement le
+ * declare a son demarrage, et BullMQ n'en garde qu'un.
+ */
+export async function scheduleMaintenance(): Promise<void> {
+  await getMaintenanceQueue().upsertJobScheduler(
+    'disposable-domains',
+    { every: UNE_SEMAINE_MS },
+    { name: 'disposable.refresh' },
+  );
+  // F-1104 : les exports de plus de sept jours sont effaces, une fois par jour.
+  await getMaintenanceQueue().upsertJobScheduler(
+    'exports-purge',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: 'exports.purge' },
+  );
+}
+
+/**
+ * F-1104 : un export volumineux est produit par le processus de traitement.
+ * L'identifiant de la tache suit celui de l'export : il ne part qu'une fois.
+ */
+export async function enqueueExportBuild(exportId: string, userId: string): Promise<void> {
+  await getMaintenanceQueue().add(
+    'export.build',
+    { exportId, userId },
+    { jobId: `export-${exportId}` },
+  );
+}
+
 export async function closeImportQueue(): Promise<void> {
   const fermetures: Promise<void>[] = [];
   if (queue !== undefined) fermetures.push(queue.close());
   if (fileEntreprises !== undefined) fermetures.push(fileEntreprises.close());
+  if (fileEntretien !== undefined) fermetures.push(fileEntretien.close());
   queue = undefined;
   fileEntreprises = undefined;
+  fileEntretien = undefined;
   await Promise.all(fermetures);
 }

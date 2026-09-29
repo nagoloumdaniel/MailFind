@@ -9,7 +9,15 @@ import { paidCall, type CallLimits } from '../providers/credits.js';
 import type { DomainSearchResult, EnrichmentProvider } from '../providers/enrichment.js';
 import type { CompanyJob } from '../queue/queues.js';
 import type { Cipher } from '../security/crypto.js';
-import { completeImportIfDone, finishStep, isImportCancelled, startStep } from './steps.js';
+import { isSuppressed, loadSuppressedHashes } from '../suppressions/repository.js';
+import type { Enqueue } from './start.js';
+import {
+  completeImportIfDone,
+  finishStep,
+  isImportCancelled,
+  planStep,
+  startStep,
+} from './steps.js';
 
 /**
  * Etape `company.enrich` (section 8.4) : quand le site n'a pas donne
@@ -29,6 +37,7 @@ export interface EnrichDeps {
   /** Plafonds de la recherche par domaine, par fournisseur. */
   readonly providerLimits: Readonly<Record<string, CallLimits>>;
   readonly mx?: MxResolver;
+  readonly enqueue: Enqueue;
 }
 
 /** F-604 : une reponse de fournisseur est gardee 30 jours. */
@@ -163,21 +172,23 @@ export async function enrichStep(deps: EnrichDeps, job: CompanyJob): Promise<voi
   const recherches = reglages.emailTypes as WantedType[];
   const notes: string[] = [];
 
-  const connues = await query<{ normalized_address: string; local_part: string }>(
-    'select normalized_address, local_part from emails where company_id = $1',
+  // Le type enregistre, pas celui du prefixe : une adresse generique vue sur
+  // la page carrieres compte deja pour le recrutement (6.8).
+  const connues = await query<{ normalized_address: string; type: EmailType }>(
+    'select normalized_address, type::text as type from emails where company_id = $1',
     [job.companyId],
   );
   const adresses = new Set(connues.rows.map((ligne) => ligne.normalized_address));
-  const trouves = new Set<EmailType>(
-    connues.rows.map((ligne) => classifyLocalPart(ligne.local_part)),
-  );
+  const trouves = new Set<EmailType>(connues.rows.map((ligne) => ligne.type));
   const manque = () => recherches.some((type) => !trouves.has(type));
 
   let format: { pattern: string; provider: string } | undefined;
   const nouvelles: Nouvelle[] = [];
+  // R-04 : ni fournie ni deduite, une adresse supprimee ne revient jamais.
+  const supprimees = await loadSuppressedHashes(job.userId);
   const ajouter = (nouvelle: Nouvelle) => {
     const cle = nouvelle.address.toLowerCase();
-    if (adresses.has(cle)) return;
+    if (adresses.has(cle) || isSuppressed(supprimees, cle)) return;
     adresses.add(cle);
     trouves.add(nouvelle.type);
     nouvelles.push(nouvelle);
@@ -299,7 +310,10 @@ export async function enrichStep(deps: EnrichDeps, job: CompanyJob): Promise<voi
   }
 
   await enregistrer(job, nouvelles);
+  // La verification est declaree avant de conclure : sinon l'import pourrait
+  // se croire termine entre les deux.
+  await planStep('verify', job);
   await finishStep('enrich', job, 'done', notes.length > 0 ? notes.join(' ') : undefined);
-  await completeImportIfDone(job.importId);
+  await deps.enqueue('verify', job);
   logger.info({ ajoutees: nouvelles.length, notes: notes.length }, 'enrichissement termine');
 }

@@ -4,7 +4,12 @@ import { createMemoryGate } from '../crawler/politeness.js';
 import { closePool, query } from '../db/pool.js';
 import type { KnownField } from '../imports/fields.js';
 import { cancelImport, planImport } from '../imports/plan.js';
-import { createImport, importProgress, type PreparedRow } from '../imports/repository.js';
+import {
+  createImport,
+  importProgress,
+  listImportEmails,
+  type PreparedRow,
+} from '../imports/repository.js';
 import { validateRow } from '../imports/validate.js';
 import { createFetcher, type Fetcher } from '../net/safe-fetch.js';
 import type { LegalIdentity } from '../providers/recherche-entreprises.js';
@@ -12,12 +17,15 @@ import type { WebResult } from '../providers/web-search.js';
 import type { CompanyJob, CompanyStep } from '../queue/queues.js';
 import { createUser, resetData } from '../test/integration/db.js';
 import { startTestSites, type TestSites } from '../test/sites/server.js';
-import { crawlStep, type CrawlDeps } from './crawl.js';
+import { crawlStep, saveCrawlReport, type CrawlDeps } from './crawl.js';
 import { enrichStep, type EnrichDeps } from './enrich.js';
 import { randomBytes } from 'node:crypto';
 import { createCipher } from '../security/crypto.js';
 import { ProviderError, type DomainSearchResult } from '../providers/enrichment.js';
 import { identifyCompany, type IdentifyDeps } from './identify.js';
+import { addSuppressions, removeSuppression } from '../suppressions/repository.js';
+import { verifyStep, type VerifyDeps } from './verify.js';
+import type { MailboxResult } from '../providers/enrichment.js';
 import { startPipeline } from './start.js';
 
 /**
@@ -35,6 +43,14 @@ const file: { step: CompanyStep; job: CompanyJob }[] = [];
 let recherchesWeb = 0;
 let recherchesLegales = 0;
 let appelsHunter = 0;
+let verificationsHunter = 0;
+
+/** Ce que la verification de boite simulee rend, par adresse ; « valid » sinon. */
+const BOITES: Record<string, MailboxResult | 'panne'> = {
+  'drh@spa.test': { status: 'invalid', subStatus: 'undeliverable' },
+  'hr@spa.test': { status: 'accept_all', subStatus: 'risky' },
+  'rh@spa.test': 'panne',
+};
 
 /** Ce que Hunter simule rend, par domaine. */
 const HUNTER: Record<string, DomainSearchResult | 'quota'> = {
@@ -78,12 +94,16 @@ const RESULTATS: Record<string, WebResult[]> = {
   'Garage Dupont': [{ url: 'https://www.garages-du-rhone.fr/', title: 'Garages', description: '' }],
 };
 
-type Deps = IdentifyDeps & CrawlDeps & EnrichDeps;
+type Deps = IdentifyDeps & CrawlDeps & EnrichDeps & VerifyDeps;
 
 function dependances(
   limites = { perUserMonthly: 80, globalMonthly: 1000 },
-  enrichissement: Partial<EnrichDeps> = {},
+  enrichissement: Partial<EnrichDeps & VerifyDeps> = {},
 ) {
+  const mx = (domaine: string) =>
+    SANS_MX.has(domaine)
+      ? Promise.reject(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }))
+      : Promise.resolve([{ exchange: `mx.${domaine}`, priority: 10 }]);
   const deps: Deps = {
     providers: [
       {
@@ -103,10 +123,22 @@ function dependances(
     // passage serait illisible au second, qui paierait a nouveau.
     cipher: CHIFFREUR,
     providerLimits: { hunter: { perUserMonthly: 3, globalMonthly: 30 } },
-    mx: (domaine) =>
-      SANS_MX.has(domaine)
-        ? Promise.reject(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }))
-        : Promise.resolve([{ exchange: `mx.${domaine}`, priority: 10 }]),
+    mx,
+    mailDns: { mx, hasAddress: () => Promise.resolve(false) },
+    disposableDomains: () => Promise.resolve(new Set(['yopmail.com'])),
+    verifier: {
+      name: 'hunter',
+      verify: (adresse) => {
+        verificationsHunter += 1;
+        const reponse = BOITES[adresse];
+        if (reponse === 'panne') {
+          return Promise.reject(new ProviderError('Hunter : indisponible', 'unavailable', 503));
+        }
+        return Promise.resolve(reponse ?? { status: 'valid', subStatus: 'deliverable' });
+      },
+    },
+    // D-14 : quatre verifications par compte, un demi-credit chacune.
+    verificationLimits: { perUserMonthly: 2, globalMonthly: 20 },
     ...enrichissement,
     crawler: createCrawlerClient({
       fetcher,
@@ -142,7 +174,8 @@ async function vider(deps: Deps): Promise<void> {
   for (let suivante = file.shift(); suivante !== undefined; suivante = file.shift()) {
     if (suivante.step === 'identify') await identifyCompany(deps, suivante.job);
     else if (suivante.step === 'crawl') await crawlStep(deps, suivante.job);
-    else await enrichStep(deps, suivante.job);
+    else if (suivante.step === 'enrich') await enrichStep(deps, suivante.job);
+    else await verifyStep(deps, suivante.job);
   }
 }
 
@@ -237,6 +270,7 @@ beforeEach(async () => {
   await query('truncate provider_calls, provider_cache');
   file.length = 0;
   appelsHunter = 0;
+  verificationsHunter = 0;
   recherchesWeb = 0;
   recherchesLegales = 0;
   userId = await createUser();
@@ -460,6 +494,43 @@ describe('pipeline d un import', () => {
     });
   });
 
+  it('compte pour le recrutement une adresse generique revue sur la page carrieres (6.8)', async () => {
+    const importId = await importer([['Boulangerie Martin', 'boulangerie.test', 'Lyon']]);
+    await lancer(importId);
+    const entreprise = await query<{ id: string }>(
+      'select id from companies where user_id = $1 and name = $2',
+      [userId, 'Boulangerie Martin'],
+    );
+    const companyId = entreprise.rows[0]?.id ?? '';
+    const vue = (pageUrl: string) => ({
+      pages: [],
+      notes: [],
+      addresses: [
+        {
+          address: 'bonjour@boulangerie.test',
+          normalized: 'bonjour@boulangerie.test',
+          method: 'mailto' as const,
+          excerpt: 'bonjour@boulangerie.test',
+          pageUrl,
+        },
+      ],
+    });
+    const type = async () =>
+      (
+        await query<{ type: string }>(
+          `select type::text as type from emails where normalized_address = 'bonjour@boulangerie.test'`,
+        )
+      ).rows[0]?.type;
+
+    await saveCrawlReport(companyId, userId, vue('https://boulangerie.test/contact'));
+    expect(await type()).toBe('generic');
+    await saveCrawlReport(companyId, userId, vue('https://boulangerie.test/nous-rejoindre'));
+    expect(await type()).toBe('recruitment');
+    // Revue ensuite sur une page ordinaire, elle garde ce que la page carrieres a dit.
+    await saveCrawlReport(companyId, userId, vue('https://boulangerie.test/contact'));
+    expect(await type()).toBe('recruitment');
+  });
+
   it('n appelle pas Hunter quand le site a donne tous les types recherches (F-603)', async () => {
     const importId = await importer([['Boulangerie Martin', 'boulangerie.test', 'Lyon']]);
     await lancer(importId);
@@ -592,5 +663,222 @@ describe('pipeline d un import', () => {
       `select count(*)::int as n from provider_calls where provider = 'hunter' and status = 'confirmed'`,
     );
     expect(credits.rows[0]?.n).toBe(1);
+  });
+});
+
+describe('verification et score (Phase 5)', () => {
+  async function adresses() {
+    const result = await query<{
+      adresse: string;
+      status: string;
+      score: number | null;
+      excluded: boolean;
+      somme: number | null;
+    }>(
+      `select e.normalized_address as adresse, e.status::text as status, e.score, e.excluded,
+              (select sum((l ->> 'points')::int)::int
+                 from jsonb_array_elements(e.score_breakdown -> 'criteria') l) as somme
+         from emails e
+        order by e.normalized_address`,
+    );
+    return result.rows;
+  }
+
+  it('applique les controles locaux a chaque adresse et calcule son score, sans rien payer', async () => {
+    const importId = await importer([['Boulangerie Martin', 'boulangerie.test', 'Lyon']]);
+    await lancer(importId);
+
+    expect(await statut(importId)).toBe('completed');
+    expect(verificationsHunter).toBe(0);
+    const lignes = await adresses();
+    expect(lignes.map((l) => `${l.adresse} ${l.status}`)).toEqual([
+      'boulangerie.martin.lyon@gmail.com risky',
+      'contact@boulangerie.test unverified',
+      'info@boulangerie.test unverified',
+      'recrutement@boulangerie.test unverified',
+      'rh@boulangerie.test unverified',
+    ]);
+    // Le detail affiche est le calcul : la somme des lignes est le score.
+    for (const ligne of lignes) expect(ligne.somme, ligne.adresse).toBe(ligne.score);
+    // Site officiel, page contact et type recherche : 40 + 10 + 5.
+    expect(lignes.find((l) => l.adresse === 'rh@boulangerie.test')?.score).toBe(55);
+
+    const historique = await query<{ n: number; max: number }>(
+      'select count(*)::int as n, max(level)::int as max from verifications',
+    );
+    expect(historique.rows[0]).toEqual({ n: 5, max: 7 });
+    const progression = await importProgress(userId, importId);
+    expect(progression.verify).toMatchObject({ done: 1 });
+    expect(progression.emailsByStatus).toEqual({ risky: 1, unverified: 4 });
+
+    // La liste rendue a la page : recrutement d'abord, puis par score, avec
+    // le detail du calcul et le motif de la verification.
+    const { emails, truncated } = await listImportEmails(userId, importId);
+    expect(truncated).toBe(false);
+    expect(emails.map((e) => `${e.address} ${e.type} ${String(e.score)}`)).toEqual([
+      'recrutement@boulangerie.test recruitment 45',
+      'rh@boulangerie.test hr 55',
+      'contact@boulangerie.test generic 55',
+      'info@boulangerie.test generic 45',
+      'boulangerie.martin.lyon@gmail.com unknown 50',
+    ]);
+    expect(emails[0]).toMatchObject({
+      companyName: 'Boulangerie Martin',
+      status: 'unverified',
+      verificationReason: expect.any(String),
+      source: { kind: 'website', url: 'https://boulangerie.test/recrutement' },
+      scoreBreakdown: {
+        score: 45,
+        criteria: [
+          { criterion: 'official_site', points: 40 },
+          { criterion: 'relevant_role', points: 5 },
+        ],
+      },
+    });
+  });
+
+  it('verifie les boites quand l import le demande, et ecarte une candidate invalide (F-702, F-503)', async () => {
+    const importId = await importer([['Spa Zen', 'spa.test', 'Lyon']], { mailboxCheck: 'all' });
+    await lancer(
+      importId,
+      dependances(undefined, {
+        verificationLimits: { perUserMonthly: 10, globalMonthly: 20 },
+      }),
+    );
+
+    expect(verificationsHunter).toBe(7);
+    const lignes = await adresses();
+    expect(lignes.map((l) => `${l.adresse} ${l.status} ${String(l.excluded)}`)).toEqual([
+      'contact@spa.test valid false',
+      'drh@spa.test invalid true',
+      'hello@spa.test valid false',
+      'hr@spa.test accept_all false',
+      'jobs@spa.test valid false',
+      'marie.durand@spa.test valid false',
+      // La panne du fournisseur ne conclut rien : le statut local reste.
+      'rh@spa.test unverified false',
+    ]);
+    for (const ligne of lignes) expect(ligne.somme, ligne.adresse).toBe(ligne.score);
+    expect(lignes.find((l) => l.adresse === 'drh@spa.test')?.score).toBe(0);
+
+    const niveau8 = await query<{ adresse: string; sub_status: string; provider: string }>(
+      `select e.normalized_address as adresse, v.sub_status, v.provider
+         from verifications v join emails e on e.id = v.email_id
+        where v.level = 8 and e.normalized_address = 'hr@spa.test'`,
+    );
+    expect(niveau8.rows).toEqual([
+      { adresse: 'hr@spa.test', sub_status: 'risky', provider: 'hunter' },
+    ]);
+
+    // La candidate refusee n'est ni comptee ni montree.
+    const progression = await importProgress(userId, importId);
+    expect(progression.emails).toBe(6);
+    expect(progression.emailsByStatus.invalid).toBeUndefined();
+    const etape = await query<{ error: string }>(
+      `select error from pipeline_jobs where step = 'verify'`,
+    );
+    expect(etape.rows[0]?.error).toMatch(/1 adresse\(s\) : erreur du fournisseur/);
+  });
+
+  it('ne verifie a « trouvees seulement » que les adresses non deduites, dans le plafond du compte', async () => {
+    const importId = await importer([['Spa Zen', 'spa.test', 'Lyon']], { mailboxCheck: 'found' });
+    await lancer(importId);
+    // jobs@ et marie.durand@ viennent du fournisseur ; les candidates attendent.
+    expect(verificationsHunter).toBe(2);
+    const credits = await query<{ total: string }>(
+      `select sum(credits)::text as total from provider_calls where operation = 'verification'`,
+    );
+    expect(credits.rows[0]?.total).toBe('1.00');
+  });
+
+  it('s arrete au plafond du compte, et le dit', async () => {
+    const importId = await importer([['Spa Zen', 'spa.test', 'Lyon']], { mailboxCheck: 'all' });
+    await lancer(importId);
+    // Deux credits, un demi par verification : quatre boites payees, pas une
+    // de plus. L'appel en panne n'a rien coute, il ne compte pas.
+    expect(verificationsHunter).toBe(5);
+    const payees = await query<{ n: number; total: string }>(
+      `select count(*)::int as n, sum(credits)::text as total
+         from provider_calls where operation = 'verification' and status = 'confirmed'`,
+    );
+    expect(payees.rows[0]).toEqual({ n: 4, total: '2.00' });
+    const etape = await query<{ error: string }>(
+      `select error from pipeline_jobs where step = 'verify'`,
+    );
+    expect(etape.rows[0]?.error).toMatch(/2 adresse\(s\) : plafond mensuel du compte atteint/);
+  });
+
+  it('ne paie jamais deux fois une verification, meme rejouee apres 30 jours', async () => {
+    const importId = await importer([['Spa Zen', 'spa.test', 'Lyon']], { mailboxCheck: 'found' });
+    const deps = dependances();
+    await lancer(importId, deps);
+    expect(verificationsHunter).toBe(2);
+    const entreprise = await query<{ id: string }>('select id from companies');
+    const job = { importId, companyId: entreprise.rows[0]?.id ?? '', userId };
+
+    // Rejouee tout de suite : a jour, rien n'est refait.
+    const avant = await query<{ n: number }>('select count(*)::int as n from verifications');
+    await verifyStep(deps, job);
+    const apres = await query<{ n: number }>('select count(*)::int as n from verifications');
+    expect(apres.rows[0]?.n).toBe(avant.rows[0]?.n);
+
+    // Dans 31 jours, elle est refaite (F-704), mais la reponse deja payee
+    // pour cet import est relue du cache.
+    const plusTard = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000);
+    await verifyStep({ ...deps, now: () => plusTard }, job);
+    expect(verificationsHunter).toBe(2);
+    const refaites = await query<{ n: number }>(
+      'select count(*)::int as n from verifications where level = 8',
+    );
+    expect(refaites.rows[0]?.n).toBe(4);
+  });
+
+  it('dit pourquoi une boite n est pas verifiee sans fournisseur configure', async () => {
+    const importId = await importer([['Boulangerie Martin', 'boulangerie.test', 'Lyon']], {
+      mailboxCheck: 'found',
+    });
+    const { verifier: _v, ...sansFournisseur } = dependances();
+    await lancer(importId, sansFournisseur);
+    const etape = await query<{ error: string }>(
+      `select error from pipeline_jobs where step = 'verify'`,
+    );
+    expect(etape.rows[0]?.error).toMatch(/fournisseur non configure/);
+  });
+
+  it('ne laisse aucune adresse invalide, jetable ou supprimee au-dessus de 0 (DoD Phase 5)', async () => {
+    const importId = await importer(
+      [
+        ['Boulangerie Martin', 'boulangerie.test', 'Lyon'],
+        ['Spa Zen', 'spa.test', 'Lyon'],
+      ],
+      { mailboxCheck: 'all' },
+    );
+    const deps = dependances(undefined, {
+      verificationLimits: { perUserMonthly: 20, globalMonthly: 20 },
+    });
+    await lancer(importId, deps);
+    await addSuppressions(userId, ['contact@boulangerie.test'], undefined);
+
+    // La verification suivante garde la suppression, et son score a 0.
+    const boulangerie = await query<{ id: string }>(
+      `select id from companies where name = 'Boulangerie Martin'`,
+    );
+    await verifyStep(deps, { importId, companyId: boulangerie.rows[0]?.id ?? '', userId });
+
+    const fautives = await query<{ adresse: string }>(
+      `select normalized_address as adresse from emails
+        where status in ('invalid', 'disposable', 'suppressed') and score > 0`,
+    );
+    expect(fautives.rows).toEqual([]);
+    const supprimee = (await adresses()).find((l) => l.adresse === 'contact@boulangerie.test');
+    expect(supprimee).toMatchObject({ status: 'suppressed', score: 0, excluded: true });
+    expect(supprimee?.somme).toBe(0);
+
+    // Retiree de la liste par l'utilisateur, elle revient a la verification suivante.
+    await removeSuppression(userId, 'contact@boulangerie.test');
+    await verifyStep(deps, { importId, companyId: boulangerie.rows[0]?.id ?? '', userId });
+    const revenue = (await adresses()).find((l) => l.adresse === 'contact@boulangerie.test');
+    expect(revenue).toMatchObject({ status: 'valid', excluded: false });
+    expect(revenue?.score).toBeGreaterThan(0);
   });
 });

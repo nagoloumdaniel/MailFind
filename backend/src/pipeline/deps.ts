@@ -10,19 +10,23 @@ import type { EnrichmentProvider } from '../providers/enrichment.js';
 import { createHunter } from '../providers/hunter.js';
 import { createBraveSearch } from '../providers/web-search.js';
 import { getLogger } from '../observability/logger.js';
-import { createCipher } from '../security/crypto.js';
 import { getQueueConnection } from '../queue/connection.js';
 import { enqueueCompanyStep } from '../queue/queues.js';
 import type { CrawlDeps } from './crawl.js';
 import type { EnrichDeps } from './enrich.js';
 import type { IdentifyDeps } from './identify.js';
+import type { VerifyDeps } from './verify.js';
+import { createConfiguredCipher, createVerifyDeps } from './verify-deps.js';
 
 /**
  * Les dependances reelles du pipeline, pour le processus de traitement. Les
  * tests en construisent d'autres, sur le jeu de sites local et des
  * fournisseurs simules.
  */
-export function createPipelineDeps(): IdentifyDeps & CrawlDeps & EnrichDeps & { fetcher: Fetcher } {
+export function createPipelineDeps(): IdentifyDeps &
+  CrawlDeps &
+  EnrichDeps &
+  VerifyDeps & { fetcher: Fetcher } {
   const environment = getEnvironment();
   const fetcher = createFetcher();
   // La file par domaine est dans Redis : tous les processus de traitement la
@@ -50,10 +54,7 @@ export function createPipelineDeps(): IdentifyDeps & CrawlDeps & EnrichDeps & { 
   // seulement ceux qui ont une cle. Sans cle de chiffrement, aucun : leurs
   // reponses contiennent des adresses nominatives, gardees chiffrees ou pas
   // du tout (F-604).
-  const cipher =
-    environment.ENCRYPTION_KEY === ''
-      ? undefined
-      : createCipher(environment.ENCRYPTION_KEY, environment.ENCRYPTION_KEY_PREVIOUS);
+  const cipher = createConfiguredCipher();
   const disponibles: Record<string, EnrichmentProvider | undefined> = {
     hunter:
       environment.HUNTER_API_KEY === ''
@@ -72,6 +73,7 @@ export function createPipelineDeps(): IdentifyDeps & CrawlDeps & EnrichDeps & { 
 
   const cle = environment.BRAVE_SEARCH_API_KEY;
   return {
+    ...createVerifyDeps(cipher),
     providers: cipher === undefined ? [] : providers,
     ...(cipher === undefined ? {} : { cipher }),
     providerLimits: {

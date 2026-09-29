@@ -3,8 +3,8 @@
 Plan d'exécution, du dépôt vide à la bêta publique.
 Référence : [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md), version 1.0 du 22 septembre 2026.
 
-- **Statut** : Phases 0, 1, 2 et 4 terminées. Phase 3 construite, en attente de sa recette sur 50 entreprises réelles. Phase 5 à démarrer après la revue.
-- **Dernière mise à jour** : 28 septembre 2026
+- **Statut** : Phases 0, 1, 2, 4, 5 et 6 terminées. Phase 3 construite, en attente de sa recette sur 50 entreprises réelles. Phase 7 à démarrer après la revue.
+- **Dernière mise à jour** : 29 septembre 2026
 - **Cadence de révision** : fin de chaque phase
 
 ---
@@ -337,6 +337,19 @@ Démarrée en parallèle de la recette de la Phase 3, à la demande du propriét
 - Aucune adresse `invalid`, `disposable` ou `suppressed` n'a un score supérieur à 0.
 - Le détail du score affiché correspond au calcul, pour chaque critère.
 
+### Bilan (28 septembre 2026)
+
+**Preuves de la Definition of Done**, sur PostgreSQL 18 :
+
+- *Aucune adresse `invalid`, `disposable` ou `suppressed` n'a un score supérieur à 0* : le calcul met ces statuts à zéro par une ligne du détail, vérifié sur toutes les combinaisons de statut, d'origine, de type et de sources ; de bout en bout, deux entreprises vérifiées puis une adresse ajoutée à la liste de suppression ne laissent aucune adresse écartée au-dessus de 0.
+- *Le détail du score affiché correspond au calcul, pour chaque critère* : le plafond d'une adresse déduite, la mise à zéro et les bornes 0 à 100 sont des lignes du détail, dont la somme est toujours le score (test sur toutes les combinaisons, et en base après l'étape de vérification). La page n'affiche que le détail enregistré, jamais un calcul refait dans le navigateur, et signale un détail qui ne tomberait pas juste.
+
+**Livré.** Migration des vérifications (historique, F-703), de la liste de suppression (empreintes seulement) et des domaines jetables ; contrôles locaux, niveaux 1 à 7, sans aucune connexion SMTP (D-09) ; liste des domaines jetables rechargée chaque semaine ; liste de suppression contrôlée à la collecte, à l'enrichissement et à la vérification (R-04) ; vérification de boîte par Hunter selon le réglage de l'import (F-702), un demi-crédit, quatre par compte et vingt crédits par mois (D-14), cache de trente jours sous l'empreinte de l'adresse ; revalidation après trente jours (F-704) ; candidate refusée écartée et plus montrée (F-503) ; type par le contexte de la page (6.8) ; score et son détail (6.9) ; étape `company.verify` ; liste des adresses d'un import avec le détail du score au survol ; vérification ponctuelle d'une liste collée ou d'un CSV (F-705).
+
+**Choix faits en route.** Le tableau de 6.9 fait foi pour le score, et une déduction ne confirme rien (D-18). La vérification ponctuelle s'en tient aux contrôles gratuits : la vérification de boîte, payante, reste réservée aux imports, où elle est comptée. Une adresse retirée de la liste de suppression revient à la vérification suivante.
+
+**Reste à faire.** La vérification de Hunter n'est testée que sur un fournisseur simulé : l'environnement de développement bloque api.hunter.io et la clé n'existe pas encore. La revalidation avant un export « prêt à l'envoi » et avant un envoi vers Campaign Mailer (F-704) se branchera sur ces deux chemins, en Phases 6 et 7. Le rebond signalé par Campaign Mailer (F-706) attend la Phase 7.
+
 ---
 
 ## Phase 6 : Bibliothèque, page Contacts et exports
@@ -377,6 +390,22 @@ Démarrée en parallèle de la recette de la Phase 3, à la demande du propriét
 - Chaque adresse exportée a une source (A4).
 - Le fichier Campaign Mailer s'importe dans Campaign Mailer sans retouche.
 - La page Contacts crée, modifie, trie, recherche, pagine et supprime sur un jeu de 1 000 adresses.
+
+### Bilan (29 septembre 2026)
+
+**Preuves de la Definition of Done**, sur PostgreSQL 18 :
+
+- *Chaque adresse exportée a une source (A4)* : la base refuse une adresse sans source, et l'export charge les sources de chaque adresse, la plus vérifiable en tête ; le test d'intégration vérifie qu'aucune ligne exportée n'a une colonne de source vide. Une adresse déduite ou saisie a pour source la règle ou l'utilisateur, avec sa date (D-19).
+- *Le fichier Campaign Mailer s'importe dans Campaign Mailer sans retouche* : un fichier produit par MailFind (accents, guillemets, virgules et points-virgules dans les valeurs, doublon, adresses que Campaign Mailer refuserait) a été passé dans le code même de Campaign Mailer au commit `427749e` : lecture par papaparse avec ses réglages, correspondance automatique des colonnes (`guessMapping`), puis validation serveur (`collectContacts`). Les quatre colonnes sont reconnues sans intervention, et aucune ligne n'est refusée.
+- *La page Contacts crée, modifie, trie, recherche, pagine et supprime sur un jeu de 1 000 adresses* : un test d'intégration fait les six sur mille adresses ; un autre pagine les mille sans doublon ni oubli, trie dans les deux sens avec les valeurs vides en fin de liste, et combine recherche et filtres.
+
+**Livré.** Page Contacts (F-1010 à F-1015) : liste de toutes les adresses, tri depuis les en-têtes, recherche, filtres combinables, pagination de 25, 50 ou 100, filtres dans l'adresse de la page ; création et modification, avec contrôles relancés quand l'adresse change et historique de l'ancienne conservé ; suppression unitaire et en masse, avec la liste de suppression proposée. Vue Entreprises (F-1002) avec résumé des adresses et filtres par ville, pays, secteur, étiquette, statut de collecte et type présent. Fiche entreprise (F-1004) et correction du domaine qui relance la collecte (F-307). Actions en masse (F-1005) : type, étiquettes, exclusion, vérification, revérification, export, suppression ; fusion de doublons (F-1006). Exports (6.11, F-1101 à F-1106) : CSV par adresse et par entreprise, XLSX en quatre onglets, JSON imbriqué, Campaign Mailer ; au-delà de 2 000 adresses en tâche, gardés sept jours dans R2 ; tous journalisés. Tableau de bord (F-1001). Audit d'accessibilité (F-1009).
+
+**Audit d'accessibilité.** axe-core, règles WCAG 2.0 à 2.2 niveaux A et AA, sur quinze états des vues (dialogues, filtres, barres de sélection et détail du score ouverts), en thème clair et sombre, à 1 280 et 390 pixels : 45 problèmes trouvés, aucun restant (contraste du gris le plus clair, cibles tactiles de 24 pixels, champs de fichier sans nom, menu de filtre hors de l'écran d'un téléphone, lien d'évitement). Un parcours au clavier vérifie ce qu'axe ne voit pas : filtres, tri, détail du score au focus, dialogues qui gardent le focus et le rendent.
+
+**Choix faits en route.** « Exclure » veut dire « hors des exports et des envois », et la règle F-503 tient désormais au statut (D-20). Une correction de domaine passe par un import d'une ligne, pour que l'historique la garde. Le fichier Campaign Mailer reprend la règle d'adresse de Campaign Mailer et laisse de côté ce qu'il refuserait, en le disant (D-19). La navigation passe en menu sous 1 024 pixels.
+
+**Reste à faire.** L'envoi vers Campaign Mailer depuis une sélection (F-1005) et la revalidation avant envoi (F-704) sont la Phase 7. Les exports volumineux n'ont été produits que dans un stockage en mémoire : R2 répond depuis la machine du propriétaire (`npm run check:services`), pas depuis cet environnement. La notification d'un export volumineux prêt (F-1104) est dans l'application (page Exports et tableau de bord), pas par courriel. F-1007 (entreprise « ignorée » ou « déjà contactée ») attend l'intégration de la Phase 7.
 
 ---
 

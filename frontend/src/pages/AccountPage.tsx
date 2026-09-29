@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Button } from '../components/Button';
+import { SuppressionList } from '../components/SuppressionList';
 import { ApiError, apiFetch } from '../lib/api';
 import { useSession } from '../lib/session';
 
@@ -84,6 +85,8 @@ export function AccountPage() {
           </a>
         </div>
       </section>
+
+      <SuppressionList />
 
       <section className="mt-8 border-t border-negative/40 pt-6">
         <h2 className="text-base font-semibold">Supprimer mon compte</h2>

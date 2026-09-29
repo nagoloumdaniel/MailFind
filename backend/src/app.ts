@@ -10,6 +10,16 @@ import { createAuthRouter } from './auth/routes.js';
 import { createSessionMiddleware } from './auth/session.js';
 import { getEnvironment } from './config/env.js';
 import { createImportsRouter } from './imports/routes.js';
+import { createCompaniesRouter } from './companies/routes.js';
+import { createContactsRouter } from './contacts/routes.js';
+import { createDashboardRouter } from './dashboard/routes.js';
+import { createExportsRouter } from './exports/routes.js';
+import { createR2Storage, type ExportStorage } from './exports/storage.js';
+import { enqueueExportBuild } from './queue/queues.js';
+import type { Enqueue } from './pipeline/start.js';
+import type { VerifyDeps } from './pipeline/verify.js';
+import { createSuppressionsRouter } from './suppressions/routes.js';
+import { createVerificationsRouter } from './verification/routes.js';
 import { getLogger } from './observability/logger.js';
 import { csrfProtection } from './http/middleware/csrf.js';
 import { errorHandler, notFoundHandler } from './http/middleware/error-handler.js';
@@ -23,6 +33,14 @@ export interface AppOptions {
    * metier.
    */
   readonly session?: RequestHandler;
+  /** Verification des adresses saisies a la main ; les tests y mettent un DNS simule. */
+  readonly verify?: VerifyDeps;
+  /** La file des etapes par entreprise ; les tests la remplacent par une liste. */
+  readonly enqueue?: Enqueue;
+  /** Ou deposer les exports volumineux ; R2 par defaut, la memoire dans les tests. */
+  readonly exportStorage?: ExportStorage;
+  /** La mise en file d'un export volumineux. */
+  readonly enqueueExport?: (exportId: string, userId: string) => Promise<void>;
 }
 
 /**
@@ -86,6 +104,31 @@ export function createApp(options: AppOptions = {}): Express {
   app.use('/api/auth', createAuthRouter());
   app.use('/api/account', createAccountRouter());
   app.use('/api/imports', createImportsRouter());
+  app.use(
+    '/api/companies',
+    createCompaniesRouter({
+      ...(options.enqueue === undefined ? {} : { enqueue: options.enqueue }),
+      ...(options.verify === undefined ? {} : { verify: options.verify }),
+    }),
+  );
+  app.use(
+    '/api/contacts',
+    createContactsRouter(options.verify === undefined ? {} : { verify: options.verify }),
+  );
+  app.use('/api/dashboard', createDashboardRouter());
+  app.use('/api/suppressions', createSuppressionsRouter());
+  // Le client R2 est construit au premier export volumineux : lire sa
+  // configuration n'a pas a bloquer le demarrage.
+  let stockage: { valeur: ExportStorage | undefined } | undefined =
+    options.exportStorage === undefined ? undefined : { valeur: options.exportStorage };
+  app.use(
+    '/api/exports',
+    createExportsRouter({
+      storage: () => (stockage ??= { valeur: createR2Storage() }).valeur,
+      enqueue: options.enqueueExport ?? enqueueExportBuild,
+    }),
+  );
+  app.use('/api/verifications', createVerificationsRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -1,5 +1,7 @@
-import { Worker } from 'bullmq';
-import { closePool } from './db/pool.js';
+import { UnrecoverableError, Worker } from 'bullmq';
+import { purgeExpiredExports, runExportJob } from './exports/service.js';
+import { createR2Storage } from './exports/storage.js';
+import { closePool, query } from './db/pool.js';
 import { listImportsToResume, markImportFailed, planImport } from './imports/plan.js';
 import { getLogger } from './observability/logger.js';
 import { crawlStep, failStep } from './pipeline/crawl.js';
@@ -7,16 +9,23 @@ import { createPipelineDeps } from './pipeline/deps.js';
 import { enrichStep } from './pipeline/enrich.js';
 import { identifyCompany } from './pipeline/identify.js';
 import { startPipeline } from './pipeline/start.js';
-import { listStepsToResume } from './pipeline/steps.js';
+import { listStepsToResume, planStep } from './pipeline/steps.js';
+import { verifyStep } from './pipeline/verify.js';
 import { closeQueueConnection, getQueueConnection, queuePrefix } from './queue/connection.js';
+import { getEnvironment } from './config/env.js';
+import { refreshDisposableDomains } from './verification/disposable.js';
 import {
   closeImportQueue,
   COMPANY_QUEUE,
+  getMaintenanceQueue,
+  MAINTENANCE_QUEUE,
+  scheduleMaintenance,
   enqueueCompanyStep,
   enqueueImportPlan,
   IMPORT_QUEUE,
   isFinalFailure,
   type CompanyJob,
+  type CompanyStep,
   type ImportPlanJob,
 } from './queue/queues.js';
 
@@ -64,6 +73,7 @@ const collecte = new Worker<CompanyJob>(
     if (job.name === 'company.identify') await identifyCompany(dependances, job.data);
     else if (job.name === 'company.crawl') await crawlStep(dependances, job.data);
     else if (job.name === 'company.enrich') await enrichStep(dependances, job.data);
+    else if (job.name === 'company.verify') await verifyStep(dependances, job.data);
     else throw new Error(`Etape inconnue : ${job.name}`);
   },
   {
@@ -74,6 +84,27 @@ const collecte = new Worker<CompanyJob>(
     // chargent aucun site davantage.
     concurrency: 4,
   },
+);
+
+const entretien = new Worker(
+  MAINTENANCE_QUEUE,
+  async (job) => {
+    if (job.name === 'export.build' || job.name === 'exports.purge') {
+      const stockage = createR2Storage();
+      if (stockage === undefined) {
+        throw new UnrecoverableError('Stockage des exports non configure (R2).');
+      }
+      if (job.name === 'exports.purge') return { effaces: await purgeExpiredExports(stockage) };
+      const { exportId } = job.data as { exportId: string };
+      await runExportJob(stockage, exportId);
+      return { exportId };
+    }
+    if (job.name !== 'disposable.refresh') return undefined;
+    const issue = await refreshDisposableDomains({ url: getEnvironment().DISPOSABLE_DOMAINS_URL });
+    logger.info({ issue }, 'liste des domaines jetables');
+    return issue;
+  },
+  { connection: getQueueConnection(), prefix: queuePrefix(), concurrency: 1 },
 );
 
 planification.on('completed', (job, resultat) => {
@@ -106,19 +137,26 @@ collecte.on('failed', (job, error) => {
     return;
   }
   logger.error({ jobId: job.id, err: error }, 'etape abandonnee');
-  const etape =
-    job.name === 'company.identify'
-      ? 'identify'
-      : job.name === 'company.enrich'
-        ? 'enrich'
-        : 'crawl';
-  // Le motif montre a l'utilisateur reste general : le detail technique est
-  // dans les journaux (S-03).
-  void failStep(etape, job.data, "L'etape a echoue apres plusieurs tentatives.").catch(
-    (erreur: unknown) => {
-      logger.error({ jobId: job.id, err: erreur }, "l'echec de l'etape n'a pas pu etre note");
-    },
-  );
+  const etapes: Record<string, CompanyStep> = {
+    'company.identify': 'identify',
+    'company.crawl': 'crawl',
+    'company.enrich': 'enrich',
+    'company.verify': 'verify',
+  };
+  const etape = etapes[job.name] ?? 'crawl';
+  // Un enrichissement abandonne n'empeche pas de verifier ce que la collecte a
+  // trouve. La verification est declaree avant l'echec, pour que l'import ne
+  // se croie pas termine entre les deux.
+  const suite = etape === 'enrich';
+  void (async () => {
+    if (suite) await planStep('verify', job.data);
+    // Le motif montre a l'utilisateur reste general : le detail technique est
+    // dans les journaux (S-03).
+    await failStep(etape, job.data, "L'etape a echoue apres plusieurs tentatives.");
+    if (suite) await enqueueCompanyStep('verify', job.data);
+  })().catch((erreur: unknown) => {
+    logger.error({ jobId: job.id, err: erreur }, "l'echec de l'etape n'a pas pu etre note");
+  });
 });
 
 logger.info({ queues: [IMPORT_QUEUE, COMPANY_QUEUE] }, "processus de traitement a l'ecoute");
@@ -139,11 +177,27 @@ try {
   logger.error({ err: error }, 'reprise du travail en attente impossible');
 }
 
+// La liste des domaines jetables se recharge chaque semaine ; sur une base
+// neuve, elle se charge tout de suite plutot que dans sept jours.
+try {
+  await scheduleMaintenance();
+  const connus = await query<{ n: number }>('select count(*)::int as n from disposable_domains');
+  if ((connus.rows[0]?.n ?? 0) === 0) {
+    await getMaintenanceQueue().add(
+      'disposable.refresh',
+      {},
+      { jobId: 'disposable-refresh-initial' },
+    );
+  }
+} catch (error) {
+  logger.error({ err: error }, 'entretien non planifie');
+}
+
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'arret demande');
   // `close` attend la fin de la tache en cours : une tache coupee au milieu
   // repartirait de zero, alors qu'elle sait reprendre.
-  await Promise.all([planification.close(), collecte.close()]);
+  await Promise.all([planification.close(), collecte.close(), entretien.close()]);
   await dependances.fetcher.close();
   await closeImportQueue();
   await closeQueueConnection();

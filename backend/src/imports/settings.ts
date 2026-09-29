@@ -27,6 +27,12 @@ export const EMAIL_TYPES = ['recruitment', 'hr', 'generic', 'sales', 'press'] as
  */
 export const PROVIDERS = ['brave', 'hunter'] as const;
 
+/**
+ * F-702 : verification de boite par le fournisseur. « Jamais » par defaut :
+ * elle coute un demi-credit par adresse, sur 20 credits par mois (D-08).
+ */
+export const MAILBOX_CHECKS = ['never', 'found', 'all'] as const;
+
 const MAX_TAGS = 20;
 const MAX_TAG_LENGTH = 50;
 
@@ -44,6 +50,7 @@ export const importSettingsSchema = z
       .max(PROVIDERS.length)
       .default(['brave', 'hunter'])
       .transform((fournisseurs) => [...new Set(fournisseurs)]),
+    mailboxCheck: z.enum(MAILBOX_CHECKS).default('never'),
     tags: z
       .array(z.string().max(MAX_TAG_LENGTH))
       .max(MAX_TAGS)
@@ -79,10 +86,12 @@ export function readSettingsTags(settings: unknown): string[] {
  */
 export function readStoredSettings(settings: unknown): ImportSettings {
   const brut = typeof settings === 'object' && settings !== null ? settings : {};
-  const { depth, emailTypes, providers, tags } = brut as Record<string, unknown>;
+  const { depth, emailTypes, providers, tags, mailboxCheck } = brut as Record<string, unknown>;
   const lu = importSettingsSchema.safeParse(
     Object.fromEntries(
-      Object.entries({ depth, emailTypes, providers, tags }).filter(([, v]) => v !== undefined),
+      Object.entries({ depth, emailTypes, providers, tags, mailboxCheck }).filter(
+        ([, v]) => v !== undefined,
+      ),
     ),
   );
   return lu.success ? lu.data : importSettingsSchema.parse({});

@@ -87,8 +87,20 @@ const environmentSchema = z.object({
   QUOTA_PROVIDER_SEARCHES_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(3),
   /** D-13, D-14 : les 30 credits mensuels de Hunter reserves a la recherche. */
   HUNTER_MONTHLY_SEARCH_CREDITS: z.coerce.number().int().min(0).default(30),
+  /** D-14 : verifications de boite, par utilisateur et par mois (un demi-credit chacune). */
+  QUOTA_MAILBOX_VERIFICATIONS_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(4),
+  /** D-13, D-14 : les 20 credits mensuels de Hunter reserves a la verification. */
+  HUNTER_MONTHLY_VERIFICATION_CREDITS: z.coerce.number().int().min(0).default(20),
   /** F-603 : ordre de repli des fournisseurs, separes par des virgules. */
   PROVIDER_ORDER: z.string().default('hunter'),
+
+  /** Niveau 4 de 6.7 : liste publique des domaines jetables, rechargee chaque semaine. */
+  DISPOSABLE_DOMAINS_URL: z
+    .string()
+    .min(1)
+    .default(
+      'https://raw.githubusercontent.com/disposable-email-domains/disposable-email-domains/main/disposable_email_blocklist.conf',
+    ),
 
   /** D-14 : recherches de site officiel par utilisateur et par mois. */
   QUOTA_WEB_SEARCHES_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(80),
@@ -97,6 +109,16 @@ const environmentSchema = z.object({
    * Brave, la recherche s'arrete pour tout le monde, jusqu'au mois suivant.
    */
   BRAVE_MONTHLY_FREE_QUERIES: z.coerce.number().int().min(0).default(1000),
+
+  /**
+   * F-1104 : les exports volumineux sont deposes dans R2 et gardes sept jours.
+   * Vides, seuls les exports produits tout de suite (2 000 lignes au plus)
+   * restent possibles.
+   */
+  R2_ENDPOINT: z.string().default(''),
+  R2_BUCKET: z.string().default(''),
+  R2_ACCESS_KEY_ID: z.string().default(''),
+  R2_SECRET_ACCESS_KEY: z.string().default(''),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

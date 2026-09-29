@@ -8,7 +8,11 @@ import { createTestSession } from '../test/session.js';
 
 // La file est une infrastructure : ce qui compte ici est que l'import soit
 // enregistre tel que l'utilisateur l'a regle, puis confie a la file.
-vi.mock('../queue/queues.js', () => ({ enqueueImportPlan: vi.fn(() => Promise.resolve()) }));
+vi.mock('../queue/queues.js', () => ({
+  enqueueImportPlan: vi.fn(() => Promise.resolve()),
+  enqueueCompanyStep: vi.fn(() => Promise.resolve()),
+  enqueueExportBuild: vi.fn(() => Promise.resolve()),
+}));
 const { enqueueImportPlan } = await import('../queue/queues.js');
 
 let app: Express;
@@ -91,6 +95,7 @@ describe('POST /api/imports', () => {
       depth: 'quick',
       emailTypes: ['recruitment'],
       providers: [],
+      mailboxCheck: 'never',
       tags: ['salon 2026'],
       columns: { headers: FICHIER.headers, mapping: FICHIER.mapping },
     });
@@ -205,5 +210,14 @@ describe('GET /api/imports/:id et annulation', () => {
     const autre = await agentAvecJeton();
 
     expect((await autre.agent.get(`/api/imports/${cree.body.import.id}`)).status).toBe(404);
+    expect((await autre.agent.get(`/api/imports/${cree.body.import.id}/emails`)).status).toBe(404);
+  });
+
+  it('rend les adresses de l import, vides tant que rien n est trouve', async () => {
+    const { agent, jeton } = await agentAvecJeton();
+    const cree = await agent.post('/api/imports').set('x-csrf-token', jeton).send(FICHIER);
+    const reponse = await agent.get(`/api/imports/${cree.body.import.id}/emails`);
+    expect(reponse.status).toBe(200);
+    expect(reponse.body).toEqual({ emails: [], truncated: false });
   });
 });

@@ -233,6 +233,54 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 
 ---
 
+## D-17. Une adresse de rôle garde son statut
+
+**Décision.** Une adresse de rôle (recrutement@, rh@, contact@) est typée et signalée, mais pas déclassée en `risky`. Le statut `risky` reste réservé aux messageries grand public et aux vérifications partielles.
+
+**Raison.** Le tableau des statuts de la section 6.7 range les adresses de rôle parmi les `risky`, « incluses si l'utilisateur l'autorise ». Appliqué à la lettre, il marquerait comme risquées exactement les adresses que la section 6.8 place en priorité très haute pour une candidature, et les exclurait par défaut des envois vers Campaign Mailer. Le produit trouve des adresses de recrutement : les déclasser toutes irait contre son objet.
+
+**Conséquences.** Le type de l'adresse est porté par la colonne `type`, et le score donne +5 à une adresse de rôle pertinente pour les types recherchés (6.9). Une messagerie grand public passe `risky` dès les contrôles locaux (niveau 6).
+
+**Ce qui la rouvrirait.** Le propriétaire, s'il préfère la lecture littérale du tableau de 6.7.
+
+---
+
+## D-18. Le tableau de 6.9 fait foi pour le score
+
+**Décision.** Le score applique le tableau de la section 6.9 critère par critère, sans base ni pondération cachée. Une confirmation est une seconde page du site ou un second fournisseur ; une déduction ne confirme rien. Le plafond d'une adresse déduite, la mise à zéro d'une adresse écartée et les bornes 0 à 100 sont enregistrés comme des lignes du détail, dont la somme est toujours le score.
+
+**Raison.** Les exemples de l'annexe C (90 pour une adresse valide trouvée sur la page carrières, 35 pour une déduction `accept_all`) ne se retrouvent pas avec le tableau : ils sont illustratifs. Le tableau est la règle que l'utilisateur peut relire au survol du score ; un calcul qui s'en écarterait rendrait ce détail faux, ce que la Definition of Done de la Phase 5 interdit.
+
+**Conséquences.** Une adresse trouvée sur le site officiel, dans la page contact, d'un type recherché, vaut 55 avant vérification et 85 confirmée valide. Une adresse déduite non confirmée vaut au plus 10 : le plafond de 40 reste un garde-fou pour un critère ajouté plus tard. Le détail est stocké dans `emails.score_breakdown`, au format `{ score, criteria: [{ criterion, points }] }`.
+
+**Ce qui la rouvrirait.** Le propriétaire, s'il veut que les exemples de l'annexe C deviennent la règle : il faudrait alors une base de points pour une adresse vérifiée, à écrire dans le tableau.
+
+---
+
+## D-19. Ce que porte un export
+
+**Décision.** Une adresse exportée a toujours au moins une source, dans les colonnes `source_kind`, `source_url` et `provider`, la plus vérifiable en tête : une page du site, puis un fournisseur, puis la règle de déduction ou la saisie de l'utilisateur, avec sa date. Le fichier Campaign Mailer reprend la règle d'adresse de Campaign Mailer (`normaliseEmail`), n'écrit chaque adresse qu'une fois, laisse de côté celles que Campaign Mailer refuserait ou qui commencent comme une formule, et le dit ; une adresse sans nom de contact y reçoit la civilité « Madame, Monsieur » de l'exemple de 6.12.
+
+**Raison.** Le critère A4 demande « au moins une source avec URL ou fournisseur ». Lu à la lettre, il interdirait d'exporter une adresse saisie par l'utilisateur (F-1013) ou une déduction confirmée par la vérification de boîte, alors que la règle du dépôt (« URL, méthode, date ou fournisseur ») leur donne bien une source. Pour Campaign Mailer, la Definition of Done demande un import sans retouche : une ligne refusée de l'autre côté en serait une.
+
+**Conséquences.** `source_kind` dit toujours d'où vient l'adresse, `deduction` et `manual` compris. Le nombre d'adresses laissées de côté par le format Campaign Mailer s'affiche à l'export.
+
+**Ce qui la rouvrirait.** Une évolution de la règle d'import de Campaign Mailer, à recopier ; ou le propriétaire, s'il préfère la lecture littérale de A4.
+
+---
+
+## D-20. Exclure n'est pas faire disparaître
+
+**Décision.** Le drapeau `excluded` d'une adresse veut dire « hors des exports et des envois », rien d'autre. Une adresse invalide, jetable ou supprimée l'est d'office ; l'utilisateur peut exclure les autres, et seule son exclusion à lui se lève. La règle F-503 (une candidate refusée n'est ni comptée ni montrée) tient au statut : une adresse déduite `invalid` ou `disposable`.
+
+**Raison.** Jusqu'à la Phase 5, F-503 reposait sur ce même drapeau. Une adresse déduite que l'utilisateur aurait exclue aurait disparu de sa bibliothèque sans retour possible, et une vérification suivante aurait défait son choix.
+
+**Conséquences.** Toutes les requêtes qui montrent ou comptent des adresses partagent la même condition (`SHOWN_EMAIL`). La vérification garde une exclusion décidée par l'utilisateur.
+
+**Ce qui la rouvrirait.** Rien de prévu.
+
+---
+
 ## Journal des révisions
 
 | Date | Décision | Changement |
@@ -242,3 +290,8 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | 26 septembre 2026 | D-16 | Une seconde barrière s'ajoute à `npm run verify` sans la remplacer : `npm run test:integration`, sur un PostgreSQL 18 jetable, pour ce que les tests unitaires ne voient pas (index d'unicité, transactions, reprise d'un import). Hors de `verify`, qui doit tourner sans base, et dans un second job du flux d'intégration continue. |
 | 28 septembre 2026 | D-07, D-16 | La recherche web passe par la réservation puis le règlement des crédits (`provider_calls`), avec deux plafonds mensuels : 80 recherches par utilisateur (D-14) et les 1 000 requêtes offertes par Brave pour tout MailFind (D-13, `BRAVE_MONTHLY_FREE_QUERIES`). Le cache garde le domaine déduit et sa confiance, pas la réponse brute. La suite d'intégration teste aussi la file de politesse sur un vrai Redis, quand `TEST_REDIS_URL` est donnée. |
 | 28 septembre 2026 | D-08, D-14 | Les plafonds se comptent par fournisseur et par opération : les 50 crédits mensuels de Hunter sont partagés en 30 pour la recherche par domaine (`HUNTER_MONTHLY_SEARCH_CREDITS`) et 20 pour la vérification, pour que l'une ne mange pas l'autre. Sans `ENCRYPTION_KEY`, aucun fournisseur d'enrichissement n'est appelé : leurs réponses contiennent des adresses nominatives et ne sont gardées que chiffrées (F-604). |
+| 28 septembre 2026 | D-17 | Nouvelle décision : une adresse de rôle garde son statut au lieu de passer `risky`. |
+| 28 septembre 2026 | D-18 | Nouvelle décision : le tableau de 6.9 fait foi pour le score, et son détail est enregistré ligne par ligne. |
+| 29 septembre 2026 | D-19 | Nouvelle décision : ce que porte un export, source et format Campaign Mailer compris. |
+| 29 septembre 2026 | D-20 | Nouvelle décision : exclure veut dire « hors des exports » ; F-503 tient au statut. |
+| 28 septembre 2026 | D-14 | Les vérifications de boîte se comptent en crédits : quatre par compte et par mois valent deux crédits (`QUOTA_MAILBOX_VERIFICATIONS_PER_USER_PER_MONTH`), sur les vingt réservés à la vérification (`HUNTER_MONTHLY_VERIFICATION_CREDITS`). Un appel en échec n'est pas facturé et ne compte pas. |

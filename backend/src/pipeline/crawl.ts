@@ -3,8 +3,9 @@ import { crawlCompany, type CrawlReport } from '../crawler/engine.js';
 import { getPool, query } from '../db/pool.js';
 import { readStoredSettings } from '../imports/settings.js';
 import { getLogger } from '../observability/logger.js';
-import { classifyLocalPart } from '../emails/roles.js';
-import type { CompanyJob } from '../queue/queues.js';
+import { typeInContext } from '../emails/roles.js';
+import { isSuppressed, loadSuppressedHashes } from '../suppressions/repository.js';
+import type { CompanyJob, CompanyStep } from '../queue/queues.js';
 import type { Enqueue } from './start.js';
 import {
   completeImportIfDone,
@@ -39,20 +40,36 @@ export async function saveCrawlReport(
   userId: string,
   report: CrawlReport,
 ): Promise<void> {
+  // R-04 : une adresse de la liste de suppression n'est plus jamais collectee.
+  const supprimees = await loadSuppressedHashes(userId);
   const client = await getPool().connect();
   try {
     await client.query('begin');
 
     for (const trouvee of report.addresses) {
+      if (isSuppressed(supprimees, trouvee.normalized)) continue;
       const locale = trouvee.address.split('@')[0] ?? '';
       const email = await client.query<{ id: string }>(
         `insert into emails
            (company_id, user_id, address, normalized_address, local_part, type, origin)
          values ($1, $2, $3, $4, $5, $6::email_type, 'found')
          on conflict on constraint emails_unique_per_company
-         do update set updated_at = now()
+         do update set updated_at = now(),
+           -- Vue a nouveau sur la page carrieres, une adresse generique
+           -- devient une adresse de recrutement (6.8).
+           type = case
+             when excluded.type = 'recruitment' and emails.type in ('generic', 'unknown')
+               then excluded.type
+             else emails.type end
          returning id`,
-        [companyId, userId, trouvee.address, trouvee.normalized, locale, classifyLocalPart(locale)],
+        [
+          companyId,
+          userId,
+          trouvee.address,
+          trouvee.normalized,
+          locale,
+          typeInContext(locale, trouvee.pageUrl),
+        ],
       );
       // L'adresse et sa source dans la meme transaction : la base refuse
       // l'une sans l'autre.
@@ -168,15 +185,12 @@ export async function crawlStep(deps: CrawlDeps, job: CompanyJob): Promise<void>
  * Quand la file renonce a une etape : elle est notee en echec avec son motif,
  * l'entreprise aussi, et l'import peut se terminer sans elle.
  */
-export async function failStep(
-  step: 'identify' | 'crawl' | 'enrich',
-  job: CompanyJob,
-  motif: string,
-): Promise<void> {
+export async function failStep(step: CompanyStep, job: CompanyJob, motif: string): Promise<void> {
   await finishStep(step, job, 'failed', motif);
   if (step === 'identify') await finishStep('crawl', job, 'skipped');
-  // Un enrichissement en echec laisse intact ce que la collecte a trouve.
-  if (step !== 'enrich') {
+  // Un enrichissement ou une verification en echec laisse intact ce que la
+  // collecte a trouve.
+  if (step === 'identify' || step === 'crawl') {
     await query(
       `update companies set crawl_status = 'failed', crawl_error = $2, updated_at = now()
         where id = $1`,

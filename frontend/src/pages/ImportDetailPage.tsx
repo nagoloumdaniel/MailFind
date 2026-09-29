@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { Button } from '../components/Button';
+import { ExportDialog } from '../components/ExportDialog';
+import { ImportEmails } from '../components/ImportEmails';
 import { Skeleton, TableSkeleton } from '../components/Skeleton';
 import { ApiError } from '../lib/api';
 import {
@@ -34,7 +36,7 @@ const TONS: Record<ImportStatus, string> = {
   pending: 'border-line-strong text-text-soft',
   planning: 'border-accent/50 text-accent',
   running: 'border-accent/50 text-accent',
-  completed: 'border-accent bg-accent/10 text-accent',
+  completed: 'border-accent bg-accent/10 text-accent-strong',
   cancelled: 'border-caution/50 text-caution',
   failed: 'border-negative/50 text-negative',
 };
@@ -52,6 +54,7 @@ export function ImportDetailPage() {
   const [erreur, setErreur] = useState<string | undefined>(undefined);
   const [confirmer, setConfirmer] = useState(false);
   const [annulation, setAnnulation] = useState(false);
+  const [exporter, setExporter] = useState(false);
 
   const statut = etat?.import.status;
 
@@ -178,6 +181,14 @@ export function ImportDetailPage() {
             sansObjet={progression.enrich.skipped}
             aide="Fournisseurs puis adresses deduites, seulement quand le site n'a pas donne un type d'adresse recherche."
           />
+          <Etape
+            libelle="Verification et score"
+            fait={finished(progression.verify)}
+            sur={total(progression.verify)}
+            echecs={progression.verify.failed}
+            sansObjet={progression.verify.skipped}
+            aide="Syntaxe, domaine, serveur de messagerie, domaines jetables et liste de suppression pour chaque adresse ; la boite chez le fournisseur seulement si vous l'avez demande."
+          />
         </ol>
 
         <dl className="mt-6 grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
@@ -233,8 +244,9 @@ export function ImportDetailPage() {
             {progression.emails === 0
               ? "Aucune adresse n'a ete trouvee."
               : `${progression.emails.toLocaleString('fr-FR')} adresses, chacune avec sa source : la page ou elle figure, le fournisseur qui l'a donnee, ou la regle qui l'a deduite.`}{' '}
-            Aucune n&apos;est encore verifiee, et les adresses deduites ne sont que des hypotheses :
-            aucune ne doit etre tenue pour valide a ce stade.
+            {(progression.emailsByStatus.valid ?? 0) === 0
+              ? "Aucune n'est confirmee valide : les adresses deduites restent des hypotheses tant qu'une verification de boite ne les a pas confirmees."
+              : `${(progression.emailsByStatus.valid ?? 0).toLocaleString('fr-FR')} confirmee(s) valide(s) par la verification de boite. Les autres portent leur statut : aucune n'est a tenir pour valide sans lui.`}
           </p>
         )}
         {importe.status === 'cancelled' && (
@@ -279,6 +291,35 @@ export function ImportDetailPage() {
             </Button>
           )}
         </div>
+      )}
+
+      {progression.emails > 0 && (
+        <div className="mt-6">
+          <Button
+            onClick={() => {
+              setExporter(true);
+            }}
+          >
+            Exporter les adresses de cet import
+          </Button>
+        </div>
+      )}
+      {exporter && (
+        <ExportDialog
+          scope={{ kind: 'import', importId: importe.id }}
+          scopeLabel={`Les adresses des entreprises de ${importe.filename}.`}
+          onClose={() => {
+            setExporter(false);
+          }}
+        />
+      )}
+      {progression.emails > 0 && (
+        <ImportEmails
+          importId={importe.id}
+          // Relue quand une entreprise de plus est verifiee, pas a chaque
+          // rafraichissement de la progression.
+          version={`${importe.status}-${String(finished(progression.verify))}-${String(progression.emails)}`}
+        />
       )}
 
       {progression.issues.length > 0 && <ARegarder entreprises={progression.issues} />}
@@ -438,7 +479,7 @@ function ARegarder({ entreprises }: { entreprises: CompanyIssue[] }) {
         Un domaine a confirmer, un site muet ou qui refuse la visite, une etape en echec. Les autres
         entreprises de l&apos;import se sont deroulees sans remarque.
       </p>
-      <div className="mt-4 overflow-x-auto rounded-md border border-line bg-surface">
+      <div className="relative mt-4 overflow-x-auto rounded-md border border-line bg-surface">
         <table className="w-full text-sm">
           <thead className="border-b border-line bg-raised text-xs text-text-faint">
             <tr>

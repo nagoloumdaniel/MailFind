@@ -4,6 +4,8 @@ import {
   DEPTH_OPTIONS,
   EMAIL_TYPE_LABELS,
   EMAIL_TYPES,
+  MAILBOX_CHECK_OPTIONS,
+  MAILBOX_CHECKS,
   parseTags,
   PROVIDER_LABELS,
   PROVIDERS,
@@ -118,6 +120,37 @@ export function ImportSettingsForm({
                 {PROVIDER_LABELS[fournisseur].label}
                 <span className="block text-xs text-text-soft">
                   {PROVIDER_LABELS[fournisseur].description}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend className="text-sm font-semibold">Verification des boites</legend>
+        <p className="mt-1 max-w-[70ch] text-xs text-text-faint">
+          Faite par Hunter, jamais depuis MailFind : un demi-credit par adresse, sur un quota
+          mensuel tres limite. Sans elle, une adresse reste « non verifiee », et elle est presentee
+          comme telle.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+          {MAILBOX_CHECKS.map((choix) => (
+            <label key={choix} className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="verification"
+                value={choix}
+                checked={value.mailboxCheck === choix}
+                onChange={() => {
+                  onChange({ ...value, mailboxCheck: choix });
+                }}
+                className="mt-0.5 accent-accent"
+              />
+              <span>
+                {MAILBOX_CHECK_OPTIONS[choix].label}
+                <span className="block max-w-[28ch] text-xs text-text-soft">
+                  {MAILBOX_CHECK_OPTIONS[choix].description}
                 </span>
               </span>
             </label>

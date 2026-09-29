@@ -61,7 +61,7 @@ Le bucket existe déjà. Il manque les clés.
 3. Copier **Access Key ID** et **Secret Access Key** dans `R2_ACCESS_KEY_ID` et `R2_SECRET_ACCESS_KEY`. Le secret ne s'affiche qu'une fois.
 4. `R2_ACCOUNT_ID` est l'identifiant de compte affiché sur la page R2, et `R2_ENDPOINT` vaut `https://<account_id>.r2.cloudflarestorage.com`.
 
-Le bucket reste privé. Les exports sont servis par URL signée de courte durée, jamais par un domaine public.
+Le bucket reste privé. Un export de plus de 2 000 adresses y est déposé par le processus de traitement, sous `exports/<compte>/<export>`, et effacé au bout de sept jours ; il est servi par l'API après vérification du compte, jamais par un domaine public ni une URL signée. Sans ces variables, seuls les exports produits tout de suite restent possibles.
 
 ## 4. Google Cloud, la connexion
 
@@ -95,6 +95,8 @@ Sert en dernier recours, quand le site de l'entreprise n'a rien donné (F-602, d
 2. Copier la clé dans `HUNTER_API_KEY`.
 
 Le palier gratuit est de 50 crédits par mois : 1 crédit par recherche de domaine, 0,5 crédit par vérification d'adresse. C'est peu, et c'est assumé : le crawler et les vérifications locales font le travail, Hunter ne fait que le complément.
+
+MailFind partage ces crédits en 30 pour la recherche (`HUNTER_MONTHLY_SEARCH_CREDITS`) et 20 pour la vérification de boîte (`HUNTER_MONTHLY_VERIFICATION_CREDITS`), puis par compte : 3 recherches et 4 vérifications par mois (D-14). La vérification de boîte n'a lieu que si l'import la demande ; elle est désactivée par défaut.
 
 ---
 
