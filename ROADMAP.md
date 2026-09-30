@@ -3,7 +3,7 @@
 Plan d'exécution, du dépôt vide à la bêta publique.
 Référence : [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md), version 1.0 du 22 septembre 2026.
 
-- **Statut** : Phases 0 à 7 terminées, l'intégration Campaign Mailer de la Phase 7 étant reportée (D-23). Phase 7B (vérification certifiée, annuaire partagé) ajoutée le 30 septembre 2026, à démarrer après la revue.
+- **Statut** : Phases 0 à 7 terminées. L'intégration Campaign Mailer de la Phase 7, reportée le 29 septembre (D-23), est construite depuis le 1er octobre 2026 des deux côtés ; il reste l'essai en production entre les deux applications déployées. Phase 7B (vérification certifiée, annuaire partagé) ajoutée le 30 septembre 2026, à démarrer après la revue.
 - **Dernière mise à jour** : 30 septembre 2026
 - **Cadence de révision** : fin de chaque phase
 
@@ -468,7 +468,20 @@ Close sur décision du propriétaire, sans l'intégration Campaign Mailer, comme
 
 **Choix faits en route.** Réponses en snake_case, comme l'annexe C. Pas de portée `emails:write` dans F-1303 : modifier ou supprimer une adresse passe par `companies:write`. `POST /v1/find` rend tout de suite, sans rien dépenser, une entreprise déjà explorée, et lance sinon un import d'une ligne. Les exports de l'API sont toujours produits en tâche et servis avec la clé, jamais par une URL signée. Les événements des webhooks sont minces : identifiant et statut, le reste se lit par l'API. La création d'un webhook est exclue de l'idempotence, qui garderait son secret en clair.
 
-**Reste à faire.** L'intégration Campaign Mailer (F-1201 à F-1209, A7). La limitation de débit n'est testée qu'avec un compteur en mémoire ; son script Redis, avec la file de politesse, attend `TEST_REDIS_URL`.
+### Complément (1er octobre 2026) : l'intégration Campaign Mailer
+
+Construite dans l'ordre fixé par D-23. D'abord l'API `v1` dans le dépôt de Campaign Mailer (branche `feat/api-v1`, cinq lots : jetons d'intégration, `POST /api/v1/campaigns` et `POST /api/v1/campaigns/:id/contacts`, champs de source et de vérification, document OpenAPI servi sur `/api/v1/openapi.json`, mention « Importé depuis MailFind »). Puis le côté MailFind, en trois lots.
+
+**Preuves.**
+
+- *Un envoi vers Campaign Mailer relancé deux fois ne crée aucun doublon (A7)* : prouvé des deux côtés. Chez MailFind, sur PostgreSQL 18, contre un faux serveur fidèle au contrat : un envoi dont la réponse se perd est rejoué avec la même `Idempotency-Key` par lot (`mailfind-<envoi>-<rang>`) et le brouillon reste unique, les lots déjà faits ne repartent pas. Chez Campaign Mailer, par ses tests d'intégration sur le vrai code : le même corps rejoué avec la même clé rend la même réponse sans rien créer.
+- *Tests de contrat partagés* : une copie du document OpenAPI de Campaign Mailer est gardée dans `docs/contracts/`. Un test valide contre elle les corps que MailFind envoie, et un cas faux prouve qu'il ne passe pas à vide. Régénérer la copie quand Campaign Mailer change son API dit aussitôt si MailFind suit.
+
+**Livré.** Connexion par jeton d'intégration chiffré, vérifié à la forme, révocable, depuis la page Compte (F-1201). Envoi d'une sélection de la page Contacts vers un brouillon, par lots de 500, en tâche reprise après une panne, avec suivi de l'avancement (F-1202 à F-1206). Les adresses que Campaign Mailer refuserait sont laissées de côté et comptées ; la source et le statut de vérification partent avec chaque contact, `unverified` seul quand l'adresse n'a pas été vérifiée. Le même envoi par l'API publique : `POST /v1/integrations/campaign-mailer/push` (portée `integrations:write`) et `GET /v1/integrations/campaign-mailer/pushes/{id}`. L'export du compte porte la connexion et les envois. La campagne reste un brouillon : seul l'utilisateur la lance.
+
+**Reste à faire, côté propriétaire.** Fusionner les lots 3 à 5 de `feat/api-v1` dans Campaign Mailer (sa branche principale n'a que les lots 1 et 2), appliquer ses migrations en production, puis renseigner `CAMPAIGN_MAILER_API_URL` dans MailFind. Un essai de bout en bout entre les deux applications déployées fermera F-1201 à F-1209.
+
+**Reste à faire.** L'essai en production de l'intégration Campaign Mailer, ci-dessus. La limitation de débit n'est testée qu'avec un compteur en mémoire ; son script Redis, avec la file de politesse, attend `TEST_REDIS_URL`.
 
 ---
 

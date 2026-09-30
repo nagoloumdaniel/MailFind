@@ -229,7 +229,7 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | Deuxième fournisseur d'enrichissement | Phase 11 | Un seul adaptateur à éprouver d'abord |
 | Rendu des sites en JavaScript | Phase 11 | Coût et surface d'attaque, hors MVP (F-413) |
 | Offres et facturation | Phase 11 | Pas d'utilisateur payant avant la bêta |
-| Version de l'API de Campaign Mailer | Phase 7 | Dépend du lot « jetons d'intégration » de Campaign Mailer |
+| Version de l'API de Campaign Mailer | Phase 7 | `v1` construite le 1er octobre 2026, en attente de fusion et de déploiement côté Campaign Mailer (D-23) |
 
 ---
 
@@ -315,6 +315,8 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 
 **Ce qui la rouvrirait.** L'API `v1` de Campaign Mailer en service.
 
+**Suite (1er octobre 2026).** L'ordre prévu est tenu : l'API `v1` est construite dans Campaign Mailer (branche `feat/api-v1`), puis le côté MailFind contre elle, avec une copie de son document OpenAPI dans `docs/contracts/` et un test qui y valide nos corps d'envoi. Le critère A7 est prouvé des deux côtés. Écart avec le contrat de la roadmap : le champ de source s'appelle `source_url` et porte la première URL de page d'une adresse, rien quand elle n'en a pas. La décision reste ouverte jusqu'à l'essai entre les deux applications déployées.
+
 ---
 
 ## D-24. La vérification certifiée passe par un fournisseur, Reacher compris
@@ -355,6 +357,7 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | 29 septembre 2026 | D-19 | Nouvelle décision : ce que porte un export, source et format Campaign Mailer compris. |
 | 29 septembre 2026 | D-20 | Nouvelle décision : exclure veut dire « hors des exports » ; F-503 tient au statut. |
 | 29 septembre 2026 | D-21 | Nouvelle décision : une page de 3 Mo au plus, au lieu des 2 Mo de F-405. |
+| 1er octobre 2026 | D-23 | Suite : l'API `v1` de Campaign Mailer et le côté MailFind sont construits, A7 prouvé des deux côtés ; reste l'essai entre les deux applications déployées. |
 | 30 septembre 2026 | D-24, D-25 | Nouvelles décisions, à la demande du propriétaire : la vérification certifiée passe par un fournisseur (Reacher compris, jamais de SMTP depuis nos serveurs) ; l'annuaire partagé ne contient que des données publiques. |
 | 29 septembre 2026 | D-23 | Nouvelle décision : l'intégration Campaign Mailer attend l'API `v1` de Campaign Mailer ; la Phase 7 se clôt sans elle. |
 | 29 septembre 2026 | D-22 | Nouvelle décision : la vérification jointe par Hunter à sa recherche par domaine compte comme une vérification de boîte. |
