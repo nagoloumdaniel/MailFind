@@ -20,7 +20,7 @@ import { createContactsRouter } from './contacts/routes.js';
 import { createDashboardRouter } from './dashboard/routes.js';
 import { createExportsRouter } from './exports/routes.js';
 import { createR2Storage, type ExportStorage } from './exports/storage.js';
-import { enqueueExportBuild } from './queue/queues.js';
+import { enqueueCampaignMailerPush, enqueueExportBuild } from './queue/queues.js';
 import type { Enqueue } from './pipeline/start.js';
 import type { VerifyDeps } from './pipeline/verify.js';
 import { createSuppressionsRouter } from './suppressions/routes.js';
@@ -48,6 +48,8 @@ export interface AppOptions {
   readonly enqueueExport?: (exportId: string, userId: string) => Promise<void>;
   /** Le chiffrement des secrets (jeton Campaign Mailer) ; celui de ENCRYPTION_KEY par defaut. */
   readonly cipher?: Cipher;
+  /** La mise en file d'un envoi vers Campaign Mailer. */
+  readonly enqueuePush?: (pushId: string) => Promise<void>;
   /** L'API publique ; les tests y mettent un compteur de debit en memoire. */
   readonly v1?: V1Options;
 }
@@ -139,7 +141,10 @@ export function createApp(options: AppOptions = {}): Express {
   app.use('/api/account/api-keys', createApiKeysRouter());
   app.use(
     '/api/campaign-mailer',
-    createCampaignMailerRouter({ cipher: () => options.cipher ?? createConfiguredCipher() }),
+    createCampaignMailerRouter({
+      cipher: () => options.cipher ?? createConfiguredCipher(),
+      enqueuePush: options.enqueuePush ?? enqueueCampaignMailerPush,
+    }),
   );
   app.use('/api/account', createAccountRouter());
   app.use('/api/imports', createImportsRouter());

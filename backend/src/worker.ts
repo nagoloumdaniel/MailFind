@@ -3,6 +3,7 @@ import { purgeExpiredExports, runExportJob } from './exports/service.js';
 import { purgeExpiredIdempotencyKeys } from './api/idempotency.js';
 import { purgeExpiredVerificationRuns, runVerification } from './verification/runs.js';
 import { deliverWebhook } from './webhooks/service.js';
+import { runPush } from './campaign-mailer/push.js';
 import { createFetcher, type Fetcher } from './net/safe-fetch.js';
 import { createConfiguredCipher } from './pipeline/verify-deps.js';
 import { createR2Storage } from './exports/storage.js';
@@ -122,6 +123,14 @@ const entretien = new Worker(
         finalAttempt: job.attemptsMade + 1 >= (job.opts.attempts ?? 1),
       });
       return { deliveryId };
+    }
+    if (job.name === 'campaign-mailer.push') {
+      const { pushId } = job.data as { pushId: string };
+      await runPush(pushId, {
+        cipher: createConfiguredCipher(),
+        finalAttempt: job.attemptsMade + 1 >= (job.opts.attempts ?? 1),
+      });
+      return { pushId };
     }
     if (job.name === 'verification.run') {
       const { runId } = job.data as { runId: string };

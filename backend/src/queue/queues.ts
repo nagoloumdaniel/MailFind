@@ -167,6 +167,24 @@ export async function enqueueWebhookDelivery(deliveryId: string): Promise<void> 
   );
 }
 
+/**
+ * Un envoi vers Campaign Mailer (F-1205). Cinq tentatives espacees de 30 s,
+ * 1, 2 puis 4 minutes : un debit depasse ou une panne passagere de Campaign
+ * Mailer se resorbe, et chaque reprise repart du lot ou l'envoi s'etait
+ * arrete, sous les memes cles d'idempotence.
+ */
+export async function enqueueCampaignMailerPush(pushId: string): Promise<void> {
+  await getMaintenanceQueue().add(
+    'campaign-mailer.push',
+    { pushId },
+    {
+      jobId: `campaign-mailer-${pushId}`,
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 30_000 },
+    },
+  );
+}
+
 /** Une verification en tache de l'API ; l'identifiant suit le sien : elle ne part qu'une fois. */
 export async function enqueueVerificationRun(runId: string): Promise<void> {
   await getMaintenanceQueue().add(

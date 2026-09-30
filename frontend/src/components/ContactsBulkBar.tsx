@@ -24,12 +24,14 @@ export function ContactsBulkBar({
   onDone,
   onDelete,
   onExport,
+  onSendToCampaignMailer,
   onClear,
 }: {
   ids: string[];
   onDone: (message: string) => void;
   onDelete: () => void;
   onExport: () => void;
+  onSendToCampaignMailer: () => void;
   onClear: () => void;
 }) {
   const [envoi, setEnvoi] = useState(false);
@@ -133,6 +135,9 @@ export function ContactsBulkBar({
         </Button>
         <Button disabled={envoi} onClick={onExport}>
           Exporter
+        </Button>
+        <Button disabled={envoi} onClick={onSendToCampaignMailer}>
+          Envoyer vers Campaign Mailer
         </Button>
         <Button tone="danger" disabled={envoi} onClick={onDelete}>
           Supprimer

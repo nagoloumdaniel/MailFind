@@ -14,6 +14,7 @@ const JETON = `cm_${'A'.repeat(20)}${'b'.repeat(23)}`;
 
 let app: Express;
 let userId: string;
+const enFile: string[] = [];
 
 beforeAll(async () => {
   const { createApp } = await import('../app.js');
@@ -28,7 +29,15 @@ beforeAll(async () => {
       next();
     });
   };
-  app = createApp({ logger: pino({ level: 'silent' }), session: connecte, cipher: CHIFFREUR });
+  app = createApp({
+    logger: pino({ level: 'silent' }),
+    session: connecte,
+    cipher: CHIFFREUR,
+    enqueuePush: (id) => {
+      enFile.push(id);
+      return Promise.resolve();
+    },
+  });
 });
 
 beforeEach(async () => {
@@ -121,5 +130,52 @@ describe('connexion a Campaign Mailer (F-1201)', () => {
       tokenPrefix: JETON.slice(0, 11),
     });
     expect(JSON.stringify(reponse.body)).not.toContain(JETON.slice(11));
+  });
+});
+
+describe('envois depuis l interface (F-1202)', () => {
+  it('lance un envoi, le met en file, et le laisse suivre par son identifiant', async () => {
+    const { agent, jeton } = await agentConnecte();
+    await agent
+      .put('/api/campaign-mailer/connection')
+      .set('x-csrf-token', jeton)
+      .send({ token: JETON });
+    await query(
+      `with c as (
+         insert into companies (user_id, name, normalized_name, domain, domain_status)
+         values ($1, 'Acme', 'acme', 'acme.fr', 'provided') returning id
+       ), e as (
+         insert into emails (company_id, user_id, address, normalized_address, local_part, type, origin, status)
+         select id, $1, 'rh@acme.fr', 'rh@acme.fr', 'rh', 'hr', 'found', 'valid' from c returning id
+       )
+       insert into email_sources (email_id, kind, url, extraction_method)
+       select id, 'website', 'https://acme.fr/contact', 'mailto' from e`,
+      [userId],
+    );
+
+    const cree = await agent
+      .post('/api/campaign-mailer/pushes')
+      .set('x-csrf-token', jeton)
+      .send({ campaignName: 'Alternance', scope: { kind: 'library' } });
+    expect(cree.status).toBe(202);
+    const id = cree.body.push.id as string;
+    expect(cree.body.push).toMatchObject({ status: 'pending', campaignName: 'Alternance' });
+    expect(enFile).toContain(id);
+
+    const suivi = await agent.get(`/api/campaign-mailer/pushes/${id}`);
+    expect(suivi.body.push.id).toBe(id);
+    expect((await agent.get('/api/campaign-mailer/pushes')).body.pushes).toHaveLength(1);
+  });
+
+  it('refuse un envoi sans nom de campagne, et ne montre pas l envoi d un autre compte', async () => {
+    const { agent, jeton } = await agentConnecte();
+    const refus = await agent
+      .post('/api/campaign-mailer/pushes')
+      .set('x-csrf-token', jeton)
+      .send({ campaignName: ' ', scope: { kind: 'library' } });
+    expect(refus.status).toBe(400);
+    expect(
+      (await agent.get('/api/campaign-mailer/pushes/01a0ede9-57d4-71e3-b0c4-d359a183d46b')).status,
+    ).toBe(404);
   });
 });

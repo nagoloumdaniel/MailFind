@@ -29,6 +29,7 @@ vi.mock('../../queue/queues.js', () => ({
   enqueueImportPlan: vi.fn(() => Promise.resolve()),
   enqueueCompanyStep: vi.fn(() => Promise.resolve()),
   enqueueExportBuild: vi.fn(() => Promise.resolve()),
+  enqueueCampaignMailerPush: vi.fn(() => Promise.resolve()),
   enqueueVerificationRun: vi.fn(() => Promise.resolve()),
   enqueueWebhookDelivery: vi.fn(() => Promise.resolve()),
 }));

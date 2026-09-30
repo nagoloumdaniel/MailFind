@@ -19,6 +19,8 @@ const DEFAULTS: Record<string, string> = {
   GOOGLE_CLIENT_ID: 'test.apps.googleusercontent.com',
   GOOGLE_CLIENT_SECRET: 'GOCSPX-test',
   GOOGLE_CALLBACK_URL: 'http://localhost:3000/api/auth/google/callback',
+  // Jamais joint : les tests injectent un client vers un faux Campaign Mailer.
+  CAMPAIGN_MAILER_API_URL: 'http://campaign-mailer.test',
 };
 
 for (const [name, value] of Object.entries(DEFAULTS)) {

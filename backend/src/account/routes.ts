@@ -3,6 +3,7 @@ import { recordAuditEvent } from '../audit/repository.js';
 import { listApiKeys } from '../api-keys/repository.js';
 import { listWebhooks } from '../webhooks/service.js';
 import { getConnection } from '../campaign-mailer/connection.js';
+import { listPushes } from '../campaign-mailer/push.js';
 import { query } from '../db/pool.js';
 import { requireAuth, unauthenticated } from '../http/middleware/require-auth.js';
 import { AppError } from '../http/problem.js';
@@ -139,6 +140,7 @@ export function createAccountRouter(): Router {
         const webhooks = await listWebhooks(user.id);
         // La connexion a Campaign Mailer, sans son jeton.
         const campaignMailer = await getConnection(user.id);
+        const campaignMailerPushes = await listPushes(user.id);
 
         const lignesParImport = new Map<string, object[]>();
         for (const ligne of lignes.rows) {
@@ -199,6 +201,7 @@ export function createAccountRouter(): Router {
             tokenPrefix: campaignMailer.tokenPrefix,
             connectedAt: campaignMailer.connectedAt,
             lastUsedAt: campaignMailer.lastUsedAt,
+            pushes: campaignMailerPushes,
           },
           // La liste de suppression n'est gardee qu'en empreintes, illisibles
           // par construction (R-04) : son nombre est tout ce qu'on en sait.

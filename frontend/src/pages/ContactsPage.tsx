@@ -5,6 +5,7 @@ import { ContactDialog } from '../components/ContactDialog';
 import { ContactsBulkBar } from '../components/ContactsBulkBar';
 import { DeleteContactsDialog } from '../components/DeleteContactsDialog';
 import { ExportDialog } from '../components/ExportDialog';
+import { SendToCampaignMailerDialog } from '../components/SendToCampaignMailerDialog';
 import { MultiFilter } from '../components/MultiFilter';
 import { Pagination } from '../components/Pagination';
 import { ScoreBadge } from '../components/ScoreBadge';
@@ -63,6 +64,7 @@ export function ContactsPage() {
     ids: new Set(),
   });
   const [aExporter, setAExporter] = useState<string[] | undefined>(undefined);
+  const [aEnvoyer, setAEnvoyer] = useState<string[] | undefined>(undefined);
   const [aSupprimer, setASupprimer] = useState<{ ids: string[]; label?: string } | undefined>(
     undefined,
   );
@@ -151,6 +153,14 @@ export function ContactsPage() {
           scopeLabel={`${aExporter.length.toLocaleString('fr-FR')} contact${aExporter.length > 1 ? 's' : ''} selectionne${aExporter.length > 1 ? 's' : ''}.`}
           onClose={() => {
             setAExporter(undefined);
+          }}
+        />
+      )}
+      {aEnvoyer !== undefined && (
+        <SendToCampaignMailerDialog
+          ids={aEnvoyer}
+          onClose={() => {
+            setAEnvoyer(undefined);
           }}
         />
       )}
@@ -314,6 +324,9 @@ export function ContactsPage() {
                 }}
                 onExport={() => {
                   setAExporter([...choisis]);
+                }}
+                onSendToCampaignMailer={() => {
+                  setAEnvoyer([...choisis]);
                 }}
                 onClear={() => {
                   setSelection({ cle, ids: new Set() });
