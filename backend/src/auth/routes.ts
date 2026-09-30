@@ -8,6 +8,7 @@ import { AppError } from '../http/problem.js';
 import { acceptTerms, type SignInResult, type User } from '../users/repository.js';
 import { configureGoogleStrategy } from './google.js';
 import { toError } from '../errors.js';
+import { PENDING_COOKIE, readCookie, STATE_PATTERN } from '../sso/shared.js';
 
 /**
  * Version en vigueur des conditions d'utilisation et de la politique de
@@ -31,7 +32,7 @@ export function publicUser(user: User): Record<string, unknown> {
 }
 
 /** Regenere l'identifiant de session a la connexion, contre la fixation. */
-async function regenerate(session: Express.Request['session']): Promise<void> {
+export async function regenerate(session: Express.Request['session']): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     session.regenerate((error) => {
       if (error) reject(toError(error, 'Operation de session en echec.'));
@@ -40,7 +41,7 @@ async function regenerate(session: Express.Request['session']): Promise<void> {
   });
 }
 
-async function save(session: Express.Request['session']): Promise<void> {
+export async function save(session: Express.Request['session']): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     session.save((error) => {
       if (error) reject(toError(error, 'Operation de session en echec.'));
@@ -95,6 +96,15 @@ export function createAuthRouter(): Router {
               entity: 'user',
               entityId: result.user.id,
             });
+
+            // Campaign Mailer attendait cette connexion pour obtenir un code
+            // (D-26) : on y retourne plutot qu'a l'accueil de MailFind.
+            const suite = readCookie(req, PENDING_COOKIE);
+            if (suite !== undefined && STATE_PATTERN.test(suite)) {
+              res.clearCookie(PENDING_COOKIE, { path: '/api' });
+              res.redirect(`/api/sso/authorize?state=${encodeURIComponent(suite)}`);
+              return;
+            }
 
             res.redirect(environment.APP_URL);
           } catch (failure) {

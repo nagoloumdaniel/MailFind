@@ -21,6 +21,7 @@ const DEFAULTS: Record<string, string> = {
   GOOGLE_CALLBACK_URL: 'http://localhost:3000/api/auth/google/callback',
   // Jamais joint : les tests injectent un client vers un faux Campaign Mailer.
   CAMPAIGN_MAILER_API_URL: 'http://campaign-mailer.test',
+  CAMPAIGN_MAILER_SSO_SECRET: 'secret-partage-de-test-assez-long-pour-le-schema',
 };
 
 for (const [name, value] of Object.entries(DEFAULTS)) {

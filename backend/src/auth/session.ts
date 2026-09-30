@@ -15,6 +15,8 @@ declare module 'express-session' {
     userId?: string;
     /** Jeton anti-falsification de requete (S-09). */
     csrfToken?: string;
+    /** Jeton d'etat d'une connexion par Campaign Mailer en cours (D-26). */
+    ssoState?: string;
   }
 }
 

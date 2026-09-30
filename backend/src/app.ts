@@ -24,6 +24,11 @@ import { enqueueCampaignMailerPush, enqueueExportBuild } from './queue/queues.js
 import type { Enqueue } from './pipeline/start.js';
 import type { VerifyDeps } from './pipeline/verify.js';
 import { createSuppressionsRouter } from './suppressions/routes.js';
+import {
+  createCampaignMailerSignInRouter,
+  type CampaignMailerSignInOptions,
+} from './sso/client.js';
+import { createSsoAuthorizeRouter, createSsoTokenRouter } from './sso/provider.js';
 import { createVerificationsRouter } from './verification/routes.js';
 import { getLogger } from './observability/logger.js';
 import { csrfProtection } from './http/middleware/csrf.js';
@@ -52,6 +57,8 @@ export interface AppOptions {
   readonly enqueuePush?: (pushId: string) => Promise<void>;
   /** L'API publique ; les tests y mettent un compteur de debit en memoire. */
   readonly v1?: V1Options;
+  /** La connexion par Campaign Mailer ; les tests y mettent un faux echange. */
+  readonly sso?: CampaignMailerSignInOptions;
 }
 
 /**
@@ -131,6 +138,10 @@ export function createApp(options: AppOptions = {}): Express {
     }),
   );
 
+  // L'echange des codes de connexion croisee, de serveur a serveur : pas de
+  // session ni de jeton CSRF, le secret partage en tient lieu (D-26).
+  app.use('/api/sso', createSsoTokenRouter());
+
   // Avant toute route : `/health` n'a pas besoin de session, mais la poser ici
   // garde un seul ordre de middlewares a comprendre.
   app.use(options.session ?? createSessionMiddleware());
@@ -138,6 +149,8 @@ export function createApp(options: AppOptions = {}): Express {
   app.use(csrfProtection);
 
   app.use(healthRouter);
+  app.use('/api/sso', createSsoAuthorizeRouter());
+  app.use('/api/auth/campaign-mailer', createCampaignMailerSignInRouter(options.sso ?? {}));
   app.use('/api/auth', createAuthRouter());
   app.use('/api/account/api-keys', createApiKeysRouter());
   app.use(

@@ -31,7 +31,8 @@ export type AuditAction =
   | 'webhook.deleted'
   | 'campaign_mailer.connected'
   | 'campaign_mailer.disconnected'
-  | 'campaign_mailer.pushed';
+  | 'campaign_mailer.pushed'
+  | 'sso.authorized';
 
 export interface AuditEvent {
   readonly userId: string | null;

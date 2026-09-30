@@ -6,6 +6,9 @@ import { useSession } from '../lib/session';
 const ERREURS: Record<string, string> = {
   refus: 'La connexion a ete interrompue. Reessayez quand vous voulez.',
   technique: 'La connexion a echoue de notre cote. Reessayez dans un instant.',
+  conflit:
+    'Cette adresse est deja liee a un autre compte Google. Connectez-vous avec Google, avec le compte qui porte cette adresse.',
+  indisponible: 'La connexion par Campaign Mailer est indisponible pour le moment.',
 };
 
 /**
@@ -124,11 +127,11 @@ export function LoginPage() {
                 </p>
               )}
 
-              <div className="mt-8">
+              <div className="mt-8 flex flex-wrap gap-3">
                 {/*
-                  Une vraie navigation, pas un appel en arriere plan : le serveur
-                  doit poser son jeton d'etat dans la session avant de partir chez
-                  Google.
+                  De vraies navigations, pas des appels en arriere plan : le
+                  serveur doit poser son jeton d'etat dans la session avant de
+                  partir chez Google ou chez Campaign Mailer.
                 */}
                 <a
                   href="/api/auth/google"
@@ -136,7 +139,17 @@ export function LoginPage() {
                 >
                   Se connecter avec Google
                 </a>
+                <a
+                  href="/api/auth/campaign-mailer"
+                  className="inline-flex items-center rounded-sm border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-text-faint"
+                >
+                  Se connecter avec Campaign Mailer
+                </a>
               </div>
+              <p className="mt-3 max-w-[56ch] text-xs text-text-faint">
+                Un seul compte par adresse : que vous passiez par Google ou par Campaign Mailer,
+                vous retrouvez le meme.
+              </p>
             </div>
 
             <Specimen />

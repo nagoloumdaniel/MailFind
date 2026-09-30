@@ -60,6 +60,12 @@ const environmentSchema = z.object({
    * indisponible.
    */
   CAMPAIGN_MAILER_API_URL: z.string().default(''),
+  /**
+   * Connexion croisee avec Campaign Mailer (D-26) : le secret partage qui
+   * authentifie l'echange des codes, la meme valeur des deux cotes. Vide, les
+   * boutons « Se connecter avec » restent sans effet.
+   */
+  CAMPAIGN_MAILER_SSO_SECRET: z.union([z.literal(''), z.string().min(32)]).default(''),
   /** F-405 : une requete a la fois par domaine, une seconde entre deux. */
   CRAWLER_REQUESTS_PER_SECOND_PER_DOMAIN: z.coerce.number().positive().max(10).default(1),
   CRAWLER_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),

@@ -343,6 +343,30 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 
 ---
 
+## D-26. Connexion croisée avec Campaign Mailer, un compte par identité Google
+
+**Décision.** Chaque application sert de fournisseur d'identité à l'autre : « Se connecter avec Campaign Mailer » chez MailFind, « Se connecter avec MailFind » chez Campaign Mailer. Le flux est un code d'autorisation minimal.
+
+- Le fournisseur exige une session ; sans elle, il fait passer la personne par Google, puis reprend.
+- Il émet un code aléatoire de 32 octets, dont la base ne garde que l'empreinte, valable une minute et pour un seul usage.
+- Il ne redirige que vers l'adresse de retour configurée de l'autre application, jamais vers une adresse lue dans la requête.
+- L'autre application échange le code de serveur à serveur, authentifiée par un secret partagé (`CAMPAIGN_MAILER_SSO_SECRET` ici, `MAILFIND_SSO_SECRET` là-bas, même valeur), et reçoit l'identifiant Google, l'adresse et le nom.
+- Un jeton d'état en session relie le retour au navigateur qui a commencé la connexion.
+
+Le compte est retrouvé par l'identifiant Google, et créé seulement s'il n'existe pas. Une adresse déjà portée par un autre identifiant Google est refusée, jamais rattachée.
+
+**Raison.** Le propriétaire veut passer d'une application à l'autre sans second compte, avec la même adresse, et sans doublon. Les deux applications identifient déjà un compte par son identifiant Google et gardent l'adresse unique. Or Google donne le même identifiant à une personne quel que soit le client OAuth. Se transmettre cet identifiant suffit donc à retrouver le même compte, qu'on arrive par Google, par MailFind ou par Campaign Mailer. Rattacher un compte sur la seule égalité des adresses ouvrirait une prise de contrôle le jour où une adresse change de titulaire : l'identifiant, lui, ne change jamais. Aucun jeton Google ne passe d'une application à l'autre, conformément à l'engagement de F-101 : MailFind ne touche jamais à la messagerie.
+
+**Conséquences.**
+
+- Un compte Campaign Mailer créé par MailFind n'a pas l'autorisation d'envoyer par Gmail. Campaign Mailer le dit, et une connexion Google directe la donne.
+- Un compte créé par Campaign Mailer accepte les conditions de MailFind à sa première visite, comme tout nouveau compte.
+- L'autorisation est donnée sans écran de consentement : les deux applications ont le même titulaire et ne s'échangent que l'identité.
+
+**Ce qui la rouvrirait.** Une troisième application, qui demanderait un vrai serveur OpenID Connect ; ou une connexion autre que Google dans l'une des deux applications, qui romprait l'identifiant commun.
+
+---
+
 ## Journal des révisions
 
 | Date | Décision | Changement |
@@ -357,6 +381,7 @@ Partager a été écarté. Les 500 000 commandes mensuelles du palier gratuit au
 | 29 septembre 2026 | D-19 | Nouvelle décision : ce que porte un export, source et format Campaign Mailer compris. |
 | 29 septembre 2026 | D-20 | Nouvelle décision : exclure veut dire « hors des exports » ; F-503 tient au statut. |
 | 29 septembre 2026 | D-21 | Nouvelle décision : une page de 3 Mo au plus, au lieu des 2 Mo de F-405. |
+| 1er octobre 2026 | D-26 | Nouvelle décision, à la demande du propriétaire : connexion croisée avec Campaign Mailer, un compte par identité Google. |
 | 1er octobre 2026 | D-23 | Suite : l'API `v1` de Campaign Mailer et le côté MailFind sont construits, A7 prouvé des deux côtés ; reste l'essai entre les deux applications déployées. |
 | 30 septembre 2026 | D-24, D-25 | Nouvelles décisions, à la demande du propriétaire : la vérification certifiée passe par un fournisseur (Reacher compris, jamais de SMTP depuis nos serveurs) ; l'annuaire partagé ne contient que des données publiques. |
 | 29 septembre 2026 | D-23 | Nouvelle décision : l'intégration Campaign Mailer attend l'API `v1` de Campaign Mailer ; la Phase 7 se clôt sans elle. |

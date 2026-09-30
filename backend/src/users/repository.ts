@@ -58,7 +58,9 @@ export async function signInWithGoogle(identity: GoogleIdentity): Promise<SignIn
      values ($1, $2, $3)
      on conflict (google_id) do update
        set email = excluded.email,
-           name = excluded.name,
+           -- Campaign Mailer ne connait pas le nom (D-26) : une connexion par
+           -- lui ne doit pas effacer celui que Google a donne.
+           name = coalesce(excluded.name, users.name),
            updated_at = now()
      returning *, (xmax = 0) as inserted`,
     [identity.googleId, identity.email.toLowerCase(), identity.name],
