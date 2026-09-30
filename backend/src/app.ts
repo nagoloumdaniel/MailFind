@@ -127,6 +127,7 @@ export function createApp(options: AppOptions = {}): Express {
         ? {}
         : { exportStorage: () => options.exportStorage }),
       ...(options.enqueueExport === undefined ? {} : { enqueueExport: options.enqueueExport }),
+      ...(options.enqueuePush === undefined ? {} : { enqueuePush: options.enqueuePush }),
     }),
   );
 
@@ -157,6 +158,7 @@ export function createApp(options: AppOptions = {}): Express {
         ? {}
         : { exportStorage: () => options.exportStorage }),
       ...(options.enqueueExport === undefined ? {} : { enqueueExport: options.enqueueExport }),
+      ...(options.enqueuePush === undefined ? {} : { enqueuePush: options.enqueuePush }),
     }),
   );
   app.use(

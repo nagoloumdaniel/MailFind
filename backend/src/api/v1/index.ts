@@ -8,6 +8,7 @@ import { registerEmails } from './emails.js';
 import { registerExports } from './exports.js';
 import { registerFind } from './find.js';
 import { registerImports } from './imports.js';
+import { registerIntegrations } from './integrations.js';
 import { registerUsage } from './usage.js';
 import { registerVerify } from './verify.js';
 import { registerWebhooks } from './webhooks.js';
@@ -25,6 +26,8 @@ export interface V1Deps {
   readonly dns?: MailDns;
   /** Le chiffrement des secrets de webhook (S-01). */
   readonly cipher: () => Cipher | undefined;
+  /** La mise en file d'un envoi vers Campaign Mailer. */
+  readonly enqueuePush: (pushId: string) => Promise<void>;
 }
 
 /** Les points d'acces de l'API publique (6.13), montes apres les conventions communes. */
@@ -36,5 +39,6 @@ export function registerV1Routes(router: Router, deps: V1Deps): void {
   registerVerify(router, deps.dns === undefined ? {} : { dns: deps.dns });
   registerExports(router, { storage: deps.exportStorage, enqueue: deps.enqueueExport });
   registerWebhooks(router, deps.cipher);
+  registerIntegrations(router, deps.enqueuePush);
   registerUsage(router);
 }

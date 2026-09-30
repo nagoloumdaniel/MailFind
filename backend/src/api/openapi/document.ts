@@ -9,6 +9,7 @@ import { findSchema } from '../v1/find.js';
 import { importCreationSchema } from '../v1/imports.js';
 import { verifyListSchema } from '../v1/verify.js';
 import { webhookCreationSchema } from '../v1/webhooks.js';
+import { pushCreationSchema } from '../v1/integrations.js';
 import {
   companyListItemSchema,
   companyWithEmailsSchema,
@@ -24,6 +25,7 @@ import {
   verificationRunSchema,
   verifyResultSchema,
   deliverySchema,
+  campaignMailerPushSchema,
   WEBHOOK_EVENT_VALUES,
   webhookEventSchema,
   webhookSchema,
@@ -371,6 +373,34 @@ export const OPERATIONS: readonly Operation[] = [
     scope: 'integrations:write',
     query: pageParamsSchema,
     responses: { 200: { description: 'Une page', schema: page(deliverySchema) } },
+  },
+  {
+    method: 'post',
+    path: '/integrations/campaign-mailer/push',
+    tag: 'Campaign Mailer',
+    summary: 'Envoyer une selection vers une campagne en brouillon',
+    description:
+      "Le compte doit avoir connecte Campaign Mailer depuis sa page Compte. L'envoi part en tache, par lots de 500 sous une cle d'idempotence chacun : relance, il ne cree aucun doublon. Rien n'est lance ; seul l'utilisateur lance la campagne, dans Campaign Mailer.",
+    scope: 'integrations:write',
+    body: pushCreationSchema,
+    idempotent: true,
+    responses: {
+      202: {
+        description: 'Envoi lance',
+        schema: z.strictObject({ push: campaignMailerPushSchema }),
+      },
+      409: { description: 'Campaign Mailer non connecte', schema: problemSchema },
+    },
+  },
+  {
+    method: 'get',
+    path: '/integrations/campaign-mailer/pushes/{id}',
+    tag: 'Campaign Mailer',
+    summary: "Etat d'un envoi vers Campaign Mailer",
+    scope: 'integrations:write',
+    responses: {
+      200: { description: "L'envoi", schema: z.strictObject({ push: campaignMailerPushSchema }) },
+    },
   },
   {
     method: 'get',

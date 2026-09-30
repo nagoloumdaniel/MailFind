@@ -9,7 +9,11 @@ import type { Enqueue } from '../pipeline/start.js';
 import type { VerifyDeps } from '../pipeline/verify.js';
 import { createConfiguredCipher, createVerifyDeps } from '../pipeline/verify-deps.js';
 import type { Cipher } from '../security/crypto.js';
-import { enqueueCompanyStep, enqueueExportBuild } from '../queue/queues.js';
+import {
+  enqueueCampaignMailerPush,
+  enqueueCompanyStep,
+  enqueueExportBuild,
+} from '../queue/queues.js';
 import { createR2Storage, type ExportStorage } from '../exports/storage.js';
 import type { MailDns } from '../verification/local.js';
 import { idempotency } from './idempotency.js';
@@ -32,6 +36,8 @@ export interface V1Options {
   readonly dns?: MailDns;
   /** Le chiffrement des secrets de webhook ; celui de ENCRYPTION_KEY par defaut. */
   readonly cipher?: Cipher;
+  /** La mise en file d'un envoi vers Campaign Mailer ; celle de BullMQ par defaut. */
+  readonly enqueuePush?: (pushId: string) => Promise<void>;
   /** Pour les tests : des routes montees apres les conventions communes. */
   readonly register?: (router: Router) => void;
 }
@@ -101,6 +107,7 @@ export function createV1Router(options: V1Options = {}): Router {
     enqueueExport: options.enqueueExport ?? enqueueExportBuild,
     ...(options.dns === undefined ? {} : { dns: options.dns }),
     cipher: () => options.cipher ?? createConfiguredCipher(),
+    enqueuePush: options.enqueuePush ?? enqueueCampaignMailerPush,
   });
   options.register?.(router);
 

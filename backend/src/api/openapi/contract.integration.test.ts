@@ -13,6 +13,7 @@ import { createTestSession } from '../../test/session.js';
 import type { MailDns } from '../../verification/local.js';
 import { runVerification } from '../../verification/runs.js';
 import { emitWebhookEvent } from '../../webhooks/service.js';
+import { saveConnection } from '../../campaign-mailer/connection.js';
 import { createCipher } from '../../security/crypto.js';
 import { randomBytes } from 'node:crypto';
 import { createMemoryRateLimitStore } from '../rate-limit.js';
@@ -231,6 +232,21 @@ describe('l API repond conformement a son document (A8)', () => {
     const journal = await appeler('get', '/webhooks/{id}/deliveries', { id });
     expect(journal.body.data.length).toBeGreaterThan(0);
     await appeler('delete', '/webhooks/{id}', { id });
+  });
+
+  it('campaign mailer', async () => {
+    await saveConnection(
+      userId,
+      `cm_${'c'.repeat(43)}`,
+      createCipher(randomBytes(32).toString('hex')),
+    );
+    const cree = await appeler('post', '/integrations/campaign-mailer/push', {
+      body: { campaign_name: 'Alternance', scope: { kind: 'library' } },
+    });
+    expect(cree.status).toBe(202);
+    await appeler('get', '/integrations/campaign-mailer/pushes/{id}', {
+      id: cree.body.push.id as string,
+    });
   });
 
   it('consommation, suppression et erreurs', async () => {

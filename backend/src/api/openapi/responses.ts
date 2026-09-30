@@ -242,6 +242,28 @@ export const webhookEventSchema = z
   })
   .meta({ id: 'WebhookEvent' });
 
+export const campaignMailerPushSchema = z
+  .strictObject({
+    id: z.uuid(),
+    campaign_name: z.string(),
+    status: z.enum(['pending', 'running', 'done', 'failed']),
+    campaign_id: texteOuNul.describe("L'identifiant du brouillon dans Campaign Mailer."),
+    campaign_url: texteOuNul.describe('Le brouillon, dans Campaign Mailer.'),
+    batches_total: z.number().int().nullable(),
+    batches_done: z.number().int(),
+    sent: z.number().int(),
+    imported: z.number().int(),
+    rejected: z.number().int(),
+    skipped: z
+      .number()
+      .int()
+      .describe('Adresses que Campaign Mailer refuserait, laissees de cote.'),
+    error: texteOuNul,
+    created_at: date,
+    completed_at: date.nullable(),
+  })
+  .meta({ id: 'CampaignMailerPush' });
+
 export const page = <T extends z.ZodType>(item: T) =>
   z.strictObject({
     data: z.array(item),
