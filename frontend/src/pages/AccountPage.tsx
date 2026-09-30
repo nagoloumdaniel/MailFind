@@ -1,7 +1,8 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ApiKeys } from '../components/ApiKeys';
 import { Button } from '../components/Button';
+import { CampaignMailerConnection } from '../components/CampaignMailerConnection';
 import { SuppressionList } from '../components/SuppressionList';
 import { ApiError, apiFetch } from '../lib/api';
 import { useSession } from '../lib/session';
@@ -88,6 +89,8 @@ export function AccountPage() {
       </section>
 
       <ApiKeys />
+
+      <CampaignMailerConnection />
 
       <SuppressionList />
 

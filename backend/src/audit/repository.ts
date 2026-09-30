@@ -28,7 +28,10 @@ export type AuditAction =
   | 'api_key.created'
   | 'api_key.revoked'
   | 'webhook.created'
-  | 'webhook.deleted';
+  | 'webhook.deleted'
+  | 'campaign_mailer.connected'
+  | 'campaign_mailer.disconnected'
+  | 'campaign_mailer.pushed';
 
 export interface AuditEvent {
   readonly userId: string | null;

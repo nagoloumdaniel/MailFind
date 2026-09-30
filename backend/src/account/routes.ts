@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { recordAuditEvent } from '../audit/repository.js';
 import { listApiKeys } from '../api-keys/repository.js';
 import { listWebhooks } from '../webhooks/service.js';
+import { getConnection } from '../campaign-mailer/connection.js';
 import { query } from '../db/pool.js';
 import { requireAuth, unauthenticated } from '../http/middleware/require-auth.js';
 import { AppError } from '../http/problem.js';
@@ -136,6 +137,8 @@ export function createAccountRouter(): Router {
         const apiKeys = await listApiKeys(user.id);
         // Les abonnements, sans leur secret.
         const webhooks = await listWebhooks(user.id);
+        // La connexion a Campaign Mailer, sans son jeton.
+        const campaignMailer = await getConnection(user.id);
 
         const lignesParImport = new Map<string, object[]>();
         for (const ligne of lignes.rows) {
@@ -191,6 +194,12 @@ export function createAccountRouter(): Router {
           exports: exportsJournal.rows,
           apiKeys,
           webhooks,
+          campaignMailer: {
+            connected: campaignMailer.connected,
+            tokenPrefix: campaignMailer.tokenPrefix,
+            connectedAt: campaignMailer.connectedAt,
+            lastUsedAt: campaignMailer.lastUsedAt,
+          },
           // La liste de suppression n'est gardee qu'en empreintes, illisibles
           // par construction (R-04) : son nombre est tout ce qu'on en sait.
           suppressions: { count: suppressions.rows[0]?.n ?? 0 },

@@ -53,6 +53,13 @@ const environmentSchema = z.object({
   CRAWLER_USER_AGENT: z.string().min(1).default('MailFindBot/0.1 (+https://mailfind.app/bot)'),
   /** F-1304 : requetes par minute et par cle d'API. */
   API_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(60),
+  /**
+   * Campaign Mailer (F-1201) : l'adresse de l'application, qui relaie /api vers
+   * son API. Fixee par l'exploitant, jamais saisie par un utilisateur : c'est
+   * ce qui dispense ces appels de la garde des adresses. Vide, l'envoi est
+   * indisponible.
+   */
+  CAMPAIGN_MAILER_API_URL: z.string().default(''),
   /** F-405 : une requete a la fois par domaine, une seconde entre deux. */
   CRAWLER_REQUESTS_PER_SECOND_PER_DOMAIN: z.coerce.number().positive().max(10).default(1),
   CRAWLER_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),

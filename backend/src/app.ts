@@ -7,6 +7,9 @@ import { pinoHttp } from 'pino-http';
 import type { Logger } from 'pino';
 import { createAccountRouter } from './account/routes.js';
 import { createApiKeysRouter } from './api-keys/routes.js';
+import { createCampaignMailerRouter } from './campaign-mailer/routes.js';
+import { createConfiguredCipher } from './pipeline/verify-deps.js';
+import type { Cipher } from './security/crypto.js';
 import { createV1Router, type V1Options } from './api/router.js';
 import { createAuthRouter } from './auth/routes.js';
 import { createSessionMiddleware } from './auth/session.js';
@@ -43,6 +46,8 @@ export interface AppOptions {
   readonly exportStorage?: ExportStorage;
   /** La mise en file d'un export volumineux. */
   readonly enqueueExport?: (exportId: string, userId: string) => Promise<void>;
+  /** Le chiffrement des secrets (jeton Campaign Mailer) ; celui de ENCRYPTION_KEY par defaut. */
+  readonly cipher?: Cipher;
   /** L'API publique ; les tests y mettent un compteur de debit en memoire. */
   readonly v1?: V1Options;
 }
@@ -132,6 +137,10 @@ export function createApp(options: AppOptions = {}): Express {
   app.use(healthRouter);
   app.use('/api/auth', createAuthRouter());
   app.use('/api/account/api-keys', createApiKeysRouter());
+  app.use(
+    '/api/campaign-mailer',
+    createCampaignMailerRouter({ cipher: () => options.cipher ?? createConfiguredCipher() }),
+  );
   app.use('/api/account', createAccountRouter());
   app.use('/api/imports', createImportsRouter());
   app.use(
