@@ -145,6 +145,12 @@ export async function scheduleMaintenance(): Promise<void> {
     { every: 24 * 60 * 60 * 1000 },
     { name: 'quotas.resume' },
   );
+  // R-06 : les durees de conservation, une fois par jour.
+  await getMaintenanceQueue().upsertJobScheduler(
+    'retention-purge',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: 'retention.purge' },
+  );
   // F-1305 : les cles d'idempotence de plus de 24 heures, une fois par jour.
   await getMaintenanceQueue().upsertJobScheduler(
     'idempotency-purge',

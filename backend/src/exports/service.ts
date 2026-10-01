@@ -2,6 +2,7 @@ import { query } from '../db/pool.js';
 import { emitWebhookEvent } from '../webhooks/service.js';
 import { AppError } from '../http/problem.js';
 import { claimQuota, releaseQuota } from '../quotas/usage.js';
+import { markEmailsUsed } from '../retention/purge.js';
 import { countExportRows, countRows, loadExportData } from './data.js';
 import { campaignMailerCsv, csvCompanies, csvEmails, jsonExport, xlsxExport } from './formats.js';
 import {
@@ -35,6 +36,8 @@ export async function buildExport(
   maintenant: Date,
 ): Promise<BuiltExport> {
   const data = await loadExportData(userId, request);
+  // Exportee, l'adresse a servi : son horloge de conservation repart (R-06).
+  await markEmailsUsed(data.companies.flatMap((entreprise) => entreprise.emails.map((e) => e.id)));
   const { contentType } = EXTENSIONS[request.format];
   const filename = exportFilename(request.format, maintenant);
   const texte = (contenu: string) => Buffer.from(contenu, 'utf8');

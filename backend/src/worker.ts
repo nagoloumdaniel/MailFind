@@ -1,6 +1,7 @@
 import { UnrecoverableError, Worker } from 'bullmq';
 import { initErrorReporting, reportError } from './observability/errors.js';
 import { resumeBlockedForEveryone } from './quotas/resume.js';
+import { purgeExpiredData } from './retention/purge.js';
 import { purgeExpiredExports, runExportJob } from './exports/service.js';
 import { purgeExpiredIdempotencyKeys } from './api/idempotency.js';
 import { purgeExpiredVerificationRuns, runVerification } from './verification/runs.js';
@@ -113,6 +114,9 @@ const entretien = new Worker(
     }
     if (job.name === 'idempotency.purge') {
       return { effacees: await purgeExpiredIdempotencyKeys() };
+    }
+    if (job.name === 'retention.purge') {
+      return await purgeExpiredData();
     }
     if (job.name === 'quotas.resume') {
       return { reprises: await resumeBlockedForEveryone(enqueueCompanyStep) };
