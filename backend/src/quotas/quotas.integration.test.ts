@@ -3,7 +3,7 @@ import { closePool, query } from '../db/pool.js';
 import type { CompanyJob, CompanyStep } from '../queue/queues.js';
 import { blockOnQuota, takeQuotaBlockedSteps } from '../pipeline/steps.js';
 import { createUser, resetData } from '../test/integration/db.js';
-import { missingQuota, resumeBlocked } from './resume.js';
+import { missingQuota, resumeBlocked, resumeBlockedForEveryone } from './resume.js';
 import { claimQuota, quotaLimits, quotaReport, readUsage, releaseQuota } from './usage.js';
 
 let userId: string;
@@ -183,6 +183,37 @@ describe('arret propre et reprise (F-1403)', () => {
     ]);
 
     expect((premiere?.length ?? 0) + (seconde?.length ?? 0)).toBe(1);
+  });
+
+  it('reprend tout le monde a l entretien, et saute les comptes encore pleins', async () => {
+    const job = await importAvecEtape();
+    await blockOnQuota('identify', job, 'companies');
+
+    // Un second compte, bloque lui aussi, mais dont le compteur reste plein :
+    // l'entretien doit reprendre le premier sans se bloquer sur le second.
+    const premier = userId;
+    userId = await createUser();
+    const autre = await importAvecEtape();
+    await blockOnQuota('identify', autre, 'companies');
+    await remplir('companies');
+    const bloque = userId;
+    userId = premier;
+
+    const enFile: string[] = [];
+    const repris = await resumeBlockedForEveryone((_step, job2) => {
+      enFile.push(job2.userId);
+      return Promise.resolve();
+    });
+
+    expect(repris).toBe(1);
+    expect(enFile).toEqual([premier]);
+    const restees = await query<{ n: string }>(
+      `select count(*)::text as n from pipeline_jobs p
+         join imports i on i.id = p.import_id
+        where p.status = 'quota_blocked' and i.user_id = $1`,
+      [bloque],
+    );
+    expect(restees.rows[0]?.n).toBe('1');
   });
 
   it('dit quel compteur manque, et rien quand la place est la', () => {

@@ -77,14 +77,18 @@ const etapes = [
   { nom: 'format', commande: 'npm run format:check' },
   { nom: 'lint', commande: 'npm run lint' },
   { nom: 'types', commande: 'npm run typecheck' },
+  // Les tests unitaires d'abord, sans base : ils disent en dix secondes si
+  // quelque chose est casse, avant les deux minutes de la couverture.
   { nom: 'tests unitaires', commande: 'npm test' },
   { nom: 'construction', commande: 'npm run build' },
   { nom: 'vulnerabilites', commande: 'npm audit --audit-level=high' },
 ];
 
 const avecServices = {
-  nom: 'tests d integration',
-  commande: 'npm run test:integration',
+  // La couverture fait tourner les deux suites, pas seulement l'integration,
+  // et fait echouer la CI sous les seuils.
+  nom: 'couverture',
+  commande: 'npm run test:coverage',
   env: {
     TEST_DATABASE_URL: `postgresql://test:test@localhost:${String(PG.port)}/mailfind_test?sslmode=disable`,
     TEST_REDIS_URL: `redis://localhost:${String(REDIS.port)}`,
