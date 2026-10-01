@@ -1,6 +1,7 @@
 import { query } from '../db/pool.js';
 import { emitWebhookEvent } from '../webhooks/service.js';
 import type { CompanyJob, CompanyStep } from '../queue/queues.js';
+import type { QuotaMetric } from '../quotas/usage.js';
 
 /**
  * Suivi des etapes par entreprise, dans `pipeline_jobs`. C'est lui qui fait
@@ -8,7 +9,7 @@ import type { CompanyJob, CompanyStep } from '../queue/queues.js';
  * faut remettre en file apres un redemarrage (F-206).
  */
 
-export type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped';
+export type StepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped' | 'quota_blocked';
 
 /** Declare une etape a faire. Deja declaree, elle ne bouge pas. */
 export async function planStep(step: CompanyStep, job: CompanyJob): Promise<void> {
@@ -46,6 +47,53 @@ export async function finishStep(
   );
 }
 
+/**
+ * Arrete une etape sur un quota atteint (F-1403). Ni faite ni en echec :
+ * elle attend le renouvellement du mois, ou que l'utilisateur relance. Un
+ * echec serait trompeur, puisque rien ne s'est mal passe, et serait retente
+ * en vain par la file.
+ */
+export async function blockOnQuota(
+  step: CompanyStep,
+  job: CompanyJob,
+  metric: QuotaMetric,
+): Promise<void> {
+  await query(
+    `insert into pipeline_jobs (import_id, company_id, step, status, error, completed_at)
+     values ($1, $2, $3, 'quota_blocked', $4, now())
+     on conflict on constraint pipeline_jobs_unique_step
+     do update set status = 'quota_blocked', error = excluded.error, completed_at = now()`,
+    [job.importId, job.companyId, step, `quota ${metric}`],
+  );
+  // L'import peut se conclure : il ne reste rien qui avance tout seul.
+  await completeImportIfDone(job.importId);
+}
+
+/**
+ * Les etapes qu'un quota avait arretees, pour les remettre en file quand le
+ * mois a change ou que l'utilisateur relance. Elles repassent « en attente »
+ * dans la meme instruction, pour que deux relances simultanees n'en rendent
+ * pas deux fois la meme.
+ */
+export async function takeQuotaBlockedSteps(
+  userId: string,
+  importId?: string,
+): Promise<{ step: CompanyStep; job: CompanyJob }[]> {
+  const result = await query<{ step: CompanyStep; import_id: string; company_id: string }>(
+    `update pipeline_jobs p
+        set status = 'pending', error = null, completed_at = null
+       from imports i
+      where i.id = p.import_id and i.user_id = $1 and p.status = 'quota_blocked'
+        and ($2::uuid is null or p.import_id = $2)
+      returning p.step::text as step, p.import_id, p.company_id`,
+    [userId, importId ?? null],
+  );
+  return result.rows.map((row) => ({
+    step: row.step,
+    job: { importId: row.import_id, companyId: row.company_id, userId },
+  }));
+}
+
 /** Vrai quand l'import a ete annule : ses etapes restantes ne partent plus (F-205). */
 export async function isImportCancelled(importId: string): Promise<boolean> {
   const result = await query<{ status: string }>(
@@ -62,23 +110,33 @@ export async function isImportCancelled(importId: string): Promise<boolean> {
  * encore.
  */
 export async function completeImportIfDone(importId: string): Promise<boolean> {
-  const result = await query<{ user_id: string; filename: string }>(
-    `update imports set status = 'completed', completed_at = now()
+  const result = await query<{ user_id: string; filename: string; status: string }>(
+    `update imports
+        set status = case
+              when exists (
+                select 1 from pipeline_jobs
+                 where import_id = $1 and status = 'quota_blocked'
+              ) then 'quota_blocked'::import_status
+              else 'completed'::import_status end,
+            completed_at = now()
       where id = $1 and status = 'running'
         and not exists (
           select 1 from pipeline_jobs
            where import_id = $1 and status in ('pending', 'running')
         )
-      returning user_id, filename`,
+      returning user_id, filename, status::text as status`,
     [importId],
   );
   const termine = result.rows[0];
-  // F-1308 : une seule fois, par la mise a jour qui a vraiment conclu.
+  // F-1308 : une seule fois, par la mise a jour qui a vraiment conclu. Un
+  // import arrete par un quota n'est pas « termine » : l'evenement le dit,
+  // pour qu'un abonne ne prenne pas un travail interrompu pour un travail
+  // fini.
   if (termine !== undefined) {
     await emitWebhookEvent(termine.user_id, 'import.completed', {
       import_id: importId,
       name: termine.filename,
-      status: 'completed',
+      status: termine.status,
     });
   }
   return termine !== undefined;

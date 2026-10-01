@@ -1,5 +1,7 @@
 import type { CrawlerClient } from '../crawler/client.js';
 import { crawlCompany, type CrawlReport } from '../crawler/engine.js';
+import { MAX_PAGES, type CrawlDepth } from '../crawler/pages.js';
+import { claimQuota, releaseQuota } from '../quotas/usage.js';
 import { getPool, query } from '../db/pool.js';
 import { readStoredSettings } from '../imports/settings.js';
 import { getLogger } from '../observability/logger.js';
@@ -8,12 +10,16 @@ import { isSuppressed, loadSuppressedHashes } from '../suppressions/repository.j
 import type { CompanyJob, CompanyStep } from '../queue/queues.js';
 import type { Enqueue } from './start.js';
 import {
+  blockOnQuota,
   completeImportIfDone,
   finishStep,
   isImportCancelled,
   planStep,
   startStep,
 } from './steps.js';
+
+/** Ce qu'une profondeur peut demander au plus, accueil compris (F-402). */
+const maxPagesForDepth = (depth: CrawlDepth): number => MAX_PAGES[depth];
 
 /**
  * Etape `company.crawl` (section 8.4) : explorer le site, puis enregistrer
@@ -157,16 +163,30 @@ export async function crawlStep(deps: CrawlDeps, job: CompanyJob): Promise<void>
     return;
   }
 
+  // Les pages se reservent avant d'etre demandees, au plus de ce que la
+  // profondeur choisie peut atteindre : un site ne doit pas pouvoir faire
+  // depasser le plafond a lui seul (F-1401).
+  const reglages = readStoredSettings(entreprise.settings);
+  const budgetPages = maxPagesForDepth(reglages.depth);
+  const place = await claimQuota(job.userId, 'pages', budgetPages);
+  if (!place.granted) {
+    await blockOnQuota('crawl', job, 'pages');
+    return;
+  }
+
   await startStep('crawl', job);
   await query(`update companies set crawl_status = 'running' where id = $1`, [job.companyId]);
 
-  const reglages = readStoredSettings(entreprise.settings);
   const rapport = await crawlCompany(deps.crawler, {
     domain: entreprise.domain,
     depth: reglages.depth,
     ...(entreprise.website_url === null ? {} : { websiteUrl: entreprise.website_url }),
     ...(entreprise.careers_url === null ? {} : { careersUrl: entreprise.careers_url }),
   });
+
+  // Rendre ce que le site n'a pas fait consommer : la plupart des sites
+  // tiennent en bien moins de pages que la profondeur n'en autorise.
+  await releaseQuota(job.userId, 'pages', budgetPages - rapport.pages.length);
 
   await saveCrawlReport(job.companyId, job.userId, rapport);
   // L'etape suivante est declaree avant de conclure celle-ci : sinon

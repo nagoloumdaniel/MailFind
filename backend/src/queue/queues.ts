@@ -137,6 +137,14 @@ export async function scheduleMaintenance(): Promise<void> {
     { every: 24 * 60 * 60 * 1000 },
     { name: 'exports.purge' },
   );
+  // F-1403 : ce qu'un quota a arrete repart des que le compteur le permet,
+  // sans que personne ait a cliquer. Une fois par jour suffit : les quotas se
+  // renouvellent au mois.
+  await getMaintenanceQueue().upsertJobScheduler(
+    'quotas-resume',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: 'quotas.resume' },
+  );
   // F-1305 : les cles d'idempotence de plus de 24 heures, une fois par jour.
   await getMaintenanceQueue().upsertJobScheduler(
     'idempotency-purge',

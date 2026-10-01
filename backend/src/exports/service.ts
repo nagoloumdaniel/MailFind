@@ -1,6 +1,7 @@
 import { query } from '../db/pool.js';
 import { emitWebhookEvent } from '../webhooks/service.js';
 import { AppError } from '../http/problem.js';
+import { claimQuota, releaseQuota } from '../quotas/usage.js';
 import { countExportRows, countRows, loadExportData } from './data.js';
 import { campaignMailerCsv, csvCompanies, csvEmails, jsonExport, xlsxExport } from './formats.js';
 import {
@@ -147,6 +148,18 @@ export async function createExport(
     readonly alwaysStore?: boolean;
   } = {},
 ): Promise<ExportOutcome> {
+  // Le quota avant le travail : produire un fichier qu'on refusera ensuite
+  // ferait payer le temps machine pour rien (F-1401).
+  const place = await claimQuota(userId, 'exports');
+  if (!place.granted) {
+    throw new AppError({
+      status: 429,
+      code: 'quota_reached',
+      title: 'Quota d export atteint',
+      detail: `Vous avez produit ${String(place.limit)} exports ce mois-ci, le maximum. Le compteur repart le 1er du mois prochain.`,
+    });
+  }
+
   const lignes = await countExportRows(userId, request);
   const cree = await query<{ id: string }>(
     `insert into exports (user_id, format, filters, status) values ($1, $2, $3, 'pending') returning id`,
@@ -170,6 +183,8 @@ export async function createExport(
       `update exports set status = 'failed', error = $2, completed_at = now() where id = $1`,
       [exportId, 'Stockage des exports non configure.'],
     );
+    // Aucun fichier n'a ete produit : la place reprise rend le quota juste.
+    await releaseQuota(userId, 'exports');
     throw new AppError({
       status: 503,
       code: 'export_storage_unavailable',

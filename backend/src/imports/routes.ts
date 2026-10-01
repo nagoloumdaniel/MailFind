@@ -14,6 +14,10 @@ import {
   listRejectedRows,
 } from './repository.js';
 import { submitImport } from './submit.js';
+import { resumeBlocked } from '../quotas/resume.js';
+import { quotaReport } from '../quotas/usage.js';
+import { enqueueCompanyStep } from '../queue/queues.js';
+import type { Enqueue } from '../pipeline/start.js';
 
 /** F-201 : 5 000 lignes au plus, la meme limite que celle annoncee a l'ecran. */
 const MAX_ROWS = 5000;
@@ -39,8 +43,14 @@ const createSchema = z.object({
   settings: importSettingsSchema.prefault({}),
 });
 
-export function createImportsRouter(): Router {
+export interface ImportsRouterOptions {
+  /** La file des etapes ; les tests la remplacent par une liste. */
+  readonly enqueue?: Enqueue;
+}
+
+export function createImportsRouter(options: ImportsRouterOptions = {}): Router {
   const router = Router();
+  const enqueue = options.enqueue ?? enqueueCompanyStep;
 
   router.use(requireAuth, requireAcceptedTerms);
 
@@ -163,6 +173,52 @@ export function createImportsRouter(): Router {
    * dans la bibliotheque : elles ont ete trouvees, les effacer serait punir
    * l'utilisateur d'avoir change d'avis.
    */
+  /**
+   * Relance d'un import arrete par un quota (F-1403). Rien ne se perd en
+   * attendant : les entreprises gardent leur place dans l'import, et
+   * l'entretien quotidien les reprendrait de lui-meme au renouvellement.
+   */
+  router.post('/:id/resume', (req, res, next) => {
+    void (async () => {
+      try {
+        const user = req.currentUser;
+        if (user === undefined) {
+          next(unauthenticated());
+          return;
+        }
+
+        const identifiant = req.params.id ?? '';
+        const existe = await findImport(user.id, identifiant);
+        if (existe === undefined) {
+          next(AppError.notFound("Cet import n'existe pas."));
+          return;
+        }
+
+        const issue = await resumeBlocked(user.id, enqueue, identifiant);
+        if (issue.blockedBy !== undefined) {
+          next(
+            new AppError({
+              status: 429,
+              code: 'quota_reached',
+              title: 'Quota toujours atteint',
+              detail:
+                'Le compteur du mois est plein. Les entreprises repartiront au renouvellement, sans rien faire de votre part.',
+            }),
+          );
+          return;
+        }
+
+        res.json({
+          resumed: issue.resumed,
+          import: await findImport(user.id, identifiant),
+          quotas: await quotaReport(user.id),
+        });
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
+
   router.post('/:id/cancel', (req, res, next) => {
     void (async () => {
       try {

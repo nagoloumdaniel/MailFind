@@ -163,7 +163,10 @@ export function createApp(options: AppOptions = {}): Express {
     }),
   );
   app.use('/api/account', createAccountRouter());
-  app.use('/api/imports', createImportsRouter());
+  app.use(
+    '/api/imports',
+    createImportsRouter(options.enqueue === undefined ? {} : { enqueue: options.enqueue }),
+  );
   app.use(
     '/api/companies',
     createCompaniesRouter({

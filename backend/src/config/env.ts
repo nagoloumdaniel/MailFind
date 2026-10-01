@@ -113,6 +113,14 @@ const environmentSchema = z.object({
   /** Enrichissement (D-08). Vide, Hunter n'est jamais appele. */
   HUNTER_API_KEY: z.string().default(''),
   HUNTER_BASE_URL: z.string().min(1).default('https://api.hunter.io'),
+  /**
+   * F-1401 : plafonds mensuels par compte sur ce qui ne coute pas un credit
+   * mais du temps machine et des requetes chez des tiers. Atteints, l'import
+   * s'arrete proprement et les entreprises restantes attendent (F-1403).
+   */
+  QUOTA_COMPANIES_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(500),
+  QUOTA_PAGES_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(5000),
+  QUOTA_EXPORTS_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(100),
   /** D-14 : recherches par domaine, par utilisateur et par mois. */
   QUOTA_PROVIDER_SEARCHES_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(3),
   /** D-13, D-14 : les 30 credits mensuels de Hunter reserves a la recherche. */

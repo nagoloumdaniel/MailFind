@@ -15,7 +15,9 @@ import type {
 import type { WebSearchProvider } from '../providers/web-search.js';
 import type { CompanyJob } from '../queue/queues.js';
 import type { Enqueue } from './start.js';
+import { claimQuota } from '../quotas/usage.js';
 import {
+  blockOnQuota,
   completeImportIfDone,
   finishStep,
   isImportCancelled,
@@ -221,6 +223,16 @@ export async function identifyCompany(deps: IdentifyDeps, job: CompanyJob): Prom
     // Supprimee entre-temps : rien a identifier.
     await finishStep('identify', job, 'skipped');
     await completeImportIfDone(job.importId);
+    return;
+  }
+
+  // Le quota d'entreprises se prend ici, au seuil du traitement : avant, on
+  // ne sait pas si l'entreprise existe encore ; apres, le travail est fait et
+  // le refuser ne rend rien (F-1401, F-1403).
+  const place = await claimQuota(job.userId, 'companies');
+  if (!place.granted) {
+    await blockOnQuota('identify', job, 'companies');
+    logger.info({ limite: place.limit }, 'entreprise en attente de quota');
     return;
   }
 
