@@ -65,20 +65,29 @@ export function rateLimit(options: {
   readonly store: () => RateLimitStore;
   readonly limit: number;
   readonly windowMs?: number;
+  /**
+   * Ce qui est compte. Par defaut la cle d'API : c'est elle qui identifie
+   * l'appelant de `/v1`. Une route publique compte par adresse, faute de
+   * mieux, et le dit.
+   */
+  readonly key?: (req: Parameters<RequestHandler>[0]) => string | undefined;
+  /** Le mot employe dans le message : « cette cle », « cette adresse ». */
+  readonly subject?: string;
   /** Une panne du compteur ne doit pas couper l'API : la requete passe, et c'est journalise. */
   readonly onStoreError?: (error: unknown) => void;
 }): RequestHandler {
   const fenetre = options.windowMs ?? 60_000;
+  const sujet = options.subject ?? 'cette cle';
   return (req, res, next) => {
     void (async () => {
-      const cle = req.apiKey?.id;
+      const cle = options.key === undefined ? req.apiKey?.id : options.key(req);
       if (cle === undefined) {
         next();
         return;
       }
       let coup: RateLimitHit;
       try {
-        coup = await options.store().hit(`api:${cle}`, fenetre);
+        coup = await options.store().hit(cle, fenetre);
       } catch (error) {
         options.onStoreError?.(error);
         next();
@@ -95,7 +104,7 @@ export function rateLimit(options: {
             status: 429,
             code: 'rate_limited',
             title: 'Trop de requetes',
-            detail: `${String(options.limit)} requetes par minute au plus pour cette cle. Reessayez dans ${String(reset)} s.`,
+            detail: `${String(options.limit)} requetes par minute au plus pour ${sujet}. Reessayez dans ${String(reset)} s.`,
           }),
         );
         return;

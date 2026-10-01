@@ -552,20 +552,27 @@ Annuaire partagé :
 - [x] Journaux et Sentry sans adresse ni jeton (S-03).
   → skills : `security-review`, `test-driven-development`
   `backend/src/observability/scrub.ts` masque par motif, pas par nom de champ : adresses, clés `mf_`, jetons `cm_`, secrets `whsec_`, valeurs chiffrées, en-têtes `Bearer`, jetons Google, et le `code` ou le `state` d'une URL de retour. Branché dans pino sur le message, les champs, les erreurs et la requête, et dans Sentry (`observability/errors.ts`), qui part sans IP, sans cookie, sans corps ni chaîne de requête, avec le compte réduit à son identifiant. Seules les pannes à 500 et les tâches définitivement abandonnées y sont envoyées.
-- Quotas par utilisateur, estimation avant lancement, arrêt propre sur quota (F-1401 à F-1404).
+- [x] Quotas par utilisateur et arrêt propre sur quota (F-1401, F-1403, F-1404).
   → skills : `test-driven-development`, `frontend-design`
-- Plafond global de dépense par fournisseur, suspension et alerte (F-1405).
+  Entreprises, pages et exports ont un plafond mensuel par compte, tenu dans un compteur : il faut prendre une place et refuser la suivante dans la même instruction, ce qu'un décompte ne garantit pas. Au plafond, l'étape passe `quota_blocked`, l'import le dit au lieu de se croire terminé, et repart sur `POST /api/imports/:id/resume` ou de lui-même à l'entretien quotidien. **F-1402, l'estimation de coût avant traitement, reste à faire.**
+- [x] Plafond global de dépense par fournisseur, suspension et alerte (F-1405).
   → skills : `test-driven-development`
-- Conservation et purge automatique (R-06).
+  Le coût est figé en centimes sur la ligne à la réservation : les crédits ne sont pas des euros, et un tarif peut changer en cours de mois. Atteint, le plafond refuse pour tout le monde, et l'alerte part une seule fois par fournisseur et par mois, décidée par l'insertion. Défaut trouvé par les tests : un appel non facturé pesait encore sur le budget.
+- [x] Conservation et purge automatique (R-06).
   → skills : `test-driven-development`, `migration`
-- Page publique de l'agent de collecte et demande d'exclusion d'un site (R-07, F-1603).
+  Douze mois pour une adresse sans usage et pour le journal d'audit, quatre-vingt-dix jours pour les traces techniques. « Sans usage » a demandé une colonne : `updated_at` bouge quand MailFind réécrit, pas quand une personne se sert. La purge efface par paquets, pour ne pas tenir un verrou le temps d'un balayage.
+- [x] Page publique de l'agent de collecte et demande d'exclusion d'un site (R-07, F-1603).
   → skills : `copywriting`, `test-driven-development`
-- Conditions d'utilisation, politique de confidentialité, liste des sous-traitants, mention type d'information des personnes (R-03, R-11).
+  `/robot` dit ce que le robot lit, à quel rythme, ce qu'il refuse de faire, et porte le formulaire. Hors session, sans demander ni nom ni adresse. Une demande prend effet à sa réception, couvre les sous-domaines, et vaut pour tous les comptes.
+- [x] Conditions d'utilisation, politique de confidentialité, liste des sous-traitants, mention type d'information des personnes (R-03, R-11).
   → skills : `copywriting`, `copy-editing`
-- Registre des traitements et analyse d'impact (R-11, R-12).
+  Deux pages publiques, et [`docs/legal/`](docs/legal/) pour les sous-traitants et la mention type. Le texte sépare les deux rôles : responsable pour les comptes, sous-traitant pour les adresses collectées. Version `2026-10-02`, à réaccepter.
+- [x] Registre des traitements et analyse d'impact (R-11, R-12).
   → skills : `anthropic-skills:technical-writer`
-- Revue de sécurité complète et analyse des dépendances (S-11).
+  [`registre-traitements.md`](docs/legal/registre-traitements.md) et [`analyse-impact.md`](docs/legal/analyse-impact.md). Aucun risque résiduel élevé, donc pas de consultation préalable de la CNIL. **À faire relire par un juriste avant l'ouverture au public.**
+- [x] Revue de sécurité complète et analyse des dépendances (S-11).
   → skills : `security-review`, `code-review`
+  `npm audit` sans vulnérabilité. Deux défauts trouvés et corrigés dans le même lot : la liste des sites exclus était publique, et la demande d'exclusion n'avait aucun garde-fou. Le compte rendu est dans [`docs/security.md`](docs/security.md).
 
 ### Definition of Done
 

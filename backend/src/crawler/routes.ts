@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { defaultRateLimitStore } from '../api/router.js';
+import { rateLimit, type RateLimitStore } from '../api/rate-limit.js';
 import { getEnvironment } from '../config/env.js';
+import { requireAuth } from '../http/middleware/require-auth.js';
 import { AppError } from '../http/problem.js';
+import { getLogger } from '../observability/logger.js';
 import { listExcludedDomains, normalizeDomain, requestExclusion } from './exclusions.js';
 
 /**
@@ -44,12 +48,31 @@ export function botDescription(): Record<string, unknown> {
   };
 }
 
-export function createBotRouter(): Router {
+export interface BotRouterOptions {
+  /** Le compteur de debit ; Redis par defaut, la memoire dans les tests. */
+  readonly rateLimitStore?: RateLimitStore;
+}
+
+export function createBotRouter(options: BotRouterOptions = {}): Router {
   const router = Router();
 
   router.get('/', (_req, res) => {
     res.json({ bot: botDescription() });
   });
+
+  // La demande n'exige aucun compte : il faut donc un garde-fou par adresse,
+  // pour qu'une seule machine ne puisse pas exclure le web entier.
+  router.use(
+    rateLimit({
+      store: () => options.rateLimitStore ?? defaultRateLimitStore(),
+      limit: 10,
+      subject: 'cette adresse',
+      key: (req) => (req.ip === undefined ? undefined : `bot:${req.ip}`),
+      onStoreError: (error) => {
+        getLogger().warn({ err: error }, 'compteur de debit indisponible, demande laissee passer');
+      },
+    }),
+  );
 
   /**
    * Demande d'exclusion. Appliquee des sa reception : respecter un refus ne
@@ -85,7 +108,19 @@ export function createBotRouter(): Router {
     })();
   });
 
-  router.get('/exclusions', (_req, res, next) => {
+  return router;
+}
+
+/**
+ * La liste des sites exclus, derriere la session : elle dit qui s'est
+ * plaint, et le motif que le demandeur a ecrit. Ce n'est pas une donnee
+ * publique, et la page publique n'en a pas besoin pour faire son travail.
+ */
+export function createExclusionsRouter(): Router {
+  const router = Router();
+  router.use(requireAuth);
+
+  router.get('/', (_req, res, next) => {
     void (async () => {
       try {
         res.json({ domains: await listExcludedDomains() });

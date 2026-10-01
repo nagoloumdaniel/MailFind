@@ -24,7 +24,7 @@ import { enqueueCampaignMailerPush, enqueueExportBuild } from './queue/queues.js
 import type { Enqueue } from './pipeline/start.js';
 import type { VerifyDeps } from './pipeline/verify.js';
 import { createSuppressionsRouter } from './suppressions/routes.js';
-import { createBotRouter } from './crawler/routes.js';
+import { createBotRouter, createExclusionsRouter } from './crawler/routes.js';
 import {
   createCampaignMailerSignInRouter,
   type CampaignMailerSignInOptions,
@@ -147,7 +147,12 @@ export function createApp(options: AppOptions = {}): Express {
 
   // La page de l'agent de collecte et la demande d'exclusion, sans session :
   // un webmestre qui veut nous arreter n'a pas de compte chez nous (R-07).
-  app.use('/api/bot', createBotRouter());
+  app.use(
+    '/api/bot',
+    createBotRouter(
+      options.v1?.rateLimitStore === undefined ? {} : { rateLimitStore: options.v1.rateLimitStore },
+    ),
+  );
 
   // Avant toute route : `/health` n'a pas besoin de session, mais la poser ici
   // garde un seul ordre de middlewares a comprendre.
@@ -189,6 +194,7 @@ export function createApp(options: AppOptions = {}): Express {
     createContactsRouter(options.verify === undefined ? {} : { verify: options.verify }),
   );
   app.use('/api/dashboard', createDashboardRouter());
+  app.use('/api/exclusions', createExclusionsRouter());
   app.use('/api/suppressions', createSuppressionsRouter());
   // Le client R2 est construit au premier export volumineux : lire sa
   // configuration n'a pas a bloquer le demarrage.

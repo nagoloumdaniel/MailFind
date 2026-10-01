@@ -46,7 +46,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 - [x] Phase 6 : Bibliothèque, page Contacts et exports
 - [x] Phase 7 : API publique et intégration Campaign Mailer
 - [ ] Phase 7B : Vérification certifiée et annuaire partagé (documentée, pas commencée)
-- [ ] Phase 8 : Sécurité, conformité, quotas et coûts (2 lots sur 9 : rotation des clés, journaux et Sentry sans adresse)
+- [x] Phase 8 : Sécurité, conformité, quotas et coûts (reste F-1402, l'estimation de coût avant traitement)
 - [ ] Phase 9 : Tests, observabilité et documentation
 - [ ] Phase 10 : Mise en production et bêta (mise en ligne faite, bêta à ouvrir)
 

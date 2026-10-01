@@ -38,6 +38,35 @@ Le test `security/rotate.integration.test.ts` échoue si une colonne `*_encrypte
 
 Ne jamais vider `ENCRYPTION_KEY_PREVIOUS` tant que le script sort en erreur : les secrets concernés seraient perdus, et chaque utilisateur touché devrait recréer son webhook ou recoller son jeton Campaign Mailer.
 
+## Revue de sécurité du 2 octobre 2026 (S-11)
+
+Portée : l'ensemble du dépôt, avec une attention particulière aux lots de la Phase 8, qui ajoutent des écritures en base et une route publique.
+
+### Dépendances
+
+`npm audit` ne signale **aucune vulnérabilité**, avec et sans les dépendances de développement. À relancer avant chaque mise en production ; la CI le fera en Phase 9.
+
+### Ce qui a été examiné, et ce qui tient
+
+| Surface | Constat |
+| --- | --- |
+| Injection SQL | Toutes les requêtes sont paramétrées. Les seules interpolations de chaîne portent sur des constantes du module (taille de paquet, noms de tables de la liste de rotation), jamais sur une entrée. |
+| Authentification | Pas de mot de passe. Session régénérée à la connexion, cookie `httpOnly` `secure` `sameSite=lax`, jeton anti-CSRF en double soumission. La connexion croisée lie le retour au navigateur par un jeton d'état comparé en temps constant. |
+| Autorisation | Chaque requête de la bibliothèque est filtrée par `user_id`. La reprise d'un import vérifie l'appartenance avant d'agir. Les clés d'API portent des portées, et sont hachées. |
+| Falsification de requête côté serveur | Le robot et les webhooks passent par la garde des adresses, après résolution DNS et après chaque redirection. Les appels vers Campaign Mailer et MailFind utilisent une URL de configuration, jamais une URL reçue, et ne suivent aucune redirection. |
+| Secrets dans les journaux | Masquage par motif, pas par nom de champ, sur le message, les champs, les erreurs et l'URL. Vérifié en production : `set-cookie` ressort `[coupe]`. |
+| Chiffrement | AES-256-GCM, identifiant de clé porté par chaque valeur, rotation outillée et testée. |
+
+### Deux défauts trouvés, et corrigés dans le même lot
+
+**1. La liste des sites exclus était publique.** `GET /api/bot/exclusions` rendait, sans session, le nom des domaines ayant demandé à ne plus être explorés et le motif écrit par le demandeur. Ce n'est pas une donnée publique : elle dit qui s'est plaint, et de quoi. Déplacée derrière la session, sur `/api/exclusions`. La page publique n'en avait pas besoin.
+
+**2. La demande d'exclusion n'avait aucun garde-fou.** La route est volontairement sans compte, puisqu'un webmestre qui veut nous arrêter n'en a pas. Mais rien n'empêchait une seule machine d'exclure des milliers de domaines et de vider le produit de sa substance pour tous les comptes. Un compteur par adresse, dix demandes par minute, a été ajouté. Il ne remplace pas une preuve de propriété du domaine, qui reste hors de portée : l'effet immédiat d'une demande est un choix assumé, et l'exploitant peut refuser une demande infondée.
+
+### Risque accepté, documenté
+
+Une demande d'exclusion prend effet avant toute revue humaine. C'est délibéré : respecter un refus ne doit pas attendre. Le rapport de force est en faveur du site, et c'est le bon sens pour un robot.
+
 ## Secret de connexion croisée avec Campaign Mailer (D-26)
 
 `CAMPAIGN_MAILER_SSO_SECRET` ici et `MAILFIND_SSO_SECRET` chez Campaign Mailer portent la même valeur. Pour le changer : générer une valeur de 32 caractères au moins, la poser des deux côtés, redéployer les deux applications. Entre les deux déploiements, la connexion croisée échoue proprement, avec un message ; rien d'autre n'est touché.

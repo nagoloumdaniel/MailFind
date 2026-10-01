@@ -10,7 +10,14 @@ let app: Express;
 
 beforeAll(async () => {
   const { createApp } = await import('../app.js');
-  app = createApp({ logger: pino({ level: 'silent' }), session: createTestSession() });
+  const { createMemoryRateLimitStore } = await import('../api/rate-limit.js');
+  app = createApp({
+    logger: pino({ level: 'silent' }),
+    session: createTestSession(),
+    // Un compteur en memoire : la route publique en a un, et les tests ne
+    // parlent pas a Redis.
+    v1: { rateLimitStore: createMemoryRateLimitStore() },
+  });
 });
 
 beforeEach(async () => {
@@ -98,5 +105,26 @@ describe('retrait des sites (R-07, F-1603)', () => {
     expect(reponse.status).toBe(200);
     expect(reponse.body.bot).toMatchObject({ respects_robots_txt: true });
     expect(reponse.body.bot.user_agent).toContain('MailFindBot');
+  });
+
+  it('ne publie pas la liste des sites qui se sont plaints', async () => {
+    await requestExclusion('discrete.fr', 'Motif prive');
+
+    const publique = await request(app).get('/api/exclusions');
+
+    expect(publique.status).toBe(401);
+    expect(JSON.stringify(publique.body)).not.toContain('discrete.fr');
+  });
+
+  it('arrete une machine qui voudrait exclure le web entier', async () => {
+    const codes: number[] = [];
+    for (let rang = 0; rang < 12; rang += 1) {
+      const reponse = await request(app)
+        .post('/api/bot/exclusion')
+        .send({ domain: `site-${String(rang)}.fr` });
+      codes.push(reponse.status);
+    }
+
+    expect(codes.filter((code) => code === 429).length).toBeGreaterThan(0);
   });
 });

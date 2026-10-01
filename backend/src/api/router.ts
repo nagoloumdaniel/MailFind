@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { Redis } from 'ioredis';
 import { requireApiKey } from '../api-keys/authenticate.js';
 import { getEnvironment } from '../config/env.js';
@@ -49,7 +49,7 @@ let compteurRedis: RateLimitStore | undefined;
  * aboutisse (exigence de BullMQ), et une requete d'API ne doit pas rester
  * pendue derriere une panne de Redis.
  */
-function compteurParDefaut(): RateLimitStore {
+export function defaultRateLimitStore(): RateLimitStore {
   const environment = getEnvironment();
   compteurRedis ??= createRedisRateLimitStore(
     new Redis(environment.REDIS_URL, { maxRetriesPerRequest: 1, lazyConnect: true }),
@@ -80,7 +80,11 @@ export function createV1Router(options: V1Options = {}): Router {
   router.use(requireApiKey(), requireAcceptedTerms);
   router.use(
     rateLimit({
-      store: () => options.rateLimitStore ?? compteurParDefaut(),
+      store: () => options.rateLimitStore ?? defaultRateLimitStore(),
+      key: (req) => {
+        const cle = req.apiKey?.id;
+        return cle === undefined ? undefined : `api:${cle}`;
+      },
       limit: environment.API_RATE_LIMIT_PER_MINUTE,
       onStoreError: (error) => {
         getLogger().warn({ err: error }, 'compteur de debit indisponible, requete laissee passer');
