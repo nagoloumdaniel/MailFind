@@ -1,0 +1,10 @@
+# GitHub Actions est restreint sur ce compte : ce hook est la derniere
+# barriere avant que du code parte. Il lance la meme chose que le workflow.
+#
+# Pour passer outre, en connaissance de cause : SKIP_CI=1 git push
+if [ "$SKIP_CI" = "1" ]; then
+  echo "CI locale sautee (SKIP_CI=1)."
+  exit 0
+fi
+
+npm run ci

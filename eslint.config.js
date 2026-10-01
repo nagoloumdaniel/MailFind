@@ -43,10 +43,11 @@ export default tseslint.config(
     },
   },
 
-  // L'infrastructure Railway, en TypeScript, n'appartient a aucun des deux
-  // espaces de travail : elle est lue par le CLI de Railway, pas compilee ici.
+  // Les scripts d'outillage et l'infrastructure Railway n'appartiennent a
+  // aucun des deux espaces de travail : ils sont lus par Node ou par le CLI de
+  // Railway, jamais compiles ici.
   {
-    files: ['.railway/**/*.ts'],
+    files: ['.railway/**/*.ts', 'scripts/**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
       globals: globals.node,

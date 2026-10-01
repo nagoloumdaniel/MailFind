@@ -61,6 +61,7 @@ Run from the root.
 
 | Command | What it does |
 | --- | --- |
+| `npm run ci` | the whole gate: lockfile, format, lint, types, unit tests, build, audit, integration. Starts a throwaway PostgreSQL 18 and Redis, and removes them. GitHub Actions is restricted on this account, so this script is the CI, and a pre-push hook runs it. |
 | `npm run verify` | format check, lint, typecheck, test, build. The gate before every commit. |
 | `npm run check:services` | proves Neon, Redis, R2 and the Google credentials answer, using `backend/.env` |
 | `npm run migrate -- status` | lists migrations; `up` applies the pending ones, `down` reverts the last |

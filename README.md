@@ -84,7 +84,19 @@ npm run dev:worker                     # traitement des imports, a lancer a cote
 npm run dev:frontend                   # interface sur le port 5173
 ```
 
-Les tests d'intégration parlent à un vrai PostgreSQL 18, dont le nom de base doit contenir « test » : ils effacent son schéma avant de rejouer les migrations.
+### La CI tourne ici, pas sur GitHub
+
+GitHub Actions est restreint sur ce compte : le workflow de [`.github/workflows/verify.yml`](.github/workflows/verify.yml) reste juste, mais personne ne l'exécute. [`scripts/ci.mjs`](scripts/ci.mjs) tient le rôle, avec les mêmes étapes et les mêmes services.
+
+```text
+npm run ci              tout, services compris, environ trois minutes
+npm run ci -- --no-db   sans les services, donc sans les tests d'intégration
+npm run ci -- --keep    garde les conteneurs, pour enquêter après un échec
+```
+
+Un hook de pre-push la lance avant que du code parte. Pour passer outre en connaissance de cause : `SKIP_CI=1 git push`.
+
+Les tests d'intégration parlent à un vrai PostgreSQL 18, dont le nom de base doit contenir « test » : ils effacent son schéma avant de rejouer les migrations. `npm run ci` s'en occupe ; à la main :
 
 ```text
 docker run -d -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=mailfind_test -p 5432:5432 postgres:18
@@ -107,6 +119,7 @@ Chaque site est exploré avec les vraies règles, puis chaque adresse relevée e
 
 | Commande | Ce qu'elle fait |
 | --- | --- |
+| `npm run ci` | la barrière complète : verrou, format, lint, types, tests, build, vulnérabilités, intégration. Monte un PostgreSQL 18 et un Redis jetables, et les efface. |
 | `npm run verify` | format, lint, types, tests, build. La barrière avant chaque commit. |
 | `npm run check:services` | prouve que Neon, Redis, R2 et les identifiants Google répondent |
 | `npm run migrate -- status` | liste les migrations ; `up` applique, `down` revient d'une |
