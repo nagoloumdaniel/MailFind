@@ -27,6 +27,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 - [x] Phase 5 : Vérification avancée et score
 - [x] Phase 6 : Bibliothèque, page Contacts et exports
 - [x] Phase 7 : API publique et intégration Campaign Mailer (intégration construite, essai en production à faire, D-23)
+- En ligne depuis le 1er octobre 2026 : <https://mailfind.vercel.app>. Voir [`docs/provisioning.md`](docs/provisioning.md).
 - [ ] Phase 7B : Vérification certifiée et annuaire partagé
 - [ ] Phase 8 : Sécurité, conformité, quotas et coûts
 - [ ] Phase 9 : Tests, observabilité et documentation

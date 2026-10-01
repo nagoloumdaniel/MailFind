@@ -118,7 +118,7 @@ La première commande prouve les services, la seconde la chaîne d'outillage. Le
 Faite le 1er octobre 2026. L'infrastructure Railway est décrite dans [`.railway/railway.ts`](../.railway/railway.ts), la configuration Vercel dans [`vercel.json`](../vercel.json) à la racine.
 
 - **Railway**, projet `mailfind`, deux services sur le dépôt et la branche `main` : `api`, qui écoute et que Railway coupe s'il ne répond plus sur `/health`, et `worker`, qui vide les files et n'a donc aucun domaine. Sans le second, l'API répond mais un import reste `pending`. Appliquer un changement d'infrastructure : `railway config apply`.
-- **Vercel**, projet `mailfind`, lié au même dépôt. `/api` et `/v1` sont renvoyés vers Railway, ce qui garde le cookie de session sur l'origine de l'application ; tout le reste sert `index.html`.
+- **Vercel**, projet `mailfind`, lié au même dépôt. L'application web y est déclarée comme un service, `web`, sinon Vercel voit aussi `backend/` et refuse de choisir. `/api` et `/v1` sont renvoyés vers Railway, ce qui garde le cookie de session sur l'origine de l'application ; tout le reste va au service, qui sert `index.html` pour que les liens profonds fonctionnent. Ce dernier repli se déclare **dans** le service : à la racine, il viserait un fichier qui n'y est pas, et toute page répondrait 404.
 - Sous Windows, le SDK de Railway cherche le binaire du CLI dans la variable `_`, que PowerShell ne pose pas. Avant `railway config` : `$env:_ = "$env:APPDATA\npm\node_modules\@railway\cli\bin\railway.exe"`.
 
 ### Les secrets

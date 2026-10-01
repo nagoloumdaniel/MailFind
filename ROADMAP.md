@@ -3,7 +3,7 @@
 Plan d'exécution, du dépôt vide à la bêta publique.
 Référence : [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md), version 1.0 du 22 septembre 2026.
 
-- **Statut** : Phases 0 à 7 terminées. L'intégration Campaign Mailer de la Phase 7, reportée le 29 septembre (D-23), est construite depuis le 1er octobre 2026 des deux côtés ; il reste l'essai en production entre les deux applications déployées. Phase 7B (vérification certifiée, annuaire partagé) ajoutée le 30 septembre 2026, à démarrer après la revue.
+- **Statut** : Phases 0 à 7 terminées, Phase 8 commencée (S-01 et S-03). En ligne depuis le 1er octobre 2026 sur <https://mailfind.vercel.app>, avec l'API sur Railway ; la mise en ligne était prévue en Phase 10, elle a été avancée à la demande du propriétaire pour disposer d'une URL et de clés de production. L'intégration Campaign Mailer de la Phase 7, reportée le 29 septembre (D-23), est construite depuis le 1er octobre 2026 des deux côtés ; il reste l'essai en production entre les deux applications déployées. Phase 7B (vérification certifiée, annuaire partagé) ajoutée le 30 septembre 2026, à démarrer après la revue.
 - **Dernière mise à jour** : 30 septembre 2026
 - **Cadence de révision** : fin de chaque phase
 

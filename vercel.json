@@ -3,7 +3,8 @@
   "services": {
     "web": {
       "root": "frontend/",
-      "framework": "vite"
+      "framework": "vite",
+      "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
     }
   },
   "rewrites": [
@@ -15,7 +16,7 @@
       "source": "/v1/:path*",
       "destination": "https://api-production-9769.up.railway.app/v1/:path*"
     },
-    { "source": "/((?!api/|v1/).*)", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": { "service": "web" } }
   ],
   "headers": [
     {
