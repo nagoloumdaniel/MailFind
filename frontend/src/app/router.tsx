@@ -2,6 +2,7 @@
 import { AppLayout } from './AppLayout';
 import { RequireSession } from './RequireSession';
 import { AccountPage } from '../pages/AccountPage';
+import { BotPage } from '../pages/BotPage';
 import { ApiDocsPage } from '../pages/ApiDocsPage';
 import { CompaniesPage } from '../pages/CompaniesPage';
 import { CompanyPage } from '../pages/CompanyPage';
@@ -21,6 +22,9 @@ import { VerifyPage } from '../pages/VerifyPage';
  */
 export const router = createBrowserRouter([
   { path: '/connexion', element: <LoginPage /> },
+  // Hors session : un webmestre qui demande a ne pas etre explore n'a pas de
+  // compte chez nous (R-07).
+  { path: '/robot', element: <BotPage /> },
   {
     element: <RequireSession />,
     children: [

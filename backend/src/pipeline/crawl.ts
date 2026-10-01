@@ -1,6 +1,7 @@
 import type { CrawlerClient } from '../crawler/client.js';
 import { crawlCompany, type CrawlReport } from '../crawler/engine.js';
 import { MAX_PAGES, type CrawlDepth } from '../crawler/pages.js';
+import { isDomainExcluded } from '../crawler/exclusions.js';
 import { claimQuota, releaseQuota } from '../quotas/usage.js';
 import { getPool, query } from '../db/pool.js';
 import { readStoredSettings } from '../imports/settings.js';
@@ -150,6 +151,24 @@ export async function crawlStep(deps: CrawlDeps, job: CompanyJob): Promise<void>
   if (entreprise?.domain == null) {
     await finishStep('crawl', job, 'skipped');
     await completeImportIfDone(job.importId);
+    return;
+  }
+
+  // R-07 : un site qui a demande a ne pas etre explore ne l'est pour
+  // personne. Verifie ici, avant toute requete, et pas seulement dans le
+  // robot : c'est une decision de politique, pas une regle de collecte.
+  if (await isDomainExcluded(entreprise.domain)) {
+    await query(
+      `update companies
+          set crawl_status = 'skipped',
+              crawl_notes = array_append(array_remove(crawl_notes, 'site_excluded'), 'site_excluded'::crawl_note),
+              updated_at = now()
+        where id = $1`,
+      [job.companyId],
+    );
+    await planStep('enrich', job);
+    await finishStep('crawl', job, 'skipped', 'site_excluded');
+    await deps.enqueue('enrich', job);
     return;
   }
 

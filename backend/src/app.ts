@@ -24,6 +24,7 @@ import { enqueueCampaignMailerPush, enqueueExportBuild } from './queue/queues.js
 import type { Enqueue } from './pipeline/start.js';
 import type { VerifyDeps } from './pipeline/verify.js';
 import { createSuppressionsRouter } from './suppressions/routes.js';
+import { createBotRouter } from './crawler/routes.js';
 import {
   createCampaignMailerSignInRouter,
   type CampaignMailerSignInOptions,
@@ -143,6 +144,10 @@ export function createApp(options: AppOptions = {}): Express {
   // L'echange des codes de connexion croisee, de serveur a serveur : pas de
   // session ni de jeton CSRF, le secret partage en tient lieu (D-26).
   app.use('/api/sso', createSsoTokenRouter());
+
+  // La page de l'agent de collecte et la demande d'exclusion, sans session :
+  // un webmestre qui veut nous arreter n'a pas de compte chez nous (R-07).
+  app.use('/api/bot', createBotRouter());
 
   // Avant toute route : `/health` n'a pas besoin de session, mais la poser ici
   // garde un seul ordre de middlewares a comprendre.
