@@ -29,7 +29,7 @@
     "crawl:check": "npm run crawl:check --workspace backend --",
     "migrate": "npm run migrate --workspace backend --",
     "rotate:encryption": "npm run rotate:encryption --workspace backend",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
