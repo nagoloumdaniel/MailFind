@@ -13,8 +13,10 @@ Ce que MailFind a besoin de trouver en face de lui, et comment l'obtenir. Les ch
 | Redis Cloud, base `mailfind`, Redis 8.6.2 | En service | 23 septembre 2026 |
 | Cloudflare R2, bucket privé `mailfind-exports`, ENAM | En service, jeton limité au bucket | 23 septembre 2026 |
 | Google Cloud, identifiants OAuth | Créés, portées d'identité seulement | 23 septembre 2026 |
-| Brave Search API, clé | A créer : sans elle, seules les entreprises importées avec leur domaine ou leur site sont explorées | |
-| Hunter, clé | A créer : sans elle, et sans `ENCRYPTION_KEY`, aucun fournisseur n'est appelé et seules les adresses du site et les adresses déduites sont proposées | |
+| Brave Search API, clé | En service | 1er octobre 2026 |
+| Hunter, clé | En service | 1er octobre 2026 |
+| Railway, projet `mailfind`, services `api` et `worker` | En service, `https://api-production-9769.up.railway.app` | 1er octobre 2026 |
+| Vercel, projet `mailfind` | En service, `https://mailfind.vercel.app` | 1er octobre 2026 |
 
 ```text
 npm run check:services
@@ -110,6 +112,32 @@ npm run verify
 ```
 
 La première commande prouve les services, la seconde la chaîne d'outillage. Les deux doivent passer avant de considérer un poste comme prêt.
+
+## 7. La mise en ligne
+
+Faite le 1er octobre 2026. L'infrastructure Railway est décrite dans [`.railway/railway.ts`](../.railway/railway.ts), la configuration Vercel dans [`vercel.json`](../vercel.json) à la racine.
+
+- **Railway**, projet `mailfind`, deux services sur le dépôt et la branche `main` : `api`, qui écoute et que Railway coupe s'il ne répond plus sur `/health`, et `worker`, qui vide les files et n'a donc aucun domaine. Sans le second, l'API répond mais un import reste `pending`. Appliquer un changement d'infrastructure : `railway config apply`.
+- **Vercel**, projet `mailfind`, lié au même dépôt. `/api` et `/v1` sont renvoyés vers Railway, ce qui garde le cookie de session sur l'origine de l'application ; tout le reste sert `index.html`.
+- Sous Windows, le SDK de Railway cherche le binaire du CLI dans la variable `_`, que PowerShell ne pose pas. Avant `railway config` : `$env:_ = "$env:APPDATA\npm\node_modules\@railway\cli\bin\railway.exe"`.
+
+### Les secrets
+
+Les valeurs qui ne sont pas des secrets sont dans `.railway/railway.ts`, lisibles en revue. Les secrets sont posés hors du dépôt :
+
+```text
+railway variable set --stdin NOM --service api --skip-deploys
+```
+
+La valeur est lue sur l'entrée standard : elle ne passe ni par la ligne de commande, ni par l'historique du terminal, ni par un fichier versionné. Dans `.railway/railway.ts`, ces variables sont déclarées `preserve()`, ce qui dit à Railway de garder la valeur en place.
+
+Trois secrets sont propres à la production, tirés au hasard à la mise en ligne et jamais égaux à ceux du poste de développement : `SESSION_SECRET`, `ENCRYPTION_KEY` et `CAMPAIGN_MAILER_SSO_SECRET`. Ce dernier porte la même valeur que `MAILFIND_SSO_SECRET` chez Campaign Mailer (D-26).
+
+### À savoir
+
+- **La base de production est la base de développement.** Il n'y a qu'un projet Neon, donc les deux environnements écrivent dans la même base. À séparer avant les premiers bêta-testeurs : un nouveau projet Neon, et `DATABASE_URL` et `DIRECT_DATABASE_URL` reposés sur les deux services.
+- `TRUST_PROXY_HOPS` vaut 2 en production, car Vercel relaie vers Railway, et 1 derrière Railway seul. Trop bas, `req.secure` est faux et un cookie lisible part sans `Secure`.
+- Les URL de production se déclarent aussi chez Google, sinon la connexion échoue avec `redirect_uri_mismatch` : origine `https://mailfind.vercel.app`, URI de redirection `https://mailfind.vercel.app/api/auth/google/callback`. Les URL de développement restent dans la liste.
 
 ## Règles qui ne changent pas
 

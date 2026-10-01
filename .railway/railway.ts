@@ -46,6 +46,9 @@ const commun = {
   ...secrets,
   NODE_ENV: 'production',
   LOG_LEVEL: 'info',
+  // Deux proxys devant l'API : Vercel relaie `/api` vers Railway. Trop bas, et
+  // `req.secure` est faux, donc un cookie lisible part sans `Secure`.
+  TRUST_PROXY_HOPS: '2',
   REDIS_SESSION_PREFIX: 'mailfind:sess:',
   BULLMQ_PREFIX: 'mailfind:bull',
   R2_BUCKET: 'mailfind-exports',
@@ -71,9 +74,10 @@ const commun = {
   API_RATE_LIMIT_PER_MINUTE: '60',
 };
 
-// Les deux espaces de travail partagent un seul verrou : l'installation se
-// fait a la racine, pas dans backend/.
-const BUILD = 'npm ci && npm run build --workspace backend';
+// L'installation est laissee a Railway, qui la met en cache entre deux
+// constructions : la refaire ici se heurtait au cache de Vite, verrouille dans
+// l'image. Ne reste que la compilation du seul espace de travail deploye.
+const BUILD = 'npm run build --workspace backend';
 const SOURCE = github('nagoloumdaniel/MailFind', { branch: 'main' });
 
 export default defineRailway(() => {
