@@ -18,6 +18,13 @@ const environmentSchema = z.object({
   APP_URL: z.string().min(1),
   /** Origine publique de l'API, utilisee dans les redirections. */
   API_URL: z.string().min(1),
+  /**
+   * Proxys devant l'API dont l'en-tete `X-Forwarded-For` est cru : 1 derriere
+   * Railway seul, 2 quand Vercel relaie `/api` vers Railway. Trop bas, et
+   * `req.secure` est faux en production, donc un cookie lisible part sans
+   * `Secure` ; trop haut, et un client peut annoncer l'adresse qu'il veut.
+   */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
 
   /** Hote groupe, pour l'application. Passe par pgbouncer. */
   DATABASE_URL: z.string().min(1),

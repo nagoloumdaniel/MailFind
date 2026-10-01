@@ -75,9 +75,9 @@ export function createApp(options: AppOptions = {}): Express {
   app.disable('x-powered-by');
 
   // Railway et Vercel terminent TLS en amont : sans cette confiance, l'IP
-  // client vue par l'API est celle du proxy, ce qui fausserait plus tard la
-  // limitation de debit.
-  app.set('trust proxy', 1);
+  // client vue par l'API est celle du proxy, ce qui fausserait la limitation
+  // de debit, et `req.secure` serait faux derriere le relais de Vercel.
+  app.set('trust proxy', environment.TRUST_PROXY_HOPS);
 
   app.use(helmet());
 
