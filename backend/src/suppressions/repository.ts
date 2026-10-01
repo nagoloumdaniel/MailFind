@@ -15,9 +15,16 @@ export function hashAddress(normalized: string): string {
   return createHash('sha256').update(normalized.toLowerCase()).digest('hex');
 }
 
+/**
+ * Les empreintes a ne pas collecter pour ce compte : sa propre liste, et
+ * celles qu'une personne a fait effacer pour tout le monde (A9). Les deux
+ * ensemble, parce que le pipeline n'a pas a savoir d'ou vient l'interdiction.
+ */
 export async function loadSuppressedHashes(userId: string): Promise<Set<string>> {
   const lues = await query<{ address_hash: string }>(
-    'select address_hash from suppressions where user_id = $1',
+    `select address_hash from suppressions where user_id = $1
+     union
+     select address_hash from erased_addresses`,
     [userId],
   );
   return new Set(lues.rows.map((ligne) => ligne.address_hash));

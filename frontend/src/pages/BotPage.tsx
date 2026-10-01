@@ -18,6 +18,31 @@ export function BotPage() {
   const [domaine, setDomaine] = useState('');
   const [etat, setEtat] = useState<'saisie' | 'envoi' | 'enregistre'>('saisie');
   const [erreur, setErreur] = useState<string | undefined>(undefined);
+  const [adresse, setAdresse] = useState('');
+  const [etatEffacement, setEtatEffacement] = useState<'saisie' | 'envoi'>('saisie');
+  const [efface, setEfface] = useState<number | undefined>(undefined);
+
+  function soumettreEffacement(evenement: React.FormEvent) {
+    evenement.preventDefault();
+    void effacer();
+  }
+
+  async function effacer() {
+    setEtatEffacement('envoi');
+    setErreur(undefined);
+    try {
+      const reponse = await apiFetch<{ erased: number }>('/api/bot/effacement', {
+        method: 'POST',
+        body: JSON.stringify({ address: adresse.trim() }),
+      });
+      setEfface(reponse.erased);
+    } catch (error) {
+      setErreur(
+        error instanceof ApiError ? error.message : "L'effacement n'a pas pu etre enregistre.",
+      );
+      setEtatEffacement('saisie');
+    }
+  }
 
   function soumettre(evenement: React.FormEvent) {
     evenement.preventDefault();
@@ -142,10 +167,49 @@ export function BotPage() {
             </p>
           )}
 
-          <p className="mt-10 text-xs text-text-faint">
-            Une question, ou une adresse a faire retirer de nos resultats : la meme page sert, et
-            une adresse signalee est retiree pour tout le monde et ne peut plus etre collectee.
+          <h2 className="mt-12 text-lg font-semibold">Faire effacer une adresse</h2>
+          <p className="mt-3 text-sm text-text-soft">
+            Si votre adresse figure dans nos resultats et que vous voulez qu&apos;elle en parte,
+            indiquez-la. Elle est effacee de tous les comptes et ne sera plus collectee. Nous
+            n&apos;en gardons qu&apos;une empreinte, qui ne permet pas de la relire, et qui sert a
+            la reconnaitre si elle reapparait.
           </p>
+
+          {efface === undefined ? (
+            <form onSubmit={soumettreEffacement} className="mt-5 flex flex-wrap items-start gap-2">
+              <label className="sr-only" htmlFor="adresse">
+                Adresse email
+              </label>
+              <input
+                id="adresse"
+                type="email"
+                value={adresse}
+                onChange={(evenement) => {
+                  setAdresse(evenement.target.value);
+                }}
+                placeholder="prenom.nom@acme.fr"
+                required
+                className="min-w-[16rem] flex-1 rounded-sm border border-line bg-surface px-3 py-2 text-sm"
+              />
+              <button
+                type="submit"
+                disabled={etatEffacement === 'envoi'}
+                className="rounded-sm border border-line bg-surface px-4 py-2 text-sm font-semibold hover:border-text-faint disabled:opacity-60"
+              >
+                {etatEffacement === 'envoi' ? 'Effacement...' : 'Effacer cette adresse'}
+              </button>
+            </form>
+          ) : (
+            <p
+              role="status"
+              className="mt-5 rounded-sm border border-line bg-surface px-3 py-2.5 text-sm"
+            >
+              C&apos;est fait.{' '}
+              {efface === 0
+                ? 'Cette adresse ne figurait dans aucun compte. Elle ne pourra plus y entrer.'
+                : `${String(efface)} occurrence(s) effacee(s), dans tous les comptes. L'adresse ne pourra plus etre collectee.`}
+            </p>
+          )}
         </div>
       </div>
     </div>

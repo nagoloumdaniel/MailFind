@@ -6,6 +6,7 @@ import { getEnvironment } from '../config/env.js';
 import { requireAuth } from '../http/middleware/require-auth.js';
 import { AppError } from '../http/problem.js';
 import { getLogger } from '../observability/logger.js';
+import { eraseAddressEverywhere } from '../suppressions/erasure.js';
 import { listExcludedDomains, normalizeDomain, requestExclusion } from './exclusions.js';
 
 /**
@@ -26,6 +27,8 @@ const demandeSchema = z.object({
   domain: z.string().min(3).max(255),
   reason: z.string().max(500).optional(),
 });
+
+const effacementSchema = z.object({ address: z.email().max(320) });
 
 /** Ce que l'agent dit de lui-meme, la meme chose que son en-tete annonce. */
 export function botDescription(): Record<string, unknown> {
@@ -101,6 +104,39 @@ export function createBotRouter(options: BotRouterOptions = {}): Router {
           already_known: issue === 'already_known',
           detail:
             "C'est enregistre. Ce domaine et ses sous-domaines ne seront plus explores, pour tous les comptes.",
+        });
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
+
+  /**
+   * Effacement d'une adresse, a la demande de la personne concernee (A9).
+   * L'adresse part de tous les comptes et ne peut plus etre collectee. Rien
+   * n'est garde d'elle qu'une empreinte.
+   */
+  router.post('/effacement', (req, res, next) => {
+    void (async () => {
+      try {
+        const corps = effacementSchema.safeParse(req.body);
+        if (!corps.success) {
+          next(
+            AppError.badRequest(
+              'invalid_address',
+              'Adresse invalide',
+              'Indiquez une adresse email, par exemple prenom.nom@acme.fr.',
+            ),
+          );
+          return;
+        }
+
+        const issue = await eraseAddressEverywhere(corps.data.address);
+        res.json({
+          erased: issue.erased,
+          already_known: issue.alreadyKnown,
+          detail:
+            "C'est fait. Cette adresse a ete effacee de tous les comptes, et ne sera plus collectee.",
         });
       } catch (error) {
         next(error);
