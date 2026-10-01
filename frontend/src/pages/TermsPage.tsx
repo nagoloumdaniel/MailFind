@@ -1,14 +1,15 @@
 ﻿import { useState } from 'react';
-import { Navigate } from 'react-router';
+import { Link, Navigate } from 'react-router';
 import { Button } from '../components/Button';
 import { ApiError, apiFetch } from '../lib/api';
 import { useSession } from '../lib/session';
+import { LEGAL_VERSION } from './LegalPage';
 
 /**
  * Version en vigueur, la meme que celle du serveur. Le jour ou le texte change,
  * les deux changent ensemble et l&apos;accord est redemande (F-102).
  */
-const CURRENT_TERMS_VERSION = '2026-09-23';
+const CURRENT_TERMS_VERSION = LEGAL_VERSION;
 
 export function TermsPage() {
   const { state, refresh } = useSession();
@@ -73,8 +74,15 @@ export function TermsPage() {
       </ul>
 
       <p className="mt-6 text-xs text-text-faint">
-        Version du {CURRENT_TERMS_VERSION}. Le texte complet des conditions et la politique de
-        confidentialite seront publies avant l&apos;ouverture au public.
+        Version du {CURRENT_TERMS_VERSION}. Le texte complet :{' '}
+        <Link to="/conditions-utilisation" className="underline">
+          conditions d&apos;utilisation
+        </Link>{' '}
+        et{' '}
+        <Link to="/confidentialite" className="underline">
+          politique de confidentialite
+        </Link>
+        .
       </p>
 
       {erreur !== undefined && (

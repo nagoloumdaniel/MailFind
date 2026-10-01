@@ -15,7 +15,7 @@ import { PENDING_COOKIE, readCookie, STATE_PATTERN } from '../sso/shared.js';
  * confidentialite. Datee, pas numerotee : la date dit tout de suite de quel
  * texte on parle. La faire changer redemande l'accord a tout le monde.
  */
-export const CURRENT_TERMS_VERSION = '2026-09-23';
+export const CURRENT_TERMS_VERSION = '2026-10-02';
 
 const acceptTermsSchema = z.object({ version: z.string().min(1) });
 

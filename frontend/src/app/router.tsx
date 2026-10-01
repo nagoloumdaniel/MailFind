@@ -3,6 +3,7 @@ import { AppLayout } from './AppLayout';
 import { RequireSession } from './RequireSession';
 import { AccountPage } from '../pages/AccountPage';
 import { BotPage } from '../pages/BotPage';
+import { ConditionsPage, PrivacyPage } from '../pages/LegalPage';
 import { ApiDocsPage } from '../pages/ApiDocsPage';
 import { CompaniesPage } from '../pages/CompaniesPage';
 import { CompanyPage } from '../pages/CompanyPage';
@@ -23,8 +24,11 @@ import { VerifyPage } from '../pages/VerifyPage';
 export const router = createBrowserRouter([
   { path: '/connexion', element: <LoginPage /> },
   // Hors session : un webmestre qui demande a ne pas etre explore n'a pas de
-  // compte chez nous (R-07).
+  // compte chez nous (R-07), et une personne qui veut savoir ce que MailFind
+  // fait de ses donnees non plus (R-03, R-11).
   { path: '/robot', element: <BotPage /> },
+  { path: '/conditions-utilisation', element: <ConditionsPage /> },
+  { path: '/confidentialite', element: <PrivacyPage /> },
   {
     element: <RequireSession />,
     children: [

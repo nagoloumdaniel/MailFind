@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Express, RequestHandler } from 'express';
 import type { User } from '../users/repository.js';
 import { createTestSession } from '../test/session.js';
+// La version en vigueur, pas une date recopiee : le test doit suivre le texte,
+// pas casser a chaque publication.
+import { CURRENT_TERMS_VERSION } from './routes.js';
 
 const silent = pino({ level: 'silent' });
 
@@ -79,7 +82,7 @@ beforeEach(async () => {
   vi.mocked(repository.findUserById).mockResolvedValue(utilisateur);
   vi.mocked(repository.acceptTerms).mockResolvedValue({
     ...utilisateur,
-    termsVersion: '2026-09-23',
+    termsVersion: CURRENT_TERMS_VERSION,
     termsAcceptedAt: new Date(),
   });
 });
@@ -87,7 +90,7 @@ beforeEach(async () => {
 describe('POST /api/auth/terms', () => {
   it('refuse un visiteur non connecte', async () => {
     const app = await buildApp(undefined);
-    const response = await postTerms(app, { version: '2026-09-23' });
+    const response = await postTerms(app, { version: CURRENT_TERMS_VERSION });
 
     expect(response.status).toBe(401);
     expect(response.body).toMatchObject({ code: 'unauthenticated' });
@@ -97,11 +100,14 @@ describe('POST /api/auth/terms', () => {
     const app = await buildApp(utilisateur.id);
     const repository = await import('../users/repository.js');
 
-    const response = await postTerms(app, { version: '2026-09-23' });
+    const response = await postTerms(app, { version: CURRENT_TERMS_VERSION });
 
     expect(response.status).toBe(200);
     expect(response.body.user).toMatchObject({ termsAccepted: true });
-    expect(vi.mocked(repository.acceptTerms)).toHaveBeenCalledWith(utilisateur.id, '2026-09-23');
+    expect(vi.mocked(repository.acceptTerms)).toHaveBeenCalledWith(
+      utilisateur.id,
+      CURRENT_TERMS_VERSION,
+    );
   });
 
   it('refuse une version que le serveur ne sert plus', async () => {
