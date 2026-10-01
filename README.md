@@ -32,6 +32,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 | [Décisions](docs/decisions.md) | Choix techniques gelés, fournisseurs, quotas, budget, avec leur justification |
 | [Provisionnement](docs/provisioning.md) | Les services en face de l'application, et la mise en ligne |
 | [Sécurité](docs/security.md) | Ce qui est chiffré, et comment faire tourner une clé |
+| [Conformité](docs/legal/) | Registre des traitements, analyse d'impact, sous-traitants, mention d'information |
 | [CLAUDE.md](CLAUDE.md) | Règles de travail dans ce dépôt |
 
 ## Progression
