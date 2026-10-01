@@ -75,7 +75,9 @@ describe('POST /api/imports', () => {
       `https://entreprise-${String(i)}.fr`,
       `Ville ${'x'.repeat(250)}`,
     ]);
-    const corps = { ...FICHIER, rows };
+    // Au-dela de vingt lignes, l'estimation est confirmee avant l'envoi
+    // (F-1402) : ce test porte sur la taille du corps, pas sur ce garde-fou.
+    const corps = { ...FICHIER, rows, confirmedEstimate: true };
     expect(JSON.stringify(corps).length).toBeGreaterThan(1_000_000);
 
     const reponse = await agent.post('/api/imports').set('x-csrf-token', jeton).send(corps);

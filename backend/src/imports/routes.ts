@@ -14,6 +14,7 @@ import {
   listRejectedRows,
 } from './repository.js';
 import { submitImport } from './submit.js';
+import { estimateImport } from './estimate.js';
 import { resumeBlocked } from '../quotas/resume.js';
 import { quotaReport } from '../quotas/usage.js';
 import { enqueueCompanyStep } from '../queue/queues.js';
@@ -41,6 +42,16 @@ const createSchema = z.object({
   // Absents, les reglages prennent leurs valeurs par defaut : un appel qui ne
   // les envoie pas doit donner le meme import que l'ecran laisse tel quel.
   settings: importSettingsSchema.prefault({}),
+  /**
+   * F-1402 : l'utilisateur a vu l'estimation et la confirme. Exigee au-dela
+   * du seuil, ignoree en dessous.
+   */
+  confirmedEstimate: z.boolean().default(false),
+});
+
+const estimateSchema = z.object({
+  rows: z.coerce.number().int().min(1).max(MAX_ROWS),
+  settings: importSettingsSchema.prefault({}),
 });
 
 export interface ImportsRouterOptions {
@@ -53,6 +64,40 @@ export function createImportsRouter(options: ImportsRouterOptions = {}): Router 
   const enqueue = options.enqueue ?? enqueueCompanyStep;
 
   router.use(requireAuth, requireAcceptedTerms);
+
+  /**
+   * Ce qu'un import consommerait, avant de le lancer (F-1402). Sert a
+   * l'ecran de confirmation, et se demande aussi seul.
+   */
+  router.post('/estimation', (req, res, next) => {
+    void (async () => {
+      try {
+        const user = req.currentUser;
+        if (user === undefined) {
+          next(unauthenticated());
+          return;
+        }
+
+        const parsed = estimateSchema.safeParse(req.body);
+        if (!parsed.success) {
+          next(
+            AppError.badRequest(
+              'invalid_estimate',
+              'Estimation impossible',
+              "Indiquez le nombre de lignes et les parametres de l'import.",
+            ),
+          );
+          return;
+        }
+
+        res.json({
+          estimate: await estimateImport(user.id, parsed.data.rows, parsed.data.settings),
+        });
+      } catch (error) {
+        next(error);
+      }
+    })();
+  });
 
   router.post('/', express.json({ limit: BODY_LIMIT }), (req, res, next) => {
     void (async () => {
@@ -85,7 +130,24 @@ export function createImportsRouter(options: ImportsRouterOptions = {}): Router 
           return;
         }
 
-        const { filename, headers, mapping, rows, settings } = parsed.data;
+        const { filename, headers, mapping, rows, settings, confirmedEstimate } = parsed.data;
+
+        // F-1402 : au-dela du seuil, l'import ne part pas sans que
+        // l'utilisateur ait vu ce qu'il va consommer. Le refus porte
+        // l'estimation, pour que l'interface n'ait pas a la redemander.
+        const estimation = await estimateImport(user.id, rows.length, settings);
+        if (estimation.needsConfirmation && !confirmedEstimate) {
+          res.status(409).json({
+            type: 'about:blank',
+            title: 'Confirmation demandee',
+            status: 409,
+            code: 'estimate_not_confirmed',
+            detail: `Cet import porte sur ${String(rows.length)} lignes. Confirmez apres avoir lu ce qu'il va consommer.`,
+            estimate: estimation,
+          });
+          return;
+        }
+
         const resume = await submitImport({
           userId: user.id,
           filename,

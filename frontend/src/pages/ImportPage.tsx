@@ -16,7 +16,7 @@ import {
 } from '../lib/column-mapping';
 import { readCsvFile, type CsvProblem, type ParsedCsv } from '../lib/csv';
 import { defaultSettings, settingsProblem, type ImportSettings } from '../lib/import-settings';
-import { createImport } from '../lib/imports';
+import { createImport, estimateImport, type ImportEstimate } from '../lib/imports';
 
 /** Etape 3 du parcours : les dix premieres lignes, telles qu'elles seront traitees. */
 const PREVIEW_ROWS = 10;
@@ -38,6 +38,7 @@ export function ImportPage() {
   const [reglages, setReglages] = useState<ImportSettings>(defaultSettings);
   const [envoi, setEnvoi] = useState(false);
   const [refus, setRefus] = useState<string | undefined>(undefined);
+  const [estimation, setEstimation] = useState<ImportEstimate | undefined>(undefined);
   const navigate = useNavigate();
 
   async function deposer(choisi: File) {
@@ -103,7 +104,34 @@ export function ImportPage() {
     : settingsProblem(reglages);
   const aTraiter = csv === undefined ? 0 : csv.rows.length - ecarteesAuTotal;
 
-  async function lancer() {
+  /**
+   * F-1402 : au-dela de vingt lignes, l'estimation s'affiche et rien ne part
+   * tant qu'elle n'est pas lue. Demandee au serveur, qui seul connait les
+   * quotas restants et les tarifs.
+   */
+  async function demanderEstimation() {
+    if (csv === undefined || obstacle !== undefined) return;
+    setEnvoi(true);
+    setRefus(undefined);
+    try {
+      const annonce = await estimateImport(csv.rows.length, reglages);
+      if (!annonce.needsConfirmation) {
+        await lancer(false);
+        return;
+      }
+      setEstimation(annonce);
+      setEnvoi(false);
+    } catch (error) {
+      setRefus(
+        error instanceof ApiError
+          ? (error.detail ?? error.title)
+          : "L'estimation n'a pas pu etre calculee.",
+      );
+      setEnvoi(false);
+    }
+  }
+
+  async function lancer(confirme: boolean) {
     if (csv === undefined || fichier === undefined || obstacle !== undefined) return;
     setEnvoi(true);
     setRefus(undefined);
@@ -114,6 +142,7 @@ export function ImportPage() {
         mapping,
         rows: csv.rows,
         settings: reglages,
+        ...(confirme ? { confirmedEstimate: true } : {}),
       });
       await navigate(`/imports/${cree.id}`);
     } catch (error) {
@@ -325,13 +354,65 @@ export function ImportPage() {
                 {refus}
               </p>
             )}
+            {estimation !== undefined && (
+              <div
+                role="status"
+                className="mb-4 rounded-sm border border-line bg-surface px-4 py-3 text-sm"
+              >
+                <p className="font-semibold">
+                  Cet import porte sur {estimation.companies.toLocaleString('fr-FR')} lignes. Voici
+                  ce qu&apos;il va consommer, au plus.
+                </p>
+                <dl className="mt-3 divide-y divide-line text-xs">
+                  {estimation.quotas
+                    .filter((ligne) => ligne.needed > 0)
+                    .map((ligne) => (
+                      <div key={ligne.metric} className="grid grid-cols-[10rem_1fr] gap-2 py-1.5">
+                        <dt className="text-text-faint">
+                          {ligne.metric === 'companies' ? 'Entreprises' : 'Pages explorees'}
+                        </dt>
+                        <dd className={ligne.exceeds ? 'text-negative' : undefined}>
+                          {ligne.needed.toLocaleString('fr-FR')} sur{' '}
+                          {ligne.remaining.toLocaleString('fr-FR')} restantes ce mois-ci
+                          {ligne.exceeds ? ', le quota ne suffira pas' : ''}
+                        </dd>
+                      </div>
+                    ))}
+                  <div className="grid grid-cols-[10rem_1fr] gap-2 py-1.5">
+                    <dt className="text-text-faint">Appels fournisseurs</dt>
+                    <dd>
+                      {estimation.providerCalls.toLocaleString('fr-FR')}
+                      {estimation.mailboxChecks > 0
+                        ? `, dont ${estimation.mailboxChecks.toLocaleString('fr-FR')} verifications de boite`
+                        : ''}
+                      {estimation.costCents > 0
+                        ? `, soit ${(estimation.costCents / 100).toFixed(2)} euros au plus`
+                        : ', sans frais'}
+                    </dd>
+                  </div>
+                </dl>
+                {estimation.willStopEarly && (
+                  <p className="mt-3 text-xs text-text-soft">
+                    L&apos;import s&apos;arretera proprement au quota : les entreprises restantes
+                    attendront le renouvellement, ou votre relance.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center gap-3">
               <Button
                 tone="primary"
                 disabled={obstacle !== undefined || aTraiter === 0 || envoi}
-                onClick={() => void lancer()}
+                onClick={() =>
+                  void (estimation === undefined ? demanderEstimation() : lancer(true))
+                }
               >
-                {envoi ? 'Envoi en cours' : "Lancer l'import"}
+                {envoi
+                  ? 'Envoi en cours'
+                  : estimation === undefined
+                    ? "Lancer l'import"
+                    : "Je confirme, lancer l'import"}
               </Button>
               <Button onClick={recommencer} disabled={envoi}>
                 Choisir un autre fichier

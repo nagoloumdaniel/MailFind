@@ -27,12 +27,42 @@ export interface RejectedRow {
   error: string;
 }
 
+/** Ce qu'un import consommerait, tel que le serveur l'annonce (F-1402). */
+export interface ImportEstimate {
+  companies: number;
+  quotas: {
+    metric: 'companies' | 'pages' | 'exports';
+    needed: number;
+    remaining: number;
+    limit: number;
+    exceeds: boolean;
+  }[];
+  providerCalls: number;
+  mailboxChecks: number;
+  costCents: number;
+  needsConfirmation: boolean;
+  willStopEarly: boolean;
+}
+
+export async function estimateImport(
+  rows: number,
+  settings: ImportSettings,
+): Promise<ImportEstimate> {
+  const { estimate } = await apiFetch<{ estimate: ImportEstimate }>('/api/imports/estimation', {
+    method: 'POST',
+    body: JSON.stringify({ rows, settings }),
+  });
+  return estimate;
+}
+
 export async function createImport(input: {
   filename: string;
   headers: readonly string[];
   mapping: readonly (KnownField | null)[];
   rows: readonly (readonly string[])[];
   settings: ImportSettings;
+  /** F-1402 : exigee au-dela de vingt lignes, apres lecture de l'estimation. */
+  confirmedEstimate?: boolean;
 }): Promise<ImportSummary> {
   const { import: cree } = await apiFetch<{ import: ImportSummary }>('/api/imports', {
     method: 'POST',

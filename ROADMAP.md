@@ -554,7 +554,13 @@ Annuaire partagé :
   `backend/src/observability/scrub.ts` masque par motif, pas par nom de champ : adresses, clés `mf_`, jetons `cm_`, secrets `whsec_`, valeurs chiffrées, en-têtes `Bearer`, jetons Google, et le `code` ou le `state` d'une URL de retour. Branché dans pino sur le message, les champs, les erreurs et la requête, et dans Sentry (`observability/errors.ts`), qui part sans IP, sans cookie, sans corps ni chaîne de requête, avec le compte réduit à son identifiant. Seules les pannes à 500 et les tâches définitivement abandonnées y sont envoyées.
 - [x] Quotas par utilisateur et arrêt propre sur quota (F-1401, F-1403, F-1404).
   → skills : `test-driven-development`, `frontend-design`
-  Entreprises, pages et exports ont un plafond mensuel par compte, tenu dans un compteur : il faut prendre une place et refuser la suivante dans la même instruction, ce qu'un décompte ne garantit pas. Au plafond, l'étape passe `quota_blocked`, l'import le dit au lieu de se croire terminé, et repart sur `POST /api/imports/:id/resume` ou de lui-même à l'entretien quotidien. **F-1402, l'estimation de coût avant traitement, reste à faire.**
+  Entreprises, pages et exports ont un plafond mensuel par compte, tenu dans un compteur : il faut prendre une place et refuser la suivante dans la même instruction, ce qu'un décompte ne garantit pas. Au plafond, l'étape passe `quota_blocked`, l'import le dit au lieu de se croire terminé, et repart sur `POST /api/imports/:id/resume` ou de lui-même à l'entretien quotidien.
+- [x] Estimation du coût avant traitement, et confirmation (F-1402).
+  → skills : `test-driven-development`, `frontend-design`
+  Au-delà de vingt lignes, l'import ne part pas sans que l'utilisateur ait vu ce qu'il va consommer : entreprises, pages, appels fournisseurs, coût, et ce qui reste de ses quotas. L'estimation majore, et dit quand le quota ne suffira pas. Le refus porte l'estimation, pour que l'interface n'ait pas à la redemander.
+- [x] Effacement à la demande d'une personne, pour tous les comptes (A9).
+  → skills : `test-driven-development`, `security-review`
+  La liste de suppression d'un compte ne vaut que pour lui ; quand c'est la personne concernée qui demande, l'adresse part de tous les comptes et ne peut plus être collectée. Effacement et interdiction dans la même transaction : effacer sans interdire laisserait le prochain import la retrouver. Seule l'empreinte est gardée.
 - [x] Plafond global de dépense par fournisseur, suspension et alerte (F-1405).
   → skills : `test-driven-development`
   Le coût est figé en centimes sur la ligne à la réservation : les crédits ne sont pas des euros, et un tarif peut changer en cours de mois. Atteint, le plafond refuse pour tout le monde, et l'alerte part une seule fois par fournisseur et par mois, décidée par l'insertion. Défaut trouvé par les tests : un appel non facturé pesait encore sur le budget.
