@@ -546,10 +546,12 @@ Annuaire partagé :
 
 ### Lots de travail
 
-- Chiffrement AES-256-GCM des secrets au repos et procédure de rotation (S-01).
+- [x] Chiffrement AES-256-GCM des secrets au repos et procédure de rotation (S-01).
   → skills : `security-review`
-- Journaux et Sentry sans adresse ni jeton (S-03).
+  Le chiffrement existait depuis la Phase 4 ; le 1er octobre 2026 s'ajoutent la réécriture des valeurs (`npm run rotate:encryption`) et la procédure dans `docs/security.md`. Un test échoue si une colonne `*_encrypted` du schéma échappe à la rotation. Une entrée de cache illisible est supprimée, un secret illisible est laissé en place et le script sort en erreur : l'ancienne clé ne doit pas être retirée tant qu'un secret en dépend.
+- [x] Journaux et Sentry sans adresse ni jeton (S-03).
   → skills : `security-review`, `test-driven-development`
+  `backend/src/observability/scrub.ts` masque par motif, pas par nom de champ : adresses, clés `mf_`, jetons `cm_`, secrets `whsec_`, valeurs chiffrées, en-têtes `Bearer`, jetons Google, et le `code` ou le `state` d'une URL de retour. Branché dans pino sur le message, les champs, les erreurs et la requête, et dans Sentry (`observability/errors.ts`), qui part sans IP, sans cookie, sans corps ni chaîne de requête, avec le compte réduit à son identifiant. Seules les pannes à 500 et les tâches définitivement abandonnées y sont envoyées.
 - Quotas par utilisateur, estimation avant lancement, arrêt propre sur quota (F-1401 à F-1404).
   → skills : `test-driven-development`, `frontend-design`
 - Plafond global de dépense par fournisseur, suspension et alerte (F-1405).

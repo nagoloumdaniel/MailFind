@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { describeApp } from './app-info.js';
 import { closePool } from './db/pool.js';
 import { getEnvironment } from './config/env.js';
+import { flushErrorReporting, initErrorReporting } from './observability/errors.js';
 import { getLogger } from './observability/logger.js';
 
 // En production, les variables viennent de l'hebergeur. En local, elles
@@ -14,6 +15,8 @@ try {
 
 const environment = getEnvironment();
 const logger = getLogger();
+// Avant l'ecoute : une erreur au demarrage doit deja etre rapportee.
+initErrorReporting('api');
 const server = createApp({ logger }).listen(environment.PORT, () => {
   logger.info({ port: environment.PORT, env: environment.NODE_ENV }, `${describeApp()} a l'ecoute`);
 });
@@ -25,16 +28,21 @@ const server = createApp({ logger }).listen(environment.PORT, () => {
 function shutdown(signal: string): void {
   logger.info({ signal }, 'arret demande');
   server.close(() => {
-    void closePool().then(
-      () => {
-        logger.info('arret termine');
-        process.exit(0);
-      },
-      (error: unknown) => {
-        logger.error({ err: error }, 'fermeture de la base en echec');
-        process.exit(1);
-      },
-    );
+    // Les erreurs en attente partent avant la fermeture : sinon la derniere
+    // panne avant un redeploiement n'arrive jamais chez Sentry.
+    void flushErrorReporting()
+      .catch(() => undefined)
+      .then(() => closePool())
+      .then(
+        () => {
+          logger.info('arret termine');
+          process.exit(0);
+        },
+        (error: unknown) => {
+          logger.error({ err: error }, 'fermeture de la base en echec');
+          process.exit(1);
+        },
+      );
   });
 
   // Filet de securite : une connexion qui refuse de se fermer ne doit pas

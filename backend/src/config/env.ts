@@ -82,6 +82,14 @@ const environmentSchema = z.object({
   /** L'ancienne cle, gardee le temps d'une rotation pour dechiffrer ce qu'elle a chiffre. */
   ENCRYPTION_KEY_PREVIOUS: z.string().default(''),
 
+  /**
+   * Rapport d'erreurs (S-03). Vide, Sentry n'est pas initialise : rien ne part
+   * en developpement ni dans les tests.
+   */
+  SENTRY_DSN: z.string().default(''),
+  /** Pose par Railway a chaque deploiement : etiquette chaque erreur du commit. */
+  RAILWAY_GIT_COMMIT_SHA: z.string().default(''),
+
   /** Identification legale des entreprises francaises (D-10). Gratuite, sans cle. */
   RECHERCHE_ENTREPRISES_BASE_URL: z
     .string()

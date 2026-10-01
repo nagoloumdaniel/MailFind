@@ -1,4 +1,5 @@
 import { UnrecoverableError, Worker } from 'bullmq';
+import { initErrorReporting, reportError } from './observability/errors.js';
 import { purgeExpiredExports, runExportJob } from './exports/service.js';
 import { purgeExpiredIdempotencyKeys } from './api/idempotency.js';
 import { purgeExpiredVerificationRuns, runVerification } from './verification/runs.js';
@@ -50,6 +51,7 @@ try {
   // En production, les variables viennent de l'hebergeur.
 }
 
+initErrorReporting('worker');
 const logger = getLogger().child({ process: 'worker' });
 const dependances = createPipelineDeps();
 
@@ -164,6 +166,13 @@ planification.on('failed', (job, error) => {
   }
 
   logger.error({ jobId: job.id, err: error }, 'tache abandonnee');
+  reportError(error, {
+    service: 'worker',
+    job: job.name,
+    ...(job.id === undefined ? {} : { jobId: job.id }),
+    attempt: job.attemptsMade,
+    userId: job.data.userId,
+  });
   void markImportFailed(job.data.importId).catch((erreur: unknown) => {
     logger.error({ jobId: job.id, err: erreur }, "l'import n'a pas pu etre marque en echec");
   });
@@ -175,6 +184,15 @@ collecte.on('failed', (job, error) => {
     return;
   }
   logger.error({ jobId: job.id, err: error }, 'etape abandonnee');
+  // Seul l'abandon definitif part chez Sentry : une tentative qui sera
+  // retentee n'est pas une incidence.
+  reportError(error, {
+    service: 'worker',
+    job: job.name,
+    ...(job.id === undefined ? {} : { jobId: job.id }),
+    attempt: job.attemptsMade,
+    userId: job.data.userId,
+  });
   const etapes: Record<string, CompanyStep> = {
     'company.identify': 'identify',
     'company.crawl': 'crawl',

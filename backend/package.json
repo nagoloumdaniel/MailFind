@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1138.0",
+    "@sentry/node": "^10.75.3",
     "bullmq": "^6.3.8",
     "cheerio": "^1.2.0",
     "connect-redis": "^10.0.0",

@@ -30,7 +30,7 @@ import {
 } from './sso/client.js';
 import { createSsoAuthorizeRouter, createSsoTokenRouter } from './sso/provider.js';
 import { createVerificationsRouter } from './verification/routes.js';
-import { getLogger } from './observability/logger.js';
+import { getLogger, scrubbedRequest } from './observability/logger.js';
 import { csrfProtection } from './http/middleware/csrf.js';
 import { errorHandler, notFoundHandler } from './http/middleware/error-handler.js';
 import { healthRouter } from './http/routes/health.js';
@@ -94,6 +94,8 @@ export function createApp(options: AppOptions = {}): Express {
   app.use(
     pinoHttp({
       logger,
+      // L'URL d'un retour de connexion porte un code et un etat (S-03).
+      serializers: { req: scrubbedRequest },
       // Un identifiant par requete, repris de l'amont s'il existe : c'est ce
       // qui relie une erreur vue par l'utilisateur a une ligne de journal.
       genReqId: (req, res) => {
