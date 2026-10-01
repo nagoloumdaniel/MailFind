@@ -1,11 +1,17 @@
 node_modules/
 dist/
 coverage/
+
+# Environnement : seuls les modeles sont versionnes.
 .env
 .env.*
 !.env.example
+
 *.log
 .DS_Store
 Thumbs.db
 playwright-report/
 test-results/
+
+# Lien local vers le projet Vercel, propre a chaque poste.
+.vercel
