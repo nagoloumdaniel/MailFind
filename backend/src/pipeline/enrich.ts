@@ -191,6 +191,7 @@ const MOTIFS: Record<string, string> = {
   already_settled: 'deja interroge pour cette entreprise dans cet import',
   user_quota: 'plafond mensuel du compte atteint',
   global_quota: 'credits du mois epuises',
+  budget: 'plafond de depense du mois atteint',
 };
 
 export async function enrichStep(deps: EnrichDeps, job: CompanyJob): Promise<void> {

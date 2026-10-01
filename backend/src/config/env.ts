@@ -129,6 +129,14 @@ const environmentSchema = z.object({
   QUOTA_MAILBOX_VERIFICATIONS_PER_USER_PER_MONTH: z.coerce.number().int().min(0).default(4),
   /** D-13, D-14 : les 20 credits mensuels de Hunter reserves a la verification. */
   HUNTER_MONTHLY_VERIFICATION_CREDITS: z.coerce.number().int().min(0).default(20),
+  /**
+   * F-1405 : plafond de depense par fournisseur et par mois, en euros. Zero,
+   * aucun appel payant n'est jamais fait : au bout des credits offerts, le
+   * pipeline continue sans le fournisseur (D-13).
+   */
+  PROVIDER_MONTHLY_BUDGET_EUR: z.coerce.number().min(0).default(0),
+  /** Centimes par credit, par fournisseur : `hunter:2`. Absent, le fournisseur est gratuit. */
+  PROVIDER_CREDIT_PRICE_CENTS: z.string().default(''),
   /** F-603 : ordre de repli des fournisseurs, separes par des virgules. */
   PROVIDER_ORDER: z.string().default('hunter'),
 

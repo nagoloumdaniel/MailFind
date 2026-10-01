@@ -107,6 +107,7 @@ const MOTIFS_SAUT: Record<string, string> = {
   already_settled: 'deja verifiee dans cet import',
   user_quota: 'plafond mensuel du compte atteint',
   global_quota: 'credits de verification du mois epuises',
+  budget: 'plafond de depense du mois atteint',
 };
 
 /** Statuts qui ecartent l'adresse de tout export et de tout envoi (6.7). */

@@ -1,5 +1,6 @@
 import { getPool, query } from '../db/pool.js';
 import { EncryptionError, type Cipher } from '../security/crypto.js';
+import { alertBudgetReached, spendPolicy, type SpendPolicy } from './budget.js';
 
 /**
  * Credits des fournisseurs payants : reserver avant l'appel, regler apres
@@ -43,12 +44,36 @@ export type Reservation =
   | { readonly kind: 'already_settled'; readonly status: 'confirmed' | 'cached' | 'failed' }
   | { readonly kind: 'interrupted' }
   | { readonly kind: 'user_quota_reached' }
-  | { readonly kind: 'global_quota_reached' };
+  | { readonly kind: 'global_quota_reached' }
+  | { readonly kind: 'budget_reached' };
 
 /** Ce qui compte dans un plafond : ce qui a ete, ou a pu etre, paye. */
 const CONSOMME = `status in ('reserved', 'confirmed')`;
 
-export async function reserveCall(scope: CallScope, limits: CallLimits): Promise<Reservation> {
+/**
+ * Note l'atteinte du plafond, et dit si c'est la premiere du mois pour ce
+ * fournisseur : seule la premiere alerte.
+ */
+async function insertBudgetAlert(
+  provider: string,
+  spentCents: number,
+  budget: number,
+): Promise<boolean> {
+  const issue = await query(
+    `insert into provider_budget_alerts (provider, period, spent_cents, budget_cents)
+     values ($1, date_trunc('month', now() at time zone 'utc')::date, $2, $3)
+     on conflict (provider, period) do nothing`,
+    [provider, spentCents, budget],
+  );
+  return (issue.rowCount ?? 0) > 0;
+}
+
+export async function reserveCall(
+  scope: CallScope,
+  limits: CallLimits,
+  /** La politique de depense ; celle de la configuration par defaut (F-1405). */
+  spend?: SpendPolicy,
+): Promise<Reservation> {
   const client = await getPool().connect();
   try {
     await client.query('begin');
@@ -91,10 +116,30 @@ export async function reserveCall(scope: CallScope, limits: CallLimits): Promise
       return { kind: 'user_quota_reached' };
     }
 
+    // La depense se compte par fournisseur, toutes operations confondues :
+    // c'est une facture, pas un compteur d'appels (F-1405).
+    const { costCents: cout, budgetCents: budget } = spend ?? spendPolicy(scope.provider, credits);
+    if (cout > 0) {
+      const depense = await client.query<{ total: string }>(
+        `select coalesce(sum(cost_cents), 0) as total from provider_calls
+          where provider = $1 and ${CONSOMME}
+            and created_at >= date_trunc('month', now() at time zone 'utc') at time zone 'utc'`,
+        [scope.provider],
+      );
+      const deja = Number(depense.rows[0]?.total ?? 0);
+      if (deja + cout > budget) {
+        await client.query('commit');
+        // Hors de la transaction de reservation : l'alerte ne doit pas
+        // pouvoir annuler un refus, ni le refus perdre l'alerte.
+        await alertBudgetReached(insertBudgetAlert, scope.provider, deja, budget);
+        return { kind: 'budget_reached' };
+      }
+    }
+
     const cree = await client.query<{ id: string }>(
       `insert into provider_calls
-         (user_id, import_id, company_id, provider, operation, idempotency_key, credits)
-       values ($1, $2, $3, $4, $5, $6, $7)
+         (user_id, import_id, company_id, provider, operation, idempotency_key, credits, cost_cents)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
        returning id`,
       [
         scope.userId,
@@ -104,6 +149,7 @@ export async function reserveCall(scope: CallScope, limits: CallLimits): Promise
         scope.operation,
         scope.idempotencyKey,
         credits,
+        cout,
       ],
     );
     await client.query('commit');
@@ -130,7 +176,11 @@ export async function settleCall(
     `update provider_calls
         set status = $2::provider_call_status, settled_at = now(), error = $3,
             credits = case when $2::provider_call_status = 'confirmed' and not $4
-                           then credits else 0 end
+                           then credits else 0 end,
+            -- Le cout suit les credits : un appel que le fournisseur n'a pas
+            -- facture ne doit pas peser sur le budget du mois (F-1405).
+            cost_cents = case when $2::provider_call_status = 'confirmed' and not $4
+                              then cost_cents else 0 end
       where id = $1 and status = 'reserved'`,
     [id, issue, error ?? null, options.free === true],
   );
@@ -203,7 +253,7 @@ export type PaidCallOutcome<T> =
   | { readonly kind: 'ok'; readonly value: T; readonly paid: boolean }
   | {
       readonly kind: 'skipped';
-      readonly reason: 'interrupted' | 'already_settled' | 'user_quota' | 'global_quota';
+      readonly reason: 'interrupted' | 'already_settled' | 'user_quota' | 'global_quota' | 'budget';
     }
   | { readonly kind: 'failed'; readonly error: unknown };
 
@@ -248,6 +298,8 @@ export async function paidCall<T>(options: {
       return { kind: 'skipped', reason: 'user_quota' };
     case 'global_quota_reached':
       return { kind: 'skipped', reason: 'global_quota' };
+    case 'budget_reached':
+      return { kind: 'skipped', reason: 'budget' };
     case 'reserved':
       break;
   }

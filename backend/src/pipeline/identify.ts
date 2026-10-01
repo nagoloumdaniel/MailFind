@@ -122,6 +122,7 @@ const MOTIFS_SAUT: Record<string, string> = {
   already_settled: 'Recherche deja faite pour cette entreprise dans cet import.',
   user_quota: 'Plafond mensuel de recherches atteint pour ce compte.',
   global_quota: 'Credits de recherche du mois epuises.',
+  budget: 'Plafond de depense du mois atteint : les appels payants sont suspendus.',
 };
 
 /**
