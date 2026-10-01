@@ -13,6 +13,7 @@
     "check:services": "tsx src/scripts/check-services.ts",
     "crawl:check": "tsx src/scripts/crawl-check.ts",
     "migrate": "tsx src/db/migrate.ts",
+    "rotate:encryption": "tsx src/scripts/rotate-encryption.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",

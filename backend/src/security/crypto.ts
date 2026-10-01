@@ -42,6 +42,12 @@ function lireCle(hex: string): Cle {
   return { id, octets };
 }
 
+/** L'identifiant de la cle qui a chiffre une valeur, ou rien si elle est illisible. */
+export function keyIdOf(chiffre: string): string | undefined {
+  const [version, id] = chiffre.split('.');
+  return version === VERSION && id !== undefined && id !== '' ? id : undefined;
+}
+
 export interface Cipher {
   encrypt(texte: string): string;
   decrypt(chiffre: string): string;
