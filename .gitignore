@@ -2,6 +2,9 @@ node_modules/
 dist/
 coverage/
 
+# Cache de compilation TypeScript, propre a chaque poste.
+*.tsbuildinfo
+
 # Environnement : seuls les modeles sont versionnes.
 .env
 .env.*

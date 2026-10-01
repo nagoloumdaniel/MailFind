@@ -4,9 +4,24 @@ Bibliothèque de contacts professionnels d'entreprises.
 
 MailFind transforme une liste d'entreprises en adresses email professionnelles vérifiées, classées par entreprise et prêtes à l'envoi. L'utilisateur importe un fichier CSV (noms d'entreprises, domaines, sites web ou pages carrières) ; MailFind identifie chaque entreprise, explore les pages publiques pertinentes de son site, interroge des fournisseurs d'enrichissement disposant d'une API officielle, vérifie chaque adresse et en conserve la source. Les résultats s'exportent en CSV, XLSX ou JSON, ou partent directement dans [Campaign Mailer](https://github.com/nagoloumdaniel/Campaign-Mailer) sous forme de campagne en brouillon.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/captures/mailfind-connexion-sombre.png">
+  <img alt="Page d'accueil de MailFind : deux adresses réelles avec leur source, leur méthode et leur statut, dont une que le produit ne sait pas vérifier et le dit" src="docs/captures/mailfind-connexion.png">
+</picture>
+
 ## Statut
 
-**Phases 0 à 7 terminées (29 septembre 2026), Phase 8 à venir.** Une API publique `/v1` documentée en OpenAPI 3.1 (`/v1/openapi.json`, page `/documentation-api`) permet à une autre application d'importer, rechercher, lister, vérifier et exporter, avec des clés à portées, une limite de débit, l'idempotence des créations et des webhooks signés. L'envoi direct vers Campaign Mailer attend son API ; l'export à son format le remplace. La bibliothèque se consulte par entreprise et par contact : recherche, filtres combinables, tri et pagination ; création, modification, suppression, actions en masse et fusion de doublons ; fiche entreprise avec toutes les sources et l'historique. Les résultats s'exportent en CSV, XLSX, JSON et au format d'import de Campaign Mailer, qui s'importe sans retouche. Quand le site d'une entreprise ne donne pas un type d'adresse recherché, les fournisseurs prennent le relais dans l'ordre configuré (Hunter pour commencer), puis les adresses de rôle probables sur un domaine qui reçoit du courrier. Chaque adresse passe ensuite les contrôles locaux (syntaxe, domaine, serveur de messagerie, domaines jetables, messageries grand public, liste de suppression), et la vérification de boîte chez le fournisseur quand l'import la demande. Elle porte un statut, un motif, une date et un score dont le détail s'affiche critère par critère. Chaque appel payant est compté, mis en cache chiffré trente jours et plafonné ; un import rejoué ne paie jamais deux fois. La collecte sur les sites est recettée sur cinquante entreprises réelles : les 90 adresses relevées figurent toutes sur la page citée comme source.
+**En ligne depuis le 1er octobre 2026 : <https://mailfind.vercel.app>.** L'application web est sur Vercel, l'API et le processus de traitement sur Railway, décrits en code dans [`.railway/railway.ts`](.railway/railway.ts) et [`vercel.json`](vercel.json). Le détail de la mise en service est dans [docs/provisioning.md](docs/provisioning.md).
+
+**Phases 0 à 7 terminées, Phase 8 commencée.** Il reste à MailFind sept lots de la Phase 8 (quotas, plafond de dépense, purge, page du robot, documents légaux, registre des traitements, revue de sécurité), puis les Phases 9 et 10. La mise en ligne, prévue en Phase 10, a été avancée pour disposer d'une URL et de clés de production.
+
+**Ce qui fonctionne.** Un import CSV déclenche le pipeline, étape par étape sur deux files : identification de l'entreprise et de son domaine officiel, collecte sur les pages publiques de son site, enrichissement par fournisseur quand le site n'a pas donné un type d'adresse recherché, puis vérification. Chaque adresse porte sa source, son statut, son motif, sa date et un score dont le détail s'affiche critère par critère. La bibliothèque se consulte par entreprise et par contact, avec recherche, filtres combinables, tri, pagination, actions en masse et fusion de doublons. Les résultats s'exportent en CSV, XLSX, JSON et au format d'import de Campaign Mailer.
+
+**API publique `/v1`**, documentée en OpenAPI 3.1 sur [`/v1/openapi.json`](https://mailfind.vercel.app/v1/openapi.json) et sur la page `/documentation-api` : clés à portées, limite de débit par clé, idempotence des créations, pagination par curseur, erreurs RFC 9457, webhooks signés. Des tests de contrat échouent quand une route et le document ne disent pas la même chose.
+
+**Intégration Campaign Mailer** (1er octobre 2026). Une sélection de contacts part dans [Campaign Mailer](https://github.com/nagoloumdaniel/Campaign-Mailer) sous forme de campagne en brouillon, par lots de 500, dans une tâche qui reprend après une panne sans jamais créer de doublon. Le même envoi passe par l'API publique. Les deux applications se servent aussi de fournisseur d'identité l'une à l'autre : « Se connecter avec Campaign Mailer » ici, « Continuer avec MailFind » là-bas, un seul compte par identité Google, sans doublon (décision D-26).
+
+**Recette de la collecte** : cinquante entreprises réelles, 90 adresses relevées, toutes retrouvées sur la page citée comme source.
 
 ## Documents
 
@@ -15,6 +30,8 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 | [Cahier des charges](docs/cahier-des-charges.md) ([PDF](docs/cahier-des-charges.pdf)) | Exigences fonctionnelles et techniques, modèle de données, sécurité, conformité, recette |
 | [Roadmap](ROADMAP.md) | Phases, lots de travail, skills à charger pour chaque lot, critères de fin de phase |
 | [Décisions](docs/decisions.md) | Choix techniques gelés, fournisseurs, quotas, budget, avec leur justification |
+| [Provisionnement](docs/provisioning.md) | Les services en face de l'application, et la mise en ligne |
+| [Sécurité](docs/security.md) | Ce qui est chiffré, et comment faire tourner une clé |
 | [CLAUDE.md](CLAUDE.md) | Règles de travail dans ce dépôt |
 
 ## Progression
@@ -26,16 +43,31 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 - [x] Phase 4 : Fournisseurs et adresses candidates
 - [x] Phase 5 : Vérification avancée et score
 - [x] Phase 6 : Bibliothèque, page Contacts et exports
-- [x] Phase 7 : API publique et intégration Campaign Mailer (intégration construite, essai en production à faire, D-23)
-- En ligne depuis le 1er octobre 2026 : <https://mailfind.vercel.app>. Voir [`docs/provisioning.md`](docs/provisioning.md).
-- [ ] Phase 7B : Vérification certifiée et annuaire partagé
-- [ ] Phase 8 : Sécurité, conformité, quotas et coûts
+- [x] Phase 7 : API publique et intégration Campaign Mailer
+- [ ] Phase 7B : Vérification certifiée et annuaire partagé (documentée, pas commencée)
+- [ ] Phase 8 : Sécurité, conformité, quotas et coûts (2 lots sur 9 : rotation des clés, journaux et Sentry sans adresse)
 - [ ] Phase 9 : Tests, observabilité et documentation
-- [ ] Phase 10 : Mise en production et bêta
+- [ ] Phase 10 : Mise en production et bêta (mise en ligne faite, bêta à ouvrir)
 
-## Pile prévue
+## Pile
 
-TypeScript, React 19, Vite, Tailwind CSS, Node.js 24, Express 5, PostgreSQL (Neon), BullMQ sur Redis (Redis Cloud), Cloudflare R2, Cheerio, Passport (Google, identité seulement), pino, Sentry. Hébergement : Vercel et Railway. Détail et justification dans la section 8 du cahier des charges, choix gelés dans [docs/decisions.md](docs/decisions.md).
+TypeScript, React 19, Vite, Tailwind CSS, Node.js 24, Express 5, PostgreSQL 18 (Neon), BullMQ sur Redis (Redis Cloud), Cloudflare R2, Cheerio, Passport (Google, identité seulement), pino, Sentry. Hébergement : Vercel pour l'application web, Railway pour l'API et le processus de traitement. Détail et justification dans la section 8 du cahier des charges, choix gelés dans [docs/decisions.md](docs/decisions.md).
+
+## Organisation du dépôt
+
+```text
+mailfind/
+├── frontend/           React 19 + Vite, point d'entree src/main.tsx
+├── backend/            API Express et processus BullMQ, point d'entree src/index.ts
+│   ├── src/            routes, services, pipeline, crawler, verification
+│   └── migrations/     SQL numerote, chaque migration avec son retour arriere
+├── docs/               cahier des charges, decisions, provisionnement, securite
+├── .railway/           l'infrastructure Railway, en TypeScript
+├── vercel.json         build et renvois de l'application web
+├── ROADMAP.md          le plan de reference, phase par phase
+├── CLAUDE.md           regles de travail dans ce depot
+└── package.json        racine des deux espaces de travail npm
+```
 
 ## Démarrer
 
@@ -69,6 +101,28 @@ npm run crawl:check -- docs/recette/phase-3-domaines.txt
 ```
 
 Chaque site est exploré avec les vraies règles, puis chaque adresse relevée est recherchée à nouveau dans la page citée comme source. Le script conclut « critère tenu » seulement si toutes y figurent, et « non démontré » si aucune adresse n'a été relevée.
+
+## Exploiter
+
+| Commande | Ce qu'elle fait |
+| --- | --- |
+| `npm run verify` | format, lint, types, tests, build. La barrière avant chaque commit. |
+| `npm run check:services` | prouve que Neon, Redis, R2 et les identifiants Google répondent |
+| `npm run migrate -- status` | liste les migrations ; `up` applique, `down` revient d'une |
+| `npm run rotate:encryption` | réécrit les secrets avec la clé courante, après une rotation |
+
+- Santé de l'API : `GET /health`.
+- Chiffrement au repos et rotation des clés : [docs/security.md](docs/security.md).
+- Services, hébergeurs et mise en ligne : [docs/provisioning.md](docs/provisioning.md).
+- Appliquer un changement d'infrastructure Railway : `railway config apply`. Sous Windows, poser d'abord `$env:_` sur `railway.exe`, le SDK l'y cherche.
+
+## Ce que MailFind ne fait pas
+
+- **Aucun accès à la messagerie.** Google ne transmet que le nom et l'adresse : trois portées d'identité, jamais Gmail. L'envoi se fait dans Campaign Mailer, avec ses propres autorisations.
+- **Aucun sondage de boîte depuis nos serveurs.** La vérification SMTP passe par un fournisseur : Railway bloque le port 25 en sortie, et sonder depuis l'IP de l'application la ferait entrer dans les listes de blocage.
+- **Aucun contournement.** Le robot suit `robots.txt`, se limite à une requête par seconde et par domaine, s'annonce, ne se connecte à rien, ne tente pas de décoder une adresse masquée volontairement, et ne contourne ni CAPTCHA ni limite de débit.
+- **Aucune adresse sans source.** La base refuse une adresse dont on ne sait pas d'où elle vient.
+- **La vérification est un statut, jamais une promesse.** `accept_all`, `unknown` et `unverified` ne sont jamais présentés ni exportés comme vérifiés.
 
 ## Licence
 
