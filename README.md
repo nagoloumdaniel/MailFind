@@ -30,6 +30,10 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 | [Cahier des charges](docs/cahier-des-charges.md) ([PDF](docs/cahier-des-charges.pdf)) | Exigences fonctionnelles et techniques, modèle de données, sécurité, conformité, recette |
 | [Roadmap](ROADMAP.md) | Phases, lots de travail, skills à charger pour chaque lot, critères de fin de phase |
 | [Décisions](docs/decisions.md) | Choix techniques gelés, fournisseurs, quotas, budget, avec leur justification |
+| [Architecture](docs/architecture.md) | Comment les pièces tiennent ensemble, et où regarder |
+| [Procédures d'incident](docs/runbook.md) | Quoi faire quand quelque chose ne va pas |
+| [Collecte et vérification](docs/collecte-et-verification.md) | Ce que le robot lit, et ce qu'un statut veut dire |
+| [Guide de l'API](docs/guide-api.md) | Portées, idempotence, pagination, webhooks |
 | [Provisionnement](docs/provisioning.md) | Les services en face de l'application, et la mise en ligne |
 | [Sécurité](docs/security.md) | Ce qui est chiffré, et comment faire tourner une clé |
 | [Conformité](docs/legal/) | Registre des traitements, analyse d'impact, sous-traitants, mention d'information |
@@ -47,7 +51,7 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 - [x] Phase 7 : API publique et intégration Campaign Mailer
 - [ ] Phase 7B : Vérification certifiée et annuaire partagé (documentée, pas commencée)
 - [x] Phase 8 : Sécurité, conformité, quotas et coûts
-- [ ] Phase 9 : Tests, observabilité et documentation
+- [x] Phase 9 : Tests, observabilité et documentation
 - [ ] Phase 10 : Mise en production et bêta (mise en ligne faite, bêta à ouvrir)
 
 ## Pile

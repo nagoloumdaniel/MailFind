@@ -595,14 +595,18 @@ Annuaire partagé :
 
 ### Lots de travail
 
-- Couverture : 70 % au global, 90 % dans les services, sur schéma jetable.
+- [x] Couverture : 70 % au global, 90 % dans les services, sur schéma jetable.
   → skills : `test-driven-development`
-- Parcours de bout en bout dans un navigateur : connexion, import, suivi, page Contacts, export, envoi vers Campaign Mailer.
+  Les deux suites mesurées ensemble : séparément, les chiffres mentent dans les deux sens. 89 % des lignes au global, planchers posés sous le niveau atteint pour empêcher une régression. Deux exceptions écrites plutôt que maquillées : la vérification à 84 %, et les modules de bordure qui ne s'exécutent que pour de vrai.
+- [x] Parcours de bout en bout dans un navigateur : connexion, import, suivi, page Contacts, export.
   → skills : `test-driven-development`, `run`
-- `/ready`, alertes fournisseurs, files, dépense, processus silencieux (section 12).
+  De la porte fermée au fichier téléchargé, plus les pages publiques qui doivent répondre sans compte. Trois choses remplacées, chacune parce qu'elle sort de la machine : Google, Internet, les files. **L'envoi vers Campaign Mailer n'y est pas** : il demanderait un second service en ligne ; il est couvert par ses tests de contrat et son faux serveur.
+- [x] `/ready`, alertes fournisseurs, files, dépense, processus silencieux (section 12).
   → skills : `systematic-debugging`
-- Documentation : architecture, procédures d'incident, règles de collecte et de vérification, guide de l'API.
+  Le battement de cœur était la pièce manquante : sans lui, une file vide et un processus arrêté se ressemblent. L'évaluation des alertes est une fonction pure, testée sans Redis ni base, parce que ce qui manque le plus à une alerte, c'est d'être juste.
+- [x] Documentation : architecture, procédures d'incident, règles de collecte et de vérification, guide de l'API.
   → skills : `anthropic-skills:docs-writer`, `anthropic-skills:write-api-reference`
+  [`architecture.md`](docs/architecture.md), [`runbook.md`](docs/runbook.md), [`collecte-et-verification.md`](docs/collecte-et-verification.md), [`guide-api.md`](docs/guide-api.md). Le runbook signale une procédure non testée : la restauration de la base.
 
 ### Definition of Done
 
