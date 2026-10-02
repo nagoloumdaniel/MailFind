@@ -135,7 +135,8 @@ Trois secrets sont propres à la production, tirés au hasard à la mise en lign
 
 ### À savoir
 
-- **La base de production est la base de développement.** Il n'y a qu'un projet Neon, donc les deux environnements écrivent dans la même base. À séparer avant les premiers bêta-testeurs : un nouveau projet Neon, et `DATABASE_URL` et `DIRECT_DATABASE_URL` reposés sur les deux services.
+- **Production et développement sont deux branches Neon.** `main` est la production, lue par Railway ; `dev` est le poste de développement, créée le 2 octobre 2026 à partir de `main`. Une branche Neon est une copie à l'écriture : elle ne coûte rien tant qu'elle ne diverge pas, et elle part du vrai schéma avec de vraies données. Changer de branche, c'est changer `DATABASE_URL` et `DIRECT_DATABASE_URL` dans `backend/.env`, rien d'autre.
+- **Deux limites du palier gratuit, à connaître.** L'historique ne remonte qu'à **six heures**, et aucune branche ne peut être protégée. C'est pourquoi la sauvegarde quotidienne existe (voir [`runbook.md`](runbook.md)), et pourquoi rien n'empêche techniquement d'effacer `main` : la seule protection est de savoir sur quelle branche on travaille.
 - `TRUST_PROXY_HOPS` vaut 2 en production, car Vercel relaie vers Railway, et 1 derrière Railway seul. Trop bas, `req.secure` est faux et un cookie lisible part sans `Secure`.
 - Les URL de production se déclarent aussi chez Google, sinon la connexion échoue avec `redirect_uri_mismatch` : origine `https://mailfind.vercel.app`, URI de redirection `https://mailfind.vercel.app/api/auth/google/callback`. Les URL de développement restent dans la liste.
 

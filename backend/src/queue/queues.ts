@@ -152,6 +152,14 @@ export async function scheduleMaintenance(): Promise<void> {
     { every: 5 * 60 * 1000 },
     { name: 'alerts.check' },
   );
+  // Phase 10 : la sauvegarde quotidienne. L'historique de Neon ne couvre que
+  // six heures sur le palier gratuit : il ne repond pas d'une perte decouverte
+  // le lendemain.
+  await getMaintenanceQueue().upsertJobScheduler(
+    'backup-daily',
+    { every: 24 * 60 * 60 * 1000 },
+    { name: 'backup.daily' },
+  );
   // R-06 : les durees de conservation, une fois par jour.
   await getMaintenanceQueue().upsertJobScheduler(
     'retention-purge',

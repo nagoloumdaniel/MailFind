@@ -67,6 +67,20 @@ Portée : l'ensemble du dépôt, avec une attention particulière aux lots de la
 
 Une demande d'exclusion prend effet avant toute revue humaine. C'est délibéré : respecter un refus ne doit pas attendre. Le rapport de force est en faveur du site, et c'est le bon sens pour un robot.
 
+## Chercher un secret dans l'historique git (Phase 10)
+
+Un secret retiré par un commit reste dans l'historique, et l'historique devient public le jour où le dépôt le devient.
+
+```text
+npm run scan:secrets
+```
+
+Le script relit **chaque version de chaque fichier** déjà versionné, pas seulement l'arbre de travail, et connaît quatorze formes : clés MailFind, jetons Campaign Mailer, secrets de webhook, jetons Google, clés AWS et R2, identifiants Google, DSN Sentry, chaînes PostgreSQL et Redis avec mot de passe, clés de chiffrement.
+
+Au 2 octobre 2026, sur 143 commits : **aucune trouvaille**. Les valeurs des modèles, des tests et de la documentation sont écartées, et chaque exclusion est écrite dans le script, pas devinée.
+
+**Un secret publié se révoque et se remplace.** Le retirer de l'historique ne suffit pas : il faut partir du principe qu'il a été lu.
+
 ## Secret de connexion croisée avec Campaign Mailer (D-26)
 
 `CAMPAIGN_MAILER_SSO_SECRET` ici et `MAILFIND_SSO_SECRET` chez Campaign Mailer portent la même valeur. Pour le changer : générer une valeur de 32 caractères au moins, la poser des deux côtés, redéployer les deux applications. Entre les deux déploiements, la connexion croisée échoue proprement, avec un message ; rien d'autre n'est touché.

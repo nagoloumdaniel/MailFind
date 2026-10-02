@@ -83,9 +83,27 @@ Si la demande arrive par un autre canal, la même page suffit : rien à faire en
 
 ## Restaurer la base
 
-Neon garde un historique. Une restauration se fait depuis sa console, par branche.
+Deux filets, et ils ne couvrent pas la même chose.
 
-**Non testé à ce jour.** C'est la dernière chose à découvrir un jour d'incident : à faire avant la bêta, et à consigner ici.
+**L'historique de Neon**, pour une fausse manœuvre qu'on voit tout de suite. Depuis la console, créer une branche à un instant passé, vérifier, puis basculer. **Six heures seulement** sur le palier gratuit : passé ce délai, il ne reste rien.
+
+**La sauvegarde quotidienne**, pour tout le reste. Le processus de traitement dépose chaque jour dans R2, sous `backups/AAAA-MM-JJ.ndjson.gz`, et garde trente jours. Restaurer :
+
+```text
+npm run restore:backup -- backups/2026-10-02.ndjson.gz          # sur une base de test
+npm run restore:backup -- backups/2026-10-02.ndjson.gz --oui    # sur la production
+```
+
+**La restauration efface la base visée avant de charger.** Une restauration partielle mélangerait deux états, ce qui est pire que les deux. La commande refuse donc de s'exécuter sur une base dont le nom ne contient pas « test », sauf `--oui`.
+
+**Testée, et pas seulement écrite.** `backend/src/backup/backup.integration.test.ts` sauvegarde une bibliothèque, efface tout, restaure, et vérifie que les adresses sont revenues avec leurs sources. Un autre test échoue si une table apparaît dans le schéma sans être ni sauvegardée ni écartée en connaissance de cause.
+
+### Avant de restaurer en production
+
+1. Prévenir : la restauration écrase le travail fait depuis la sauvegarde.
+2. Arrêter le processus de traitement, pour qu'aucune tâche n'écrive pendant le chargement.
+3. Restaurer, puis `GET /ready` et un coup d'œil à la page Contacts.
+4. Redémarrer le processus de traitement.
 
 ## Faire tourner une clé de chiffrement
 

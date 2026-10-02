@@ -4,6 +4,7 @@ import { resumeBlockedForEveryone } from './quotas/resume.js';
 import { purgeExpiredData } from './retention/purge.js';
 import { writeWorkerHeartbeat } from './observability/readiness.js';
 import { runAlertChecks } from './observability/alerts.js';
+import { createBackup } from './backup/dump.js';
 import { purgeExpiredExports, runExportJob } from './exports/service.js';
 import { purgeExpiredIdempotencyKeys } from './api/idempotency.js';
 import { purgeExpiredVerificationRuns, runVerification } from './verification/runs.js';
@@ -116,6 +117,13 @@ const entretien = new Worker(
     }
     if (job.name === 'idempotency.purge') {
       return { effacees: await purgeExpiredIdempotencyKeys() };
+    }
+    if (job.name === 'backup.daily') {
+      const stockage = createR2Storage();
+      if (stockage === undefined) {
+        throw new UnrecoverableError('Sauvegarde impossible : stockage R2 non configure.');
+      }
+      return await createBackup(stockage);
     }
     if (job.name === 'alerts.check') {
       return { alertes: (await runAlertChecks()).map((alerte) => alerte.kind) };
