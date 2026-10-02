@@ -60,6 +60,13 @@ export interface AppOptions {
   readonly v1?: V1Options;
   /** La connexion par Campaign Mailer ; les tests y mettent un faux echange. */
   readonly sso?: CampaignMailerSignInOptions;
+  /** La mise en file de la planification d'un import ; celle de BullMQ par defaut. */
+  readonly enqueuePlan?: (job: { importId: string; userId: string }) => Promise<void>;
+  /**
+   * Des routes montees avant le gestionnaire de route inconnue. Sert au
+   * parcours de bout en bout, qui a besoin d'une porte d'entree sans Google.
+   */
+  readonly register?: (app: Express) => void;
 }
 
 /**
@@ -175,7 +182,10 @@ export function createApp(options: AppOptions = {}): Express {
   app.use('/api/account', createAccountRouter());
   app.use(
     '/api/imports',
-    createImportsRouter(options.enqueue === undefined ? {} : { enqueue: options.enqueue }),
+    createImportsRouter({
+      ...(options.enqueue === undefined ? {} : { enqueue: options.enqueue }),
+      ...(options.enqueuePlan === undefined ? {} : { enqueuePlan: options.enqueuePlan }),
+    }),
   );
   app.use(
     '/api/companies',
@@ -208,6 +218,8 @@ export function createApp(options: AppOptions = {}): Express {
     }),
   );
   app.use('/api/verifications', createVerificationsRouter());
+
+  options.register?.(app);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

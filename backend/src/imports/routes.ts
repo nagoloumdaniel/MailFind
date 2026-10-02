@@ -57,6 +57,8 @@ const estimateSchema = z.object({
 export interface ImportsRouterOptions {
   /** La file des etapes ; les tests la remplacent par une liste. */
   readonly enqueue?: Enqueue;
+  /** La mise en file de la planification ; celle de BullMQ par defaut. */
+  readonly enqueuePlan?: (job: { importId: string; userId: string }) => Promise<void>;
 }
 
 export function createImportsRouter(options: ImportsRouterOptions = {}): Router {
@@ -148,14 +150,10 @@ export function createImportsRouter(options: ImportsRouterOptions = {}): Router 
           return;
         }
 
-        const resume = await submitImport({
-          userId: user.id,
-          filename,
-          headers,
-          mapping,
-          rows,
-          settings,
-        });
+        const resume = await submitImport(
+          { userId: user.id, filename, headers, mapping, rows, settings },
+          options.enqueuePlan === undefined ? {} : { enqueuePlan: options.enqueuePlan },
+        );
         res.status(201).json({ import: resume });
       } catch (error) {
         next(error);

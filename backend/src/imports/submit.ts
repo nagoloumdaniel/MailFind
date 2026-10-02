@@ -1,6 +1,6 @@
 import { recordAuditEvent } from '../audit/repository.js';
 import { AppError } from '../http/problem.js';
-import { enqueueImportPlan } from '../queue/queues.js';
+import { enqueueImportPlan, type ImportPlanJob } from '../queue/queues.js';
 import type { KnownField } from './fields.js';
 import { createImport, type ImportSummary, type PreparedRow } from './repository.js';
 import type { ImportSettings } from './settings.js';
@@ -29,6 +29,12 @@ export async function submitImport(
      * file : la tache ne fera plus que lancer le pipeline.
      */
     readonly enqueue?: boolean;
+    /**
+     * La mise en file de la planification. Celle de BullMQ par defaut ; le
+     * parcours de bout en bout y met un traitement immediat, pour ne pas
+     * dependre d'un processus de traitement a part.
+     */
+    readonly enqueuePlan?: (job: ImportPlanJob) => Promise<void>;
   } = {},
 ): Promise<ImportSummary> {
   const { userId, filename, headers, mapping, rows, settings } = submission;
@@ -73,7 +79,9 @@ export async function submitImport(
     rows: preparees,
   });
 
-  if (options.enqueue !== false) await enqueueImportPlan({ importId: resume.id, userId });
+  if (options.enqueue !== false) {
+    await (options.enqueuePlan ?? enqueueImportPlan)({ importId: resume.id, userId });
+  }
 
   await recordAuditEvent({
     userId,

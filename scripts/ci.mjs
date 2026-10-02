@@ -1,4 +1,4 @@
-// La barriere complete, sur cette machine.
+﻿// La barriere complete, sur cette machine.
 //
 // GitHub Actions est restreint sur ce compte : le workflow de `.github/`
 // existe et reste juste, mais personne ne l'execute. Ce script tient le role,
@@ -7,7 +7,7 @@
 //
 //   npm run ci              tout, services compris
 //   npm run ci -- --no-db   sans les services, donc sans les tests d'integration
-//   npm run ci -- --keep    garde les conteneurs, pour enquêter apres un echec
+//   npm run ci -- --keep    garde les conteneurs, pour enquÃªter apres un echec
 //
 // Sortie non nulle a la premiere etape en echec : c'est ce que lit le hook de
 // pre-push.
@@ -84,16 +84,27 @@ const etapes = [
   { nom: 'vulnerabilites', commande: 'npm audit --audit-level=high' },
 ];
 
-const avecServices = {
-  // La couverture fait tourner les deux suites, pas seulement l'integration,
-  // et fait echouer la CI sous les seuils.
-  nom: 'couverture',
-  commande: 'npm run test:coverage',
-  env: {
-    TEST_DATABASE_URL: `postgresql://test:test@localhost:${String(PG.port)}/mailfind_test?sslmode=disable`,
-    TEST_REDIS_URL: `redis://localhost:${String(REDIS.port)}`,
-  },
+const ENV_SERVICES = {
+  TEST_DATABASE_URL: `postgresql://test:test@localhost:${String(PG.port)}/mailfind_test?sslmode=disable`,
+  TEST_REDIS_URL: `redis://localhost:${String(REDIS.port)}`,
 };
+
+const avecServices = [
+  {
+    // La couverture fait tourner les deux suites, pas seulement l'integration,
+    // et fait echouer la CI sous les seuils.
+    nom: 'couverture',
+    commande: 'npm run test:coverage',
+    env: ENV_SERVICES,
+  },
+  {
+    // Le parcours refait le schema a neuf : il passe apres la couverture, pas
+    // avant, sinon il effacerait la base sous ses pieds.
+    nom: 'parcours de bout en bout',
+    commande: 'npm run test:e2e',
+    env: ENV_SERVICES,
+  },
+];
 
 let docker = false;
 if (!sansBase) {
@@ -104,7 +115,7 @@ if (!sansBase) {
   }
 }
 
-const aFaire = docker ? [...etapes, avecServices] : etapes;
+const aFaire = docker ? [...etapes, ...avecServices] : etapes;
 const resultats = [];
 let echec;
 
@@ -144,8 +155,8 @@ ecrire('\n--- Bilan');
 for (const { nom, ok, temps } of resultats) {
   ecrire(`${ok ? 'ok   ' : 'ECHEC'} ${nom.padEnd(24)} ${duree(temps)}`);
 }
-if (!docker && !sansBase) ecrire('saute tests d integration        Docker absent');
-if (sansBase) ecrire('saute tests d integration        --no-db');
+if (!docker && !sansBase) ecrire('saute integration et parcours        Docker absent');
+if (sansBase) ecrire('saute integration et parcours        --no-db');
 
 if (echec !== undefined) {
   ecrire(`\nArrete sur : ${echec}`);

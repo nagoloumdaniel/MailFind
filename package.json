@@ -22,6 +22,7 @@
     "test": "npm run test --workspaces --if-present",
     "test:integration": "npm run test:integration --workspace backend",
     "test:coverage": "npm run test:coverage --workspace backend",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "build": "npm run build --workspaces --if-present",
     "dev": "npm run dev --workspaces --if-present",
     "dev:backend": "npm run dev --workspace backend",

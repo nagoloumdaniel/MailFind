@@ -4,7 +4,15 @@ import type { ImportSettings } from './import-settings';
 
 /** Ce que l'API rend d'un import (`backend/src/imports/repository.ts`). */
 export type ImportStatus =
-  'pending' | 'planning' | 'running' | 'cancelled' | 'completed' | 'failed';
+  | 'pending'
+  | 'planning'
+  | 'running'
+  | 'cancelled'
+  | 'completed'
+  | 'failed'
+  // F-1403 : un quota a arrete le traitement. Ni termine ni en echec : les
+  // entreprises restantes attendent le renouvellement, ou une relance.
+  | 'quota_blocked';
 
 export interface ImportSummary {
   id: string;
@@ -202,6 +210,7 @@ export const STATUS_LABELS: Record<ImportStatus, string> = {
   cancelled: 'Annule',
   completed: 'Termine',
   failed: 'En echec',
+  quota_blocked: 'En attente de quota',
 };
 
 export interface ImportEmail {

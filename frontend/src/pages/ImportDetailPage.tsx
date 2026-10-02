@@ -38,6 +38,7 @@ const TONS: Record<ImportStatus, string> = {
   running: 'border-accent/50 text-accent',
   completed: 'border-accent bg-accent/10 text-accent-strong',
   cancelled: 'border-caution/50 text-caution',
+  quota_blocked: 'border-caution/50 text-caution',
   failed: 'border-negative/50 text-negative',
 };
 
