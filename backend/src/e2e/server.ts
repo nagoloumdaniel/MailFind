@@ -14,8 +14,10 @@ import { identifyCompany } from '../pipeline/identify.js';
 import { startPipeline, type Enqueue } from '../pipeline/start.js';
 import { verifyStep } from '../pipeline/verify.js';
 import { createFetcher } from '../net/safe-fetch.js';
-import { createVerifyDeps } from '../pipeline/verify-deps.js';
+import { createConfiguredCipher, createVerifyDeps } from '../pipeline/verify-deps.js';
+import { runPush } from '../campaign-mailer/push.js';
 import { startTestSites, type TestSites } from '../test/sites/server.js';
+import { startFakeCampaignMailer, type FakeCampaignMailer } from './campaign-mailer.js';
 
 /**
  * L'application telle qu'un navigateur la rencontre, pour le parcours de bout
@@ -43,6 +45,7 @@ const HOSTS = ['acme.test', 'boulangerie.test', 'ferme.test'] as const;
 export interface E2eServer {
   readonly app: Express;
   readonly sites: TestSites;
+  readonly campaignMailer: FakeCampaignMailer;
   readonly userId: string;
   close(): Promise<void>;
 }
@@ -75,6 +78,10 @@ export async function createE2eServer(): Promise<E2eServer> {
   verifierBaseDeTest();
 
   const sites = await startTestSites(HOSTS);
+  // Le vrai Campaign Mailer est une autre application en ligne : le parcours
+  // parle au sien, fidele a son contrat.
+  const campaignMailer = await startFakeCampaignMailer();
+  process.env.CAMPAIGN_MAILER_API_URL = campaignMailer.url;
   const fetcher = createFetcher({ testRouting: { port: sites.port, hosts: [...HOSTS] } });
   const crawler = createCrawlerClient({
     fetcher,
@@ -130,6 +137,13 @@ export async function createE2eServer(): Promise<E2eServer> {
       cookie: { httpOnly: true, secure: false, sameSite: 'lax' },
     }),
     enqueue,
+    // L'envoi vers Campaign Mailer se fait aussi dans la requete, pour la
+    // meme raison que les etapes : pas de file, donc pas de processus a part.
+    enqueuePush: async (pushId) => {
+      // Pas de file, donc pas de nouvelle tentative : un echec est definitif
+      // et doit se voir a l'ecran plutot que d'attendre une reprise.
+      await runPush(pushId, { cipher: createConfiguredCipher(), finalAttempt: true });
+    },
     // La planification se fait dans la requete, a la place de BullMQ : a la
     // fin du POST, l'import est traite.
     enqueuePlan: async ({ importId, userId: compte }) => {
@@ -158,9 +172,11 @@ export async function createE2eServer(): Promise<E2eServer> {
   return {
     app,
     sites,
+    campaignMailer,
     userId,
     close: async () => {
       await sites.close();
+      await campaignMailer.close();
       await closePool();
     },
   };

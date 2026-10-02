@@ -205,11 +205,20 @@ export async function checkLocally(address: string, contexte: LocalContext): Pro
 /** Au-dela, le cache est vide : le processus tourne des semaines. */
 const CACHE_DNS_MAX = 5000;
 
+/** Ce que `createMailDns` demande au resolveur. Injecte pour les tests. */
+export interface DnsResolver {
+  resolveMx(domain: string): Promise<{ exchange: string; priority: number }[]>;
+  resolve4(domain: string): Promise<string[]>;
+  resolve6(domain: string): Promise<string[]>;
+}
+
 /** Le resolveur reel, avec un cache par domaine le temps d'une verification. */
-export function createMailDns(ttlMs = 60 * 60 * 1000): MailDns {
+export function createMailDns(
+  ttlMs = 60 * 60 * 1000,
   // Un delai court et deux essais : une liste de mille adresses ne doit pas
   // attendre vingt secondes chaque domaine qui ne repond pas.
-  const resolveur = new dns.Resolver({ timeout: 3000, tries: 2 });
+  resolveur: DnsResolver = new dns.Resolver({ timeout: 3000, tries: 2 }),
+): MailDns {
   const mx = new Map<
     string,
     { expire: number; valeur: Promise<{ exchange: string; priority: number }[]> }

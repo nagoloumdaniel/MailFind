@@ -23,6 +23,9 @@ process.env.GOOGLE_CLIENT_ID ??= 'parcours';
 process.env.GOOGLE_CLIENT_SECRET ??= 'parcours';
 process.env.GOOGLE_CALLBACK_URL ??= 'http://localhost:3100/api/auth/google/callback';
 process.env.REDIS_URL ??= 'redis://localhost:6379';
+// Sans cle de chiffrement, le jeton Campaign Mailer ne peut pas etre garde :
+// le parcours ne pourrait pas prouver l'envoi (S-01).
+process.env.ENCRYPTION_KEY ??= 'a'.repeat(64);
 
 await preparerBase();
 

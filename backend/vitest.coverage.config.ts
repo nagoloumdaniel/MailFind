@@ -64,10 +64,7 @@ export default defineConfig({
         'src/api/v1/**': { lines: 90, statements: 90, functions: 90, branches: 80 },
         'src/quotas/**': { lines: 90, statements: 85, functions: 85, branches: 70 },
 
-        // Sous les 90 % des services, et c'est dit plutot que maquille : la
-        // verification locale a sept niveaux dont les branches les plus rares
-        // ne sont pas encore jouees. A monter avant l'ouverture au public.
-        'src/verification/**': { lines: 84, statements: 80, functions: 75, branches: 65 },
+        'src/verification/**': { lines: 90, statements: 90, functions: 90, branches: 80 },
       },
     },
   },

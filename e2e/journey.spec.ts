@@ -20,6 +20,9 @@ const CSV = [
   'Acme,acme.test',
 ].join('\n');
 
+/** Le jeton que le Campaign Mailer d'emprunt accepte (`backend/src/e2e`). */
+const JETON_CAMPAIGN_MAILER = `cm_${'e'.repeat(43)}`;
+
 test.describe.configure({ mode: 'serial' });
 
 test('de la connexion a l export, en passant par la collecte', async ({ page }) => {
@@ -75,6 +78,44 @@ test('de la connexion a l export, en passant par la collecte', async ({ page }) 
   await page.getByRole('button', { name: 'Exporter', exact: true }).click();
   const fichier = await telechargement;
   expect(fichier.suggestedFilename()).toMatch(/\.csv$/);
+
+  // --- Connexion a Campaign Mailer, puis envoi d'une selection
+  await page.goto('/compte');
+  // La page Compte porte plusieurs sections : on vise celle de Campaign Mailer.
+  const integration = page.locator('section', {
+    has: page.getByRole('heading', { name: 'Campaign Mailer' }),
+  });
+  await integration
+    .getByLabel("Jeton d'integration de Campaign Mailer")
+    .fill(JETON_CAMPAIGN_MAILER);
+  await integration.getByRole('button', { name: 'Connecter' }).click();
+  await expect(integration.getByText(/Remplacer le jeton/)).toBeVisible();
+
+  await page.goto('/contacts');
+  await expect(lignes.first()).toBeVisible({ timeout: 30_000 });
+  // Tout selectionner, par la case d'en-tete.
+  await page.locator('thead input[type="checkbox"]').check();
+  await page.getByRole('button', { name: 'Envoyer vers Campaign Mailer' }).click();
+
+  await page
+    .getByLabel(/Nom de la campagne|Nom/)
+    .first()
+    .fill('Parcours de test');
+  // Les adresses du parcours ne sont pas verifiees : aucune boite n'a ete
+  // sondee, ce que l'import ne demandait pas. Le perimetre par defaut les
+  // exclut, et le dit, ce qui est le bon comportement ; l'utilisateur choisit
+  // alors celui qui les prend, sans jamais les faire passer pour verifiees.
+  await page.getByLabel('Toutes, sauf invalides, jetables et supprimees').check();
+  await page.getByRole('button', { name: 'Envoyer', exact: true }).click();
+
+  // L'envoi aboutit : des adresses ajoutees a la campagne nommee, et le lien
+  // vers le brouillon. Pas « un mot est apparu », mais le resultat annonce.
+  await expect(page.getByText(/adresses? ajoutee/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/Parcours de test/)).toBeVisible();
+  const brouillon = page.getByRole('link', { name: 'Ouvrir le brouillon dans Campaign Mailer' });
+  await expect(brouillon).toBeVisible();
+  // La campagne reste un brouillon : seul l'utilisateur la lance.
+  await expect(brouillon).toHaveAttribute('href', /campagnes\/\d+/);
 });
 
 test('la page de l agent de collecte repond sans compte', async ({ browser }) => {

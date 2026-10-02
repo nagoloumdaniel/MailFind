@@ -597,10 +597,10 @@ Annuaire partagé :
 
 - [x] Couverture : 70 % au global, 90 % dans les services, sur schéma jetable.
   → skills : `test-driven-development`
-  Les deux suites mesurées ensemble : séparément, les chiffres mentent dans les deux sens. 89 % des lignes au global, planchers posés sous le niveau atteint pour empêcher une régression. Deux exceptions écrites plutôt que maquillées : la vérification à 84 %, et les modules de bordure qui ne s'exécutent que pour de vrai.
+  Les deux suites mesurées ensemble : séparément, les chiffres mentent dans les deux sens. 89 % des lignes au global, planchers posés sous le niveau atteint pour empêcher une régression. Les neuf modules de domaine tiennent les 90 % demandés, vérification comprise : son cache DNS, qui décide combien de fois une liste de mille adresses interroge le DNS, est passé de non testé à prouvé. Seuls les modules de bordure restent sous le global, et ils ne s'exécutent que pour de vrai.
 - [x] Parcours de bout en bout dans un navigateur : connexion, import, suivi, page Contacts, export.
   → skills : `test-driven-development`, `run`
-  De la porte fermée au fichier téléchargé, plus les pages publiques qui doivent répondre sans compte. Trois choses remplacées, chacune parce qu'elle sort de la machine : Google, Internet, les files. **L'envoi vers Campaign Mailer n'y est pas** : il demanderait un second service en ligne ; il est couvert par ses tests de contrat et son faux serveur.
+  De la porte fermée au fichier téléchargé, puis la connexion à Campaign Mailer et l'envoi d'une sélection vers un brouillon, plus les pages publiques qui doivent répondre sans compte. Quatre choses remplacées, chacune parce qu'elle sort de la machine : Google, Internet, les files, et Campaign Mailer, dont le serviteur d'emprunt exige la clé d'idempotence et rend la même réponse pour la même clé.
 - [x] `/ready`, alertes fournisseurs, files, dépense, processus silencieux (section 12).
   → skills : `systematic-debugging`
   Le battement de cœur était la pièce manquante : sans lui, une file vide et un processus arrêté se ressemblent. L'évaluation des alertes est une fonction pure, testée sans Redis ni base, parce que ce qui manque le plus à une alerte, c'est d'être juste.
