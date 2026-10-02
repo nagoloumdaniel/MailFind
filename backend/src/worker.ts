@@ -2,6 +2,8 @@ import { UnrecoverableError, Worker } from 'bullmq';
 import { initErrorReporting, reportError } from './observability/errors.js';
 import { resumeBlockedForEveryone } from './quotas/resume.js';
 import { purgeExpiredData } from './retention/purge.js';
+import { writeWorkerHeartbeat } from './observability/readiness.js';
+import { runAlertChecks } from './observability/alerts.js';
 import { purgeExpiredExports, runExportJob } from './exports/service.js';
 import { purgeExpiredIdempotencyKeys } from './api/idempotency.js';
 import { purgeExpiredVerificationRuns, runVerification } from './verification/runs.js';
@@ -115,6 +117,9 @@ const entretien = new Worker(
     if (job.name === 'idempotency.purge') {
       return { effacees: await purgeExpiredIdempotencyKeys() };
     }
+    if (job.name === 'alerts.check') {
+      return { alertes: (await runAlertChecks()).map((alerte) => alerte.kind) };
+    }
     if (job.name === 'retention.purge') {
       return await purgeExpiredData();
     }
@@ -224,6 +229,23 @@ collecte.on('failed', (job, error) => {
 });
 
 logger.info({ queues: [IMPORT_QUEUE, COMPANY_QUEUE] }, "processus de traitement a l'ecoute");
+
+/**
+ * Le battement de coeur que lit `/ready` (section 12). Sans lui, une file
+ * vide et un processus arrete se ressemblent, et un import reste « pending »
+ * sans que rien ne le signale.
+ *
+ * `unref` : il ne doit pas retenir le processus a l'arret.
+ */
+const BATTEMENT_MS = 30_000;
+void writeWorkerHeartbeat().catch((erreur: unknown) => {
+  logger.warn({ err: erreur }, 'battement de coeur non ecrit');
+});
+setInterval(() => {
+  void writeWorkerHeartbeat().catch((erreur: unknown) => {
+    logger.warn({ err: erreur }, 'battement de coeur non ecrit');
+  });
+}, BATTEMENT_MS).unref();
 
 // Un import recu pendant que Redis etait indisponible, ou dont Redis a perdu
 // la tache, ne serait repris par personne. Le remettre en file a chaque

@@ -145,6 +145,13 @@ export async function scheduleMaintenance(): Promise<void> {
     { every: 24 * 60 * 60 * 1000 },
     { name: 'quotas.resume' },
   );
+  // Section 12 : les alertes, toutes les cinq minutes. Plus souvent ne
+  // changerait rien, puisqu'une meme alerte se tait une heure.
+  await getMaintenanceQueue().upsertJobScheduler(
+    'alerts-check',
+    { every: 5 * 60 * 1000 },
+    { name: 'alerts.check' },
+  );
   // R-06 : les durees de conservation, une fois par jour.
   await getMaintenanceQueue().upsertJobScheduler(
     'retention-purge',
