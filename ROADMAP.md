@@ -3,8 +3,8 @@
 Plan d'exécution, du dépôt vide à la bêta publique.
 Référence : [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md), version 1.0 du 22 septembre 2026.
 
-- **Statut** : Phases 0 à 7 terminées, Phase 8 commencée (S-01 et S-03). En ligne depuis le 1er octobre 2026 sur <https://mailfind.vercel.app>, avec l'API sur Railway ; la mise en ligne était prévue en Phase 10, elle a été avancée à la demande du propriétaire pour disposer d'une URL et de clés de production. L'intégration Campaign Mailer de la Phase 7, reportée le 29 septembre (D-23), est construite depuis le 1er octobre 2026 des deux côtés ; il reste l'essai en production entre les deux applications déployées. Phase 7B (vérification certifiée, annuaire partagé) ajoutée le 30 septembre 2026, à démarrer après la revue.
-- **Dernière mise à jour** : 30 septembre 2026
+- **Statut** : Phases 0 à 9 terminées, Phase 10 en cours. En ligne depuis le 1er octobre 2026 sur <https://mailfind.vercel.app>, avec l'API sur Railway ; la mise en ligne était prévue en Phase 10, elle a été avancée à la demande du propriétaire pour disposer d'une URL et de clés de production. L'intégration Campaign Mailer de la Phase 7, reportée le 29 septembre (D-23), est construite depuis le 1er octobre 2026 des deux côtés ; il reste l'essai en production entre les deux applications déployées. Phase 7B (vérification certifiée, annuaire partagé) ajoutée le 30 septembre 2026, à démarrer après la revue. Dans la Phase 10 : secrets et historique git vérifiés, branches Neon séparées, sauvegarde quotidienne restaurée et consignée, recette des 100 entreprises passée le 2 octobre 2026 (A1 et A4 tenus, A2 suspendu au budget de vérification). Restent la bêta et les retours.
+- **Dernière mise à jour** : 2 octobre 2026
 - **Cadence de révision** : fin de chaque phase
 
 ---
@@ -638,6 +638,17 @@ Annuaire partagé :
   → skills : `investigate-first`, `systematic-debugging`, `surgical-patch`, `verify-and-stop`
 - Préparer le lancement public.
   → skills : `launch`, `product-marketing`, `copywriting`
+
+### Bilan de la recette sur 100 entreprises, 2 octobre 2026
+
+`npm run recette -w backend -- docs/recette/phase-10-cent-entreprises.csv`, depuis la machine du propriétaire, contre la branche Neon `dev`. Détail dans `docs/recette/phase-10-resultat.md`.
+
+- **A1 tenu** : 99 entreprises traitées de bout en bout sans intervention en 5 min 42 s, pour une limite de 15 minutes. 94 sites explorés, 5 ignorés, aucun échec, 636 adresses relevées.
+- **A4 tenu** : aucune des 636 adresses n'est sans source.
+- **A2 non mesurable en l'état**. Sans sondage de boîte depuis nos serveurs, une adresse ne devient `valid` que par un fournisseur ; les contrôles locaux s'arrêtent à `unverified`. Vérifier les 636 adresses demanderait environ 318 crédits Hunter, pour un plafond configuré de 20 par mois. Décision attendue du propriétaire : acheter des crédits, ou réduire l'échantillon. `--boites=found` limite la passe aux 254 adresses réellement relevées sur les sites, soit environ 127 crédits.
+- Ce que la passe dit quand même : 91 des 94 sites explorés (97 %) portent au moins une adresse qui passe tous les contrôles locaux, et 39 (41 %) une adresse publiée sur le site de l'entreprise. Le vivier des 70 % de 2.2 existe ; il attend la vérification.
+
+`npm run indicateurs -w backend` mesure les autres indicateurs de 2.2 : couverture, adresses sans source, coût fournisseur par entreprise, et la latence en lecture de l'API déployée au 95e centile. Le taux de rebond est le seul qui ne s'y trouve pas : il se relève dans Campaign Mailer après de vraies campagnes.
 
 ### Definition of Done
 
