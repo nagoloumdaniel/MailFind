@@ -632,12 +632,14 @@ Annuaire partagé :
   → skills : `run`, `verify-and-stop`
 - Recruter 5 à 10 bêta-testeurs parmi les utilisateurs de Campaign Mailer, guide de prise en main, canal de retours.
   → skills : `customer-research`, `onboarding`, `copywriting`
+  Guide écrit : `docs/guide-beta.md`. Canal en place : le formulaire `Retour de bêta` des tickets, et l'ordre de tri dans `docs/runbook.md`. Le recrutement reste à faire par le propriétaire.
 - Mesurer les indicateurs de 2.2.
   → skills : `analytics`
 - Traiter les retours de la bêta.
   → skills : `investigate-first`, `systematic-debugging`, `surgical-patch`, `verify-and-stop`
 - Préparer le lancement public.
   → skills : `launch`, `product-marketing`, `copywriting`
+  Plan écrit : `docs/lancement.md`. Positionnement, ordre d'ouverture, et le seul vrai bloquant : le plafond de vingt crédits Hunter par mois ne peut pas servir des utilisateurs publics, ce qui est une décision économique et non un défaut de code. La page d'accueil porte déjà le bon message et n'a pas à être réécrite.
 
 ### Bilan de la recette sur 100 entreprises, 2 octobre 2026
 
