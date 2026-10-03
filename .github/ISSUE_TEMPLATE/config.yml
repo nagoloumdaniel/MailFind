@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Un site demande à ne plus être collecté
+    url: https://mailfind.vercel.app/robot
+    about: La page du robot traite la demande immédiatement, sans passer par un ticket.
+  - name: Guide de prise en main de la bêta
+    url: https://github.com/nagoloumdaniel/MailFind/blob/main/docs/guide-beta.md
+    about: Ce que fait MailFind, ce que veulent dire les statuts, et ce que nous aimerions apprendre de vous.

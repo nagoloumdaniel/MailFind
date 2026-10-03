@@ -67,6 +67,29 @@ La page `/robot` le fait, sans compte et sans question. L'adresse part de tous l
 
 Si la demande arrive par un autre canal, la même page suffit : rien à faire en base.
 
+## Trier un retour de bêta
+
+Les retours arrivent par le formulaire `Retour de bêta` des tickets, qui demande déjà ce qu'il faut pour reproduire. Le guide remis aux testeurs est `docs/guide-beta.md`.
+
+Dans l'ordre, et le premier qui répond suffit :
+
+1. **Un identifiant de requête ?** Alors `railway logs --service api`, chercher cet identifiant : la trace dit tout.
+2. **Sinon, une entreprise ou un domaine ?** `select * from companies where domain = '...'` puis ses adresses et leurs sources. La source porte l'URL exacte et la date : la plupart des retours se tranchent là.
+3. **Sinon, une heure approximative ?** Les journaux de la fenêtre, en se rappelant que le testeur donne son fuseau et que les journaux sont en UTC.
+
+Le classement qui compte, parce qu'il ne se traite pas de la même façon :
+
+| Nature du retour | Ce que ça veut dire | Priorité |
+| --- | --- | --- |
+| Adresse introuvable sur la page citée | Une source est fausse. C'est le défaut le plus grave que le produit puisse avoir : il attaque la seule règle non négociable | Tout de suite, avant toute autre chose |
+| Domaine faux | L'identification s'est trompée. Noter ce que le fichier contenait : un nom seul et une homonymie ne se corrigent pas comme un domaine donné et ignoré | Haute |
+| Statut de vérification faux | Vérifier d'abord lequel. Un `unverified` pris pour un défaut est une incompréhension du guide, pas un bogue ; un `valid` qui rebondit est un vrai problème | Haute si `valid`, sinon documentation |
+| Score surprenant | Comparer avec son détail. Si les lignes font bien la somme, c'est la pondération qui est à discuter, pas le code | Moyenne |
+| Hésitation devant l'interface | Ne se corrige pas en base. À regrouper : trois testeurs qui hésitent au même endroit valent mieux qu'un long rapport | Moyenne, par lot |
+| Quota atteint | Vérifier `quota_usage` avant de conclure à un bogue. Le travail est suspendu, pas perdu | Basse, répondre |
+
+Deux réflexes. Un retour qui se révèle être une incompréhension du guide est un défaut du guide : corriger `docs/guide-beta.md` plutôt que de répondre une fois. Et un ticket ne doit jamais contenir de données personnelles : si un testeur en a collé, supprimer le contenu du ticket et le lui dire, sans en faire un reproche.
+
 ## Erreurs 500
 
 1. Récupérer l'identifiant de requête : il est dans la réponse (`requestId`) et dans l'en-tête `x-request-id`.

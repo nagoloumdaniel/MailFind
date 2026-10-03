@@ -1,0 +1,93 @@
+name: Retour de bêta
+description: Signaler un défaut, une surprise ou une gêne rencontrée dans MailFind
+title: '[bêta] '
+labels: ['beta']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci. Deux choses avant de commencer.
+
+        **N'écrivez ici aucune donnée personnelle** : pas de fichier d'import, pas de liste d'adresses, pas de nom de personne. Décrivez la ligne concernée, ou envoyez-la en direct au propriétaire.
+
+        Si une erreur s'est affichée, elle portait un **identifiant de requête**. Recopiez-le plus bas : il mène directement à la trace côté serveur, et fait gagner beaucoup de temps.
+
+  - type: dropdown
+    id: nature
+    attributes:
+      label: De quoi s'agit-il
+      options:
+        - Une adresse introuvable sur la page citée comme source
+        - Un domaine d'entreprise faux
+        - Un score qui ne correspond pas à mon jugement
+        - Un statut de vérification qui me semble faux
+        - Un moment où j'ai hésité sans savoir quoi faire
+        - Quelque chose que j'ai cherché et pas trouvé
+        - Une erreur affichée, ou une page cassée
+        - Autre
+    validations:
+      required: true
+
+  - type: textarea
+    id: contexte
+    attributes:
+      label: Ce que vous faisiez
+      description: La page, et les étapes qui vous y ont mené. Le plus court possible, mais assez pour refaire le chemin.
+      placeholder: |
+        1. Page Import, fichier de 30 lignes avec seulement des noms d'entreprises
+        2. Profondeur standard, vérification de boîte non cochée
+        3. Page de l'import, section « entreprises à vérifier »
+    validations:
+      required: true
+
+  - type: textarea
+    id: attendu
+    attributes:
+      label: Ce que vous attendiez
+    validations:
+      required: true
+
+  - type: textarea
+    id: obtenu
+    attributes:
+      label: Ce qui s'est passé
+    validations:
+      required: true
+
+  - type: input
+    id: entreprise
+    attributes:
+      label: Entreprise ou domaine concerné
+      description: Facultatif, mais c'est souvent ce qui permet de reproduire. Un domaine public n'est pas une donnée personnelle.
+      placeholder: doctolib.fr
+
+  - type: input
+    id: requete
+    attributes:
+      label: Identifiant de requête
+      description: Affiché avec le message d'erreur, s'il y en a eu un.
+      placeholder: d4b455b1-8d64-4a7b-8bea-b485e3a6327b
+
+  - type: input
+    id: moment
+    attributes:
+      label: Date et heure approximatives
+      description: Avec votre fuseau. Sans l'identifiant de requête, c'est ce qui permet de retrouver la trace.
+      placeholder: 3 octobre 2026 vers 14 h 30, heure de Paris
+
+  - type: dropdown
+    id: gravite
+    attributes:
+      label: Est-ce que cela vous a empêché de travailler
+      options:
+        - Non, c'est une gêne
+        - Oui, j'ai dû contourner
+        - Oui, et je n'ai pas pu continuer
+    validations:
+      required: true
+
+  - type: input
+    id: environnement
+    attributes:
+      label: Navigateur et système
+      placeholder: Chrome 153, Windows 11
