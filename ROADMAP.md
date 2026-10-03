@@ -648,7 +648,14 @@ Annuaire partagé :
 - **A2 non mesurable en l'état**. Sans sondage de boîte depuis nos serveurs, une adresse ne devient `valid` que par un fournisseur ; les contrôles locaux s'arrêtent à `unverified`. Vérifier les 636 adresses demanderait environ 318 crédits Hunter, pour un plafond configuré de 20 par mois. Décision attendue du propriétaire : acheter des crédits, ou réduire l'échantillon. `--boites=found` limite la passe aux 254 adresses réellement relevées sur les sites, soit environ 127 crédits.
 - Ce que la passe dit quand même : 91 des 94 sites explorés (97 %) portent au moins une adresse qui passe tous les contrôles locaux, et 39 (41 %) une adresse publiée sur le site de l'entreprise. Le vivier des 70 % de 2.2 existe ; il attend la vérification.
 
-`npm run indicateurs -w backend` mesure les autres indicateurs de 2.2 : couverture, adresses sans source, coût fournisseur par entreprise, et la latence en lecture de l'API déployée au 95e centile. Le taux de rebond est le seul qui ne s'y trouve pas : il se relève dans Campaign Mailer après de vraies campagnes.
+### Indicateurs de 2.2, relevés le 2 octobre 2026
+
+`npm run indicateurs -w backend`, détail dans `docs/recette/phase-10-indicateurs.md`.
+
+- **Tenus** : durée d'un import de 100 entreprises (5 min 42 s pour 15 minutes), adresses sans source (0 sur 636), coût fournisseur par entreprise (0,00 centime, aucune passe payante).
+- **Latence de l'API en lecture, non tenue et cible à revoir** : 521 ms au 95e centile pour une cible de 300 ms. Mesure décomposée : environ 250 ms sont l'aller-retour France vers US East, 25 ms la réécriture Vercel, et environ 100 ms l'application et ses trois requêtes sur une instance Neon de 0,25 CU. La cible n'est pas atteignable depuis l'Europe, quel que soit le code. Trois issues au choix du propriétaire : lire l'indicateur côté serveur, où `pino-http` enregistre déjà `responseTime`, ce qui est la voie recommandée ; mesurer depuis un client en US East ; ou déplacer l'hébergement si la clientèle visée est européenne.
+- **Couverture** : voir le bilan de la recette ci-dessus, suspendue au budget de vérification.
+- **Taux de rebond** : le seul qui ne se mesure pas ici. Il se relève dans Campaign Mailer après de vraies campagnes de bêta.
 
 ### Definition of Done
 

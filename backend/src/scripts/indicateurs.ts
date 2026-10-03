@@ -30,28 +30,39 @@ function centile(valeurs: readonly number[], part: number): number {
   return triees[Math.min(Math.max(rang, 0), triees.length - 1)] ?? 0;
 }
 
-async function mesurerLatence(base: string, cle: string): Promise<Map<string, number[]>> {
+interface Releve {
+  readonly temps: readonly number[];
+  /** Vrai quand la requete a bien rendu la lecture demandee. */
+  readonly complet: boolean;
+}
+
+async function mesurerLatence(base: string, cle: string): Promise<Map<string, Releve>> {
   const chemins = ['/v1/usage', '/v1/companies?limit=25', '/v1/emails?limit=25'];
-  const releves = new Map<string, number[]>();
+  const releves = new Map<string, Releve>();
 
   for (const chemin of chemins) {
-    const temps: number[] = [];
+    const appel = () => fetch(`${base}${chemin}`, { headers: { authorization: `Bearer ${cle}` } });
     // Un premier appel non compte : il paie le reveil de la base et la connexion.
-    await fetch(`${base}${chemin}`, { headers: { authorization: `Bearer ${cle}` } });
+    const essai = await appel();
+    const corps = await essai.text();
+    // Un refus pour conditions non acceptees traverse quand meme tout le chemin
+    // de lecture : la plateforme, l'API, la cle, le compte. La mesure vaut donc
+    // encore quelque chose, a condition de dire ce qu'elle ne couvre pas.
+    const conditions = essai.status === 403 && corps.includes('terms_not_accepted');
+    if (!essai.ok && !conditions) {
+      sortie(`${chemin} a repondu ${String(essai.status)} : latence non mesurable.`);
+      continue;
+    }
+
+    const temps: number[] = [];
     for (let i = 0; i < TIRAGES; i += 1) {
       const depart = performance.now();
-      const reponse = await fetch(`${base}${chemin}`, {
-        headers: { authorization: `Bearer ${cle}` },
-      });
+      const reponse = await appel();
       await reponse.arrayBuffer();
-      if (!reponse.ok) {
-        sortie(`${chemin} a repondu ${String(reponse.status)} : latence non mesurable.`);
-        temps.length = 0;
-        break;
-      }
+      if (reponse.status !== essai.status) break;
       temps.push(performance.now() - depart);
     }
-    if (temps.length > 0) releves.set(chemin, temps);
+    if (temps.length > 0) releves.set(chemin, { temps, complet: !conditions });
   }
   return releves;
 }
@@ -113,18 +124,25 @@ async function main(): Promise<void> {
   } else {
     const releves = await mesurerLatence(url.replace(/\/$/, ''), cle);
     let pireCentile = 0;
-    for (const [chemin, temps] of releves) {
-      const p95 = centile(temps, 0.95);
-      const median = centile(temps, 0.5);
+    let tousComplets = releves.size > 0;
+    for (const [chemin, releve] of releves) {
+      const p95 = centile(releve.temps, 0.95);
+      const median = centile(releve.temps, 0.5);
       pireCentile = Math.max(pireCentile, p95);
+      if (!releve.complet) tousComplets = false;
       sortie(
-        `Latence ${chemin.padEnd(26)} p95 ${p95.toFixed(0)} ms, median ${median.toFixed(0)} ms`,
+        `Latence ${chemin.padEnd(26)} p95 ${p95.toFixed(0)} ms, median ${median.toFixed(0)} ms${releve.complet ? '' : '  (arretee au controle des conditions)'}`,
       );
     }
     if (releves.size > 0) {
       sortie(
-        `Latence API en lecture     p95 le plus haut ${pireCentile.toFixed(0)} ms, cible 300 ms   ${verdict(pireCentile < CIBLE_LATENCE_MS)}`,
+        `Latence API en lecture     p95 le plus haut ${pireCentile.toFixed(0)} ms, cible 300 ms   ${tousComplets ? verdict(pireCentile < CIBLE_LATENCE_MS) : 'INDICATIF'}`,
       );
+      if (!tousComplets) {
+        sortie(
+          '  Le compte de la cle doit accepter les conditions en cours pour que la lecture elle-meme soit mesuree.',
+        );
+      }
     }
   }
 
