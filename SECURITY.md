@@ -4,7 +4,9 @@ MailFind est en **bêta fermée**. Son code est visible, mais le logiciel reste 
 
 ## Signaler une vulnérabilité
 
-Écrivez à **nagoloumtalladanielparfait@gmail.com** (l'adresse publique du profil GitHub de l'auteur) avec pour objet « MailFind : vulnérabilité ». Merci de ne **pas** ouvrir de ticket public, ni de pull request, pour un défaut de sécurité.
+Utilisez le **signalement privé de vulnérabilités de GitHub** : onglet *Security* du dépôt, puis *Report a vulnerability* (dès que cette fonction est activée sur le dépôt).
+
+Si le bouton n'est pas disponible, ouvrez une [issue](https://github.com/nagoloumdaniel/MailFind/issues/new) **sans aucun détail sensible** (ni exploit, ni donnée, ni capture) en écrivant seulement « vulnérabilité à signaler », et un canal privé vous sera proposé. Ne publiez jamais le détail d'un défaut de sécurité dans une issue ou une pull request publique.
 
 Pour aider à le reproduire, indiquez si possible :
 

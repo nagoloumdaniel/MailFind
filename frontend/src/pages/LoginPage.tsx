@@ -73,8 +73,8 @@ function Specimen() {
       </article>
 
       <p className="text-xs text-text-faint">
-        Deux adresses reelles telles que MailFind les rend. La seconde ne sera jamais presentee
-        comme verifiee.
+        Deux exemples fictifs, dans le format que MailFind produit. La seconde ne sera jamais
+        presentee comme verifiee.
       </p>
     </div>
   );

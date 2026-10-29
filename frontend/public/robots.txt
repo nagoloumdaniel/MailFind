@@ -8,7 +8,6 @@ User-agent: *
 Allow: /$
 Allow: /connexion
 Allow: /robot
-Allow: /documentation-api
 Allow: /conditions-utilisation
 Allow: /confidentialite
 
@@ -22,3 +21,4 @@ Disallow: /import
 Disallow: /verifier
 Disallow: /conditions$
 Disallow: /compte
+Disallow: /documentation-api
