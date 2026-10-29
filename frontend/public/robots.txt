@@ -1,0 +1,24 @@
+# MailFind est en bêta fermée : seules les pages publiques sont à indexer.
+# Pas de sitemap : il n'y a que quelques pages publiques, toutes liées depuis
+# la page de connexion.
+
+User-agent: *
+
+# Pages publiques
+Allow: /$
+Allow: /connexion
+Allow: /robot
+Allow: /documentation-api
+Allow: /conditions-utilisation
+Allow: /confidentialite
+
+# Zone connectée et API : rien à indexer
+Disallow: /api/
+Disallow: /v1/
+Disallow: /entreprises
+Disallow: /contacts
+Disallow: /exports
+Disallow: /import
+Disallow: /verifier
+Disallow: /conditions$
+Disallow: /compte
