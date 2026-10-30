@@ -1,43 +1,126 @@
 # MailFind
 
-Bibliothèque de contacts professionnels d'entreprises.
+**Des adresses e-mail professionnelles d'entreprises, chacune avec sa source, son statut de vérification et son score.**
 
-MailFind transforme une liste d'entreprises en adresses email professionnelles vérifiées, classées par entreprise et prêtes à l'envoi. L'utilisateur importe un fichier CSV (noms d'entreprises, domaines, sites web ou pages carrières) ; MailFind identifie chaque entreprise, explore les pages publiques pertinentes de son site, interroge des fournisseurs d'enrichissement disposant d'une API officielle, vérifie chaque adresse et en conserve la source. Les résultats s'exportent en CSV, XLSX ou JSON, ou partent directement dans [Campaign Mailer](https://github.com/nagoloumdaniel/Campaign-Mailer) sous forme de campagne en brouillon.
+> **Bêta fermée. Code visible, tous droits réservés.**
+> MailFind n'est pas ouvert au public : pas de facturation, budget de vérification limité (20 crédits Hunter par mois), documents légaux non relus par un juriste. Le code est publié pour être lu, pas pour être réutilisé : ce n'est **pas** un logiciel libre ni open source (voir [Licence](#licence)).
+
+MailFind prend un fichier CSV d'entreprises et rend, pour chacune, les adresses e-mail professionnelles qu'il a trouvées. Chaque adresse garde l'URL ou le fournisseur d'où elle vient, la méthode, la date, un statut de vérification et un score de 0 à 100 dont le détail s'affiche critère par critère. Les résultats s'exportent, ou partent en brouillon de campagne dans [Campaign Mailer](https://github.com/nagoloumdaniel/Campaign-Mailer).
+
+Application web : <https://mailfind.vercel.app> (Vercel). Pendant la bêta fermée, on y voit la page de connexion et quelques pages publiques ; le reste demande un compte.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/captures/mailfind-connexion-sombre.png">
-  <img alt="Page d'accueil de MailFind : deux adresses réelles avec leur source, leur méthode et leur statut, dont une que le produit ne sait pas vérifier et le dit" src="docs/captures/mailfind-connexion.png">
+  <img alt="Page de connexion de MailFind : deux adresses d'exemple fictives avec leur source, leur méthode et leur statut, dont une que le produit ne sait pas vérifier et le dit" src="docs/captures/mailfind-connexion.png">
 </picture>
 
-## Statut
+*La page de connexion. Les deux adresses affichées (`contact@acme.fr`, `recrutement@beta.io`) sont des **exemples fictifs**, pas des données collectées. Elles illustrent le format : la seconde porte le statut « le serveur accepte tout, impossible de conclure », que MailFind ne présente jamais comme vérifié.*
 
-**En ligne depuis le 1er octobre 2026 : <https://mailfind.vercel.app>.** L'application web est sur Vercel, l'API et le processus de traitement sur Railway, décrits en code dans [`.railway/railway.ts`](.railway/railway.ts) et [`vercel.json`](vercel.json). Le détail de la mise en service est dans [docs/provisioning.md](docs/provisioning.md).
+## Ce que MailFind fait
 
-**Phases 0 à 9 terminées, Phase 10 en cours.** MailFind est en ligne, sauvegardé chaque jour, et la recette sur 100 entreprises réelles est passée : 99 entreprises traitées de bout en bout en 5 min 42 s, 636 adresses, aucune sans source (`docs/recette/phase-10-resultat.md`). Il reste à ouvrir la bêta, et à trancher le budget de vérification de boîte dont dépend le taux de couverture.
+- **Importe** un CSV (5 000 lignes et 5 Mo au plus) de noms d'entreprises, de domaines ou d'adresses de sites.
+- **Identifie** chaque entreprise : identité légale (SIREN) via l'API publique « Recherche d'entreprises », domaine officiel via Brave Search quand il n'est pas fourni.
+- **Collecte** sur les pages publiques du site officiel (accueil, contact, carrières, mentions légales, équipe), avec un simple `fetch` et Cheerio, sans navigateur headless. Profondeur au choix : 3, 10 ou 25 pages par site.
+- **Enrichit** par Hunter quand le site n'a pas donné le type d'adresse cherché, puis propose des adresses de rôle sur un domaine qui reçoit du courrier.
+- **Vérifie** : sept contrôles locaux, et un huitième niveau, la vérification de boîte par Hunter, uniquement sur demande.
+- **Exporte** en CSV, XLSX, JSON, ou envoie vers Campaign Mailer par lots de 500, en campagne **brouillon** : seul l'utilisateur la lance.
+- **Expose une API publique `/v1`** : clés à portées (hachées), limite de débit par clé, idempotence, pagination par curseur, erreurs RFC 9457, webhooks signés, document OpenAPI 3.1.
 
-**Ce qui fonctionne.** Un import CSV déclenche le pipeline, étape par étape sur deux files : identification de l'entreprise et de son domaine officiel, collecte sur les pages publiques de son site, enrichissement par fournisseur quand le site n'a pas donné un type d'adresse recherché, puis vérification. Chaque adresse porte sa source, son statut, son motif, sa date et un score dont le détail s'affiche critère par critère. La bibliothèque se consulte par entreprise et par contact, avec recherche, filtres combinables, tri, pagination, actions en masse et fusion de doublons. Les résultats s'exportent en CSV, XLSX, JSON et au format d'import de Campaign Mailer.
+## Ce que MailFind ne fait pas
 
-**API publique `/v1`**, documentée en OpenAPI 3.1 sur [`/v1/openapi.json`](https://mailfind.vercel.app/v1/openapi.json) et sur la page `/documentation-api` : clés à portées, limite de débit par clé, idempotence des créations, pagination par curseur, erreurs RFC 9457, webhooks signés. Des tests de contrat échouent quand une route et le document ne disent pas la même chose.
+- **Pas d'accès à votre messagerie.** Google ne transmet que le nom et l'adresse (portées d'identité). L'envoi se fait dans Campaign Mailer.
+- **Pas de connexion SMTP, pas de port 25.** Aucun sondage de boîte depuis nos serveurs : la vérification de boîte passe par un fournisseur.
+- **Pas de contournement.** Le robot suit `robots.txt`, se limite à une requête par seconde et par domaine, s'annonce, ne se connecte à rien, ne décode pas une adresse masquée volontairement, ne contourne ni CAPTCHA ni limite de débit, et ne lit pas les pages rendues uniquement par JavaScript.
+- **Pas d'adresse sans source.** Un déclencheur de base de données (`emails_require_source`) refuse l'insertion d'une adresse dont on ne sait pas d'où elle vient.
+- **Pas de promesse de vérification.** Une vérification est un statut (`valid`, `risky`, `accept_all`, `unknown`, `unverified`, `invalid`), jamais une garantie. `accept_all`, `unknown` et `unverified` ne sont ni présentés ni exportés comme vérifiés.
+- **Pas de taux de couverture annoncé.** Il dépend des sites et du budget de vérification, et n'a pas été mesuré (voir [Chiffres de recette](#chiffres-de-recette)).
 
-**Intégration Campaign Mailer** (1er octobre 2026). Une sélection de contacts part dans [Campaign Mailer](https://github.com/nagoloumdaniel/Campaign-Mailer) sous forme de campagne en brouillon, par lots de 500, dans une tâche qui reprend après une panne sans jamais créer de doublon. Le même envoi passe par l'API publique. Les deux applications se servent aussi de fournisseur d'identité l'une à l'autre : « Se connecter avec Campaign Mailer » ici, « Continuer avec MailFind » là-bas, un seul compte par identité Google, sans doublon (décision D-26).
+## Architecture
 
-**Recette de la collecte** : cinquante entreprises réelles, 90 adresses relevées, toutes retrouvées sur la page citée comme source.
+```mermaid
+flowchart LR
+    U[Navigateur] --> W["Application web<br/>React 19 + Vite<br/>Vercel"]
+    W -- "/api et /v1" --> A["API Express 5<br/>Railway"]
+    A --> PG[("PostgreSQL 18<br/>Neon")]
+    A --> R[("Redis Cloud<br/>sessions + files BullMQ")]
+    A --> S[("Cloudflare R2<br/>gros exports")]
+    R --> K["Processus de traitement<br/>BullMQ<br/>Railway"]
+    K --> PG
+    K --> S
+    K -- "pages publiques" --> SITES[Sites des entreprises]
+    K -- "comptés, mis en cache, plafonnés" --> EXT["Fournisseurs<br/>Recherche d'entreprises, Brave, Hunter"]
+    A -- "lots de 500, brouillon" --> CM[Campaign Mailer]
+```
 
-## Documents
+Deux processus, un dépôt, un schéma de base. L'API répond aux requêtes ; le processus de traitement vide les files. L'application web ne parle à l'API que par ses propres chemins `/api` et `/v1`, que Vercel renvoie vers Railway : le cookie de session reste sur une seule origine. Le détail est dans [docs/architecture.md](docs/architecture.md).
 
-| Document | Contenu |
+### Le pipeline en cinq étapes
+
+Chaque étape est une tâche BullMQ indépendante : elle peut échouer, être rejouée et reprendre après un redémarrage sans refaire ce qui est fait.
+
+```mermaid
+flowchart LR
+    P["import.plan<br/>normaliser, dédupliquer"] --> I["company.identify<br/>SIREN, domaine officiel"]
+    I --> C["company.crawl<br/>pages publiques,<br/>adresses + sources"]
+    C --> E["company.enrich<br/>types manquants :<br/>fournisseur, rôles"]
+    E --> V["company.verify<br/>7 contrôles locaux,<br/>niveau 8 sur demande, score"]
+```
+
+### Principes tenus dans le code
+
+| Principe | Où |
 | --- | --- |
-| [Cahier des charges](docs/cahier-des-charges.md) ([PDF](docs/cahier-des-charges.pdf)) | Exigences fonctionnelles et techniques, modèle de données, sécurité, conformité, recette |
-| [Roadmap](ROADMAP.md) | Phases, lots de travail, skills à charger pour chaque lot, critères de fin de phase |
-| [Décisions](docs/decisions.md) | Choix techniques gelés, fournisseurs, quotas, budget, avec leur justification |
-| [Architecture](docs/architecture.md) | Comment les pièces tiennent ensemble, et où regarder |
-| [Procédures d'incident](docs/runbook.md) | Quoi faire quand quelque chose ne va pas |
-| [Collecte et vérification](docs/collecte-et-verification.md) | Ce que le robot lit, et ce qu'un statut veut dire |
-| [Guide de l'API](docs/guide-api.md) | Portées, idempotence, pagination, webhooks |
-| [Provisionnement](docs/provisioning.md) | Les services en face de l'application, et la mise en ligne |
-| [Sécurité](docs/security.md) | Ce qui est chiffré, et comment faire tourner une clé |
-| [Conformité](docs/legal/) | Registre des traitements, analyse d'impact, sous-traitants, mention d'information |
-| [CLAUDE.md](CLAUDE.md) | Règles de travail dans ce dépôt |
+| Aucune adresse sans source | déclencheur `emails_require_source`, migration 0003 |
+| Une vérification est un statut | `backend/src/emails/visibility.ts`, exports |
+| Score de 0 à 100 décomposé : les lignes du détail totalisent toujours le score | `backend/src/emails/score.ts` (D-18) |
+| Garde SSRF : aucune requête vers une adresse privée, après DNS et après chaque redirection | `backend/src/net/` |
+| Appels payants comptés, mis en cache et plafonnés : réserver, appeler, régler | `backend/src/providers/credits.ts` |
+| API `/v1` contractuelle : des tests échouent quand une route et le document OpenAPI divergent | `backend/src/api/openapi/` |
+| Intégration Campaign Mailer par son API versionnée, jamais par sa base | `backend/src/campaign-mailer/` |
+
+## Pile
+
+| Couche | Choix |
+| --- | --- |
+| Langage | TypeScript (strict), Node.js 24 |
+| Interface | React 19, Vite, Tailwind CSS 4 (SPA) |
+| API | Express 5, pino, Sentry, Passport (Google, identité seulement) |
+| Traitement | BullMQ sur ioredis, Cheerio |
+| Données | PostgreSQL 18 (Neon), 18 migrations réversibles, 26 tables ; Redis Cloud (files BullMQ et sessions node-redis) ; Cloudflare R2 |
+| Hébergement | Vercel (web), Railway (API et processus de traitement, décrits dans [`.railway/railway.ts`](.railway/railway.ts)) |
+| Qualité | Vitest, un parcours de bout en bout Playwright, ESLint, Prettier, husky |
+
+Choix gelés et leur justification : [docs/decisions.md](docs/decisions.md).
+
+## Chiffres de recette
+
+Recette du **2 octobre 2026** sur un CSV de 100 lignes (entreprises réelles : jeunes pousses, grands groupes, associations, universités), exécutée depuis la machine de l'auteur contre une branche Neon de développement. Détail : [docs/recette/phase-10-resultat.md](docs/recette/phase-10-resultat.md).
+
+| Mesure | Résultat |
+| --- | --- |
+| Entreprises traitées | 99 (deux lignes désignaient le même domaine et ont été réunies) |
+| Sites explorés | 94 |
+| Adresses relevées | 636, dont **0 sans source** |
+| Durée de bout en bout | 5 min 42 s, sans intervention |
+| Statuts, sans vérification de boîte | 631 `unverified`, 5 `risky` |
+
+Ces chiffres montrent que le pipeline va au bout et que la règle « pas d'adresse sans source » tient. Ils ne disent **pas** que ces adresses sont valides : aucune boîte n'a été vérifiée, faute de budget fournisseur (environ 318 crédits Hunter pour les 636 adresses, contre un plafond de 20 par mois). Le critère de couverture reste donc non mesuré.
+
+Une recette antérieure de la collecte (Phase 3, clôturée le 29 septembre 2026) sur cinquante entreprises réelles a relevé 90 adresses, toutes retrouvées sur la page citée comme source.
+
+## Limites et statut
+
+- **Bêta fermée.** Phases 0 à 9 terminées, phase 10 (bêta) en cours. La phase 7B (vérification certifiée, annuaire partagé) est documentée, pas commencée.
+- **Essai déployé MailFind vers Campaign Mailer jamais réalisé.** L'intégration est couverte par des tests de contrat contre une copie de l'API de Campaign Mailer, pas par un envoi réel entre les deux applications en ligne.
+- **Vérification de boîte limitée par le budget** (20 crédits Hunter par mois) : l'essentiel des adresses reste `unverified`.
+- **Pas de revue juridique.** Le registre des traitements, l'analyse d'impact et la mention d'information de [docs/legal/](docs/legal/) n'ont pas été relus par un juriste. MailFind ne prétend à aucune conformité.
+- **Pas de facturation.**
+- **Pages rendues par JavaScript non lues** : une entreprise peut repartir sans adresse, avec la raison enregistrée.
+- **Contributions externes non acceptées.** Le projet est propriétaire et mené par une seule personne : les pull requests ne sont pas examinées. Un défaut de sécurité se signale selon [SECURITY.md](SECURITY.md).
+
+## Tests
+
+Environ 798 cas de test dans 94 fichiers (dont 36 de tests d'intégration contre un vrai PostgreSQL 18), plus un parcours de bout en bout Playwright (connexion, import, suivi, page Contacts, export). La couverture des lignes était de 89 % selon la [roadmap](ROADMAP.md) à la fin de la phase 9 ; elle n'a pas été remesurée depuis. GitHub Actions est restreint sur ce compte : [`scripts/ci.mjs`](scripts/ci.mjs) joue la CI en local, avec les mêmes étapes (voir plus bas).
 
 ## Progression
 
@@ -52,45 +135,64 @@ MailFind transforme une liste d'entreprises en adresses email professionnelles v
 - [ ] Phase 7B : Vérification certifiée et annuaire partagé (documentée, pas commencée)
 - [x] Phase 8 : Sécurité, conformité, quotas et coûts
 - [x] Phase 9 : Tests, observabilité et documentation
-- [ ] Phase 10 : Mise en production et bêta (mise en ligne faite, bêta à ouvrir)
+- [ ] Phase 10 : Mise en production et bêta (mise en ligne faite, bêta en cours)
 
-## Pile
+## Documents
 
-TypeScript, React 19, Vite, Tailwind CSS, Node.js 24, Express 5, PostgreSQL 18 (Neon), BullMQ sur Redis (Redis Cloud), Cloudflare R2, Cheerio, Passport (Google, identité seulement), pino, Sentry. Hébergement : Vercel pour l'application web, Railway pour l'API et le processus de traitement. Détail et justification dans la section 8 du cahier des charges, choix gelés dans [docs/decisions.md](docs/decisions.md).
+| Document | Contenu |
+| --- | --- |
+| [Cahier des charges](docs/cahier-des-charges.md) ([PDF](docs/cahier-des-charges.pdf)) | Exigences fonctionnelles et techniques, modèle de données, sécurité, conformité, recette |
+| [Roadmap](ROADMAP.md) | Phases, lots de travail, critères de fin de phase |
+| [Décisions](docs/decisions.md) | Choix techniques gelés, fournisseurs, quotas, budget, avec leur justification |
+| [Architecture](docs/architecture.md) | Comment les pièces tiennent ensemble, et où regarder |
+| [Collecte et vérification](docs/collecte-et-verification.md) | Ce que le robot lit, et ce qu'un statut veut dire |
+| [Guide de l'API](docs/guide-api.md) | Portées, idempotence, pagination, webhooks |
+| [Guide de la bêta](docs/guide-beta.md) | Prise en main pour les testeurs |
+| [Procédures d'incident](docs/runbook.md) | Quoi faire quand quelque chose ne va pas |
+| [Provisionnement](docs/provisioning.md) | Les services en face de l'application, et la mise en ligne |
+| [Sécurité](docs/security.md) et [SECURITY.md](SECURITY.md) | Ce qui est chiffré, rotation des clés, signalement d'une faille |
+| [Conformité](docs/legal/) | Registre des traitements, analyse d'impact, sous-traitants, mention d'information (non relus par un juriste) |
+
+## Captures manquantes
+
+Une seule page est documentée en image : la connexion, ci-dessus. Il n'existe pas encore de capture à jour du tableau de bord, de l'import et de son suivi, de la page Contacts, du détail d'une adresse avec son score, des exports ni de la page de l'API. Elles seront ajoutées à partir de données d'exemple fictives, jamais d'adresses collectées.
 
 ## Organisation du dépôt
 
 ```text
 mailfind/
-├── frontend/           React 19 + Vite, point d'entree src/main.tsx
-├── backend/            API Express et processus BullMQ, point d'entree src/index.ts
-│   ├── src/            routes, services, pipeline, crawler, verification
-│   └── migrations/     SQL numerote, chaque migration avec son retour arriere
-├── docs/               cahier des charges, decisions, provisionnement, securite
+├── frontend/           React 19 + Vite, point d'entrée src/main.tsx
+├── backend/            API Express et processus BullMQ, point d'entrée src/index.ts
+│   ├── src/            routes, services, pipeline, crawler, vérification
+│   └── migrations/     SQL numéroté, chaque migration avec son retour arrière
+├── e2e/                parcours de bout en bout Playwright
+├── docs/               cahier des charges, décisions, provisionnement, sécurité
 ├── .railway/           l'infrastructure Railway, en TypeScript
-├── vercel.json         build et renvois de l'application web
-├── ROADMAP.md          le plan de reference, phase par phase
-├── CLAUDE.md           regles de travail dans ce depot
+├── vercel.json         build, renvois et en-têtes de l'application web
+├── ROADMAP.md          le plan de référence, phase par phase
+├── CLAUDE.md           règles de travail dans ce dépôt
 └── package.json        racine des deux espaces de travail npm
 ```
 
-## Démarrer
+## Démarrer en local
+
+Réservé à l'auteur : il faut des comptes et des clés pour les services externes, qui ne sont pas fournis.
 
 ```text
 npm install
 cp backend/.env.example backend/.env   # puis remplir
-npm run check:services                 # les services repondent
-npm run migrate -- up                  # schema a jour
+npm run check:services                 # les services répondent
+npm run migrate -- up                  # schéma à jour
 npm run verify                         # format, lint, types, tests, build
 
 npm run dev:backend                    # API sur le port 3000
-npm run dev:worker                     # traitement des imports, a lancer a cote de l'API
+npm run dev:worker                     # traitement des imports, à lancer à côté de l'API
 npm run dev:frontend                   # interface sur le port 5173
 ```
 
 ### La CI tourne ici, pas sur GitHub
 
-GitHub Actions est restreint sur ce compte : le workflow de [`.github/workflows/verify.yml`](.github/workflows/verify.yml) reste juste, mais personne ne l'exécute. [`scripts/ci.mjs`](scripts/ci.mjs) tient le rôle, avec les mêmes étapes et les mêmes services.
+Le workflow de [`.github/workflows/verify.yml`](.github/workflows/verify.yml) est écrit mais personne ne l'exécute. [`scripts/ci.mjs`](scripts/ci.mjs) tient le rôle, avec les mêmes étapes et les mêmes services.
 
 ```text
 npm run ci              tout, services compris, environ trois minutes
@@ -111,37 +213,30 @@ npm run test:integration
 
 `TEST_REDIS_URL` active les tests de la file de politesse par domaine, qui vit dans Redis (`docker run -d -p 6379:6379 redis:8`). Sans lui, ces tests sont sautés, les autres tournent.
 
-Recette de la Phase 3 sur de vraies entreprises. Une liste de cinquante domaines est prête, à compléter ou remplacer par les entreprises réellement visées :
+Recette de la collecte sur de vraies entreprises (liste de cinquante domaines fournie) : chaque site est exploré avec les vraies règles, puis chaque adresse relevée est recherchée à nouveau dans la page citée comme source.
 
 ```text
 npm run crawl:check -- docs/recette/phase-3-domaines.txt
 ```
 
-Chaque site est exploré avec les vraies règles, puis chaque adresse relevée est recherchée à nouveau dans la page citée comme source. Le script conclut « critère tenu » seulement si toutes y figurent, et « non démontré » si aucune adresse n'a été relevée.
-
-## Exploiter
+### Exploiter
 
 | Commande | Ce qu'elle fait |
 | --- | --- |
-| `npm run ci` | la barrière complète : verrou, format, lint, types, tests, build, vulnérabilités, intégration. Monte un PostgreSQL 18 et un Redis jetables, et les efface. |
-| `npm run verify` | format, lint, types, tests, build. La barrière avant chaque commit. |
+| `npm run ci` | la barrière complète : verrou, format, lint, types, tests, build, vulnérabilités, intégration |
+| `npm run verify` | format, lint, types, tests, build. La barrière avant chaque commit |
 | `npm run check:services` | prouve que Neon, Redis, R2 et les identifiants Google répondent |
 | `npm run migrate -- status` | liste les migrations ; `up` applique, `down` revient d'une |
 | `npm run rotate:encryption` | réécrit les secrets avec la clé courante, après une rotation |
 
-- Santé de l'API : `GET /health`.
-- Chiffrement au repos et rotation des clés : [docs/security.md](docs/security.md).
-- Services, hébergeurs et mise en ligne : [docs/provisioning.md](docs/provisioning.md).
-- Appliquer un changement d'infrastructure Railway : `railway config apply`. Sous Windows, poser d'abord `$env:_` sur `railway.exe`, le SDK l'y cherche.
+Santé de l'API : `GET /health`. Appliquer un changement d'infrastructure Railway : `railway config apply` (sous Windows, poser d'abord `$env:_` sur `railway.exe`, le SDK l'y cherche).
 
-## Ce que MailFind ne fait pas
+## Transparence sur l'IA
 
-- **Aucun accès à la messagerie.** Google ne transmet que le nom et l'adresse : trois portées d'identité, jamais Gmail. L'envoi se fait dans Campaign Mailer, avec ses propres autorisations.
-- **Aucun sondage de boîte depuis nos serveurs.** La vérification SMTP passe par un fournisseur : Railway bloque le port 25 en sortie, et sonder depuis l'IP de l'application la ferait entrer dans les listes de blocage.
-- **Aucun contournement.** Le robot suit `robots.txt`, se limite à une requête par seconde et par domaine, s'annonce, ne se connecte à rien, ne tente pas de décoder une adresse masquée volontairement, et ne contourne ni CAPTCHA ni limite de débit.
-- **Aucune adresse sans source.** La base refuse une adresse dont on ne sait pas d'où elle vient.
-- **La vérification est un statut, jamais une promesse.** `accept_all`, `unknown` et `unverified` ne sont jamais présentés ni exportés comme vérifiés.
+Ce projet est développé avec l'assistance de Claude Code (modèles Claude d'Anthropic) : une grande partie du code, des tests et de la documentation a été rédigée avec lui, et les commits concernés portent la mention `Co-Authored-By`. Les règles de travail données à l'assistant sont publiques dans [CLAUDE.md](CLAUDE.md). Les décisions de produit, les choix gelés de [docs/decisions.md](docs/decisions.md) et la validation des phases reviennent à l'auteur. MailFind n'utilise aucun modèle d'IA dans son fonctionnement : une adresse vient d'une page, d'un fournisseur, d'une règle de déduction documentée ou d'une saisie.
 
 ## Licence
 
-Propriétaire. Copyright (c) 2026 Daniel Nagoloum Talla. Tous droits réservés. Voir [LICENSE](LICENSE).
+Logiciel propriétaire. Copyright (c) 2026 Daniel Nagoloum Talla. **Code visible, tous droits réservés.** Voir [LICENSE](LICENSE).
+
+Le dépôt est public pour qu'on puisse lire le code, ce qui ne donne aucun droit de l'utiliser, le copier, le modifier ou le redistribuer. Ce n'est pas un logiciel libre ni open source.
